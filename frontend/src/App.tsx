@@ -806,6 +806,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [mapError, setMapError] = useState("");
   const eligibleProjects = projects.filter((project) =>
     ["construction", "infrastructure"].includes(project.project_type)
+    && Array.isArray(project.expected_result.infrastructure) && project.expected_result.infrastructure.length > 0
     && ["draft", "submitted", "approved"].includes(project.status)
   );
   const loadMap = useCallback(async () => {
@@ -898,8 +899,12 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       })}
       {placed.map((item) => {
         const position = axialPosition(Number(item.q), Number(item.r));
-        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: "placed_infrastructure", properties: item.metadata || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name)}`}>
-          <i className="map-marker-fallback" /><span className="map-marker-name">{String(item.name)}</span>
+        const metadata = item.metadata as Record<string, unknown> | undefined;
+        const properties = metadata?.properties as Record<string, unknown> | undefined;
+        const image = typeof properties?.image_data_url === "string" ? properties.image_data_url : "";
+        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: String(metadata?.kind || "placed_infrastructure"), properties: properties || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name}`}>
+          {image.startsWith("data:image/") ? <img className="map-marker-image" src={image} alt="" /> : <i className="map-marker-fallback" />}
+          <span className="map-marker-name">{String(item.name)}</span>
         </button>;
       })}
       <div className="map-coordinate">ОСЕВЫЕ КООРДИНАТЫ q / r · POINTY-TOP</div>
@@ -915,7 +920,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         <label>Координата r<input type="number" step="1" value={r} onChange={(event) => setR(event.target.value)} /></label>
       </div>
       <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : "Отправить площадку на согласование"}</button>
-      {eligibleProjects.length === 0 && <p className="muted small">Сначала создайте строительный проект и отправьте его на согласование.</p>}
+      {eligibleProjects.length === 0 && <p className="muted small">Сначала создайте строительный проект с выбранным объектом из каталога.</p>}
     </section>
     {pendingPlacements.length > 0 && <section className="form-section">
       <strong>Площадки, ожидающие согласования</strong>
