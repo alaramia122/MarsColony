@@ -197,7 +197,7 @@ def advance_game_session(
                     "load_id": f"project:{item.id}",
                     "requested_kw": float(item.energy_kwh_per_period) / period_hours,
                     "priority": 4,
-                    "minimum_kw": 0.0,
+                    "minimum_kw": float(item.energy_kwh_per_period) / period_hours,
                 }
                 for item in active_projects
                 if float(item.energy_kwh_per_period) > 0
