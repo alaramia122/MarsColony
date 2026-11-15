@@ -121,6 +121,28 @@ class EntityCatalogApiTests(unittest.TestCase):
             proposal["catalog_id"],
         )
 
+    def test_builtin_construction_catalogue_requires_real_material_stocks(self):
+        request = ProjectCreate(
+            title="Строительство солнечной электростанции",
+            description="Проверка обязательных строительных материалов.",
+            project_type="construction",
+            domain_codes=["energy", "construction"],
+            budget_credits=180,
+            duration_periods=2,
+            labor_fte=1.5,
+            energy_kwh_per_period=12,
+            catalog_entity_ids=["solar_array"],
+        )
+        with self.assertRaises(HTTPException) as missing_materials:
+            projects_api.create_project(self.session_id, request, self.owner_token)
+        self.assertEqual(missing_materials.exception.status_code, 422)
+        request.resource_requirements = {"steel": 80, "aluminium": 60, "electronics": 15}
+        project = projects_api.create_project(self.session_id, request, self.owner_token)
+        self.assertEqual(
+            project["resource_requirements"],
+            {"steel": 80, "aluminium": 60, "electronics": 15},
+        )
+
     def test_custom_entity_photo_is_sanitized_persisted_and_inherited_by_project_asset(self):
         tiny_png = (
             "data:image/png;base64,"
