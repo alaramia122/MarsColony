@@ -311,6 +311,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         restored = api.get_session(self.session_id, self.owner_token)
         self.assertEqual(restored["state"]["budget_credits"], 575.0)
         self.assertEqual(restored["reserved_budget_credits"], 500.0)
+        self.assertEqual(restored["available_budget_credits"], 75.0)
 
 
 if __name__ == "__main__":
