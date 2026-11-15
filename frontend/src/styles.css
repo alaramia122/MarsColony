@@ -48,3 +48,41 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .approval-history{margin-top:12px;padding-top:10px;border-top:1px solid #2b3b44}
 .approval-history strong{font-size:9px;color:#e4a57d;text-transform:uppercase;letter-spacing:1px}
 .approval-history p{font-size:9px;line-height:1.55;color:#aebbc1;margin:6px 0 0}
+
+/* Player responsibility workspace, map guidance and captain AI setup */
+.project-form label small{display:block;color:#82939c;font-size:9px;line-height:1.5;margin-top:5px;font-weight:400}
+.field-help,.map-instructions,.ai-settings-help{font-size:10px;line-height:1.65;color:var(--muted);max-width:850px}
+.map-instructions{margin:8px 0 0}
+.map-base{cursor:pointer;color:inherit;font:inherit}
+.map-marker{cursor:pointer;color:#e9edf0;font:inherit}
+.map-marker.selected{outline:2px solid #67c49b;z-index:2}
+.map-object-details{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;margin-top:14px;padding:15px;border:1px solid #40515b;border-radius:7px;background:#19262e}
+.map-object-details h3{font-size:13px;margin:7px 0}
+.map-object-details p,.map-object-details small{font-size:10px;color:var(--muted);line-height:1.6}
+.role-workspace,.ai-settings-layout{display:grid;gap:14px}
+.role-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.role-profile h2,.ai-settings-layout h2{margin:8px 0 12px}
+.role-tags{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px}
+.role-tag{padding:6px 9px;border:1px solid #70523f;border-radius:20px;color:#f2b184;font-size:9px}
+.role-description{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.role-description h3,.domain-work-card h3{font-size:12px;margin:0 0 6px}
+.role-description p,.domain-work-card p{font-size:10px;line-height:1.6;color:var(--muted)}
+.role-description ul{padding-left:18px;color:#c4ced2;font-size:10px;line-height:1.8}
+.domain-work-card{padding:14px 0;border-top:1px solid var(--line)}
+.domain-metrics{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.domain-metrics>div{min-width:170px;flex:1;padding:10px;border:1px solid #34444e;border-radius:6px;background:#19262e}
+.domain-metrics span,.domain-metrics strong{display:block}
+.domain-metrics span{font-size:9px;color:var(--muted)}
+.domain-metrics strong{font:13px "DM Mono",monospace;margin-top:6px}
+.domain-metrics small{font:9px Inter,sans-serif;color:var(--muted)}
+.domain-projects{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--muted);font-size:9px}
+.domain-projects strong{color:#e6b18f}
+.domain-projects span,.role-task-row{padding:6px 8px;border:1px solid #34444e;border-radius:5px;background:#19262e}
+.role-task-row{display:flex;justify-content:space-between;gap:12px;margin-top:8px;font-size:10px}
+.role-task-row span{color:var(--muted);text-align:right}
+.ai-settings-layout{grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr)}
+.ai-settings-layout label{display:block;color:#b6c1c5;font-size:10px;margin:14px 0}
+.ai-settings-layout input,.ai-settings-layout select{display:block;width:100%;margin-top:7px;border:1px solid #34444e;border-radius:6px;background:#19262e;padding:11px;color:#e9edf0;font-size:11px}
+.env-preview{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;background:#10171d;border:1px solid #34444e;border-radius:7px;color:#d8e0e3;font:10px/1.7 "DM Mono",monospace}
+@media(max-width:900px){.ai-settings-layout{grid-template-columns:1fr}.role-summary-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.role-task-row,.map-object-details{align-items:stretch;flex-direction:column}.role-task-row span{text-align:left}.role-summary-grid{grid-template-columns:1fr}}

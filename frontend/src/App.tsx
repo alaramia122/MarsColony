@@ -10,6 +10,7 @@ type SessionData = {
   reserved_budget_credits: number;
   state: Record<string, unknown>;
   events?: Array<{ sequence: number; type: string; payload: Record<string, unknown>; created_at?: string | null }>;
+  resource_catalog?: Record<string, { state_key?: string; unit?: string; precision_digits?: number }>;
 };
 type Player = { id: string; display_name: string; roles: string[]; responsibility_domains: string[] };
 type Project = {
@@ -20,7 +21,7 @@ type Project = {
   approvals?: Array<{ player_id: string; decision: string; comment: string; approval_mode: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
-type View = "overview" | "map" | "projects" | "people" | "assistant" | "tutorial";
+type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistant" | "ai-settings" | "tutorial";
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
@@ -62,6 +63,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [connectionDetail, setConnectionDetail] = useState("Ожидание WebSocket-соединения.");
   const screenMode = new URLSearchParams(window.location.search).get("view") === "screen";
 
   const refresh = useCallback(async () => {
@@ -86,12 +88,14 @@ export default function App() {
       if (!active) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}${API}/sessions/${auth.sessionId}/stream`);
-      socket.onopen = () => { setReconnecting(false); socket?.send(JSON.stringify({ type: "authenticate", player_token: auth.token })); };
+      socket.onopen = () => { setReconnecting(false); setConnectionDetail("WebSocket открыт; выполняется аутентификация игрока."); socket?.send(JSON.stringify({ type: "authenticate", player_token: auth.token })); };
       socket.onmessage = (message) => {
         const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown>; created_at?: string | null };
         if (data.type === "snapshot") {
-          setConnected(true); setReconnecting(false); setError("");
+          setConnected(true); setReconnecting(false); setError(""); setConnectionDetail("Сервер подтвердил игрока и отправил актуальный снимок сессии.");
           void refresh().catch((reason: Error) => setError(reason.message));
+        } else if (data.type === "heartbeat") {
+          setConnected(true); setReconnecting(false); setConnectionDetail("Серверный heartbeat получен: " + new Date().toLocaleTimeString("ru-RU"));
         } else if (data.type === "event" && typeof data.sequence === "number") {
           setEvents((previous) => [...previous, {
             sequence: data.sequence!, event_type: data.event_type || "session.updated", payload: data.payload || {}, created_at: data.created_at
@@ -101,6 +105,7 @@ export default function App() {
       };
       socket.onclose = (event) => {
         setConnected(false);
+        setConnectionDetail(`WebSocket закрыт: код ${event.code}${event.reason ? " · " + event.reason : ""}.`);
         if (event.code === 4401 || event.code === 4404) {
           setReconnecting(false);
           setError(event.code === 4401
@@ -111,7 +116,7 @@ export default function App() {
         setReconnecting(true);
         if (active) reconnectTimer = window.setTimeout(() => setRetry((value) => value + 1), 1500);
       };
-      socket.onerror = () => { setConnected(false); setReconnecting(true); };
+      socket.onerror = () => { setConnected(false); setReconnecting(true); setConnectionDetail("Ошибка WebSocket. Подробности доступны в консоли браузера и логах API/Nginx."); };
     };
     void refresh().catch((reason: Error) => setError(reason.message));
     connect();
@@ -209,7 +214,7 @@ export default function App() {
           <span className="brand-mark">M</span><span>MARS<span className="brand-light">COLONY</span></span>
         </a>
         <div className="topbar-right">
-          <span className={connected ? "connection online" : "connection"}><i />{connected ? "Синхронизация активна" : reconnecting ? "Связь потеряна · переподключение" : "Подключение…"}</span>
+          <span className={connected ? "connection online" : "connection"} title={connectionDetail}><i />{connected ? "Синхронизация активна" : reconnecting ? "Связь потеряна · переподключение" : "Подключение…"}</span>
           {!screenMode && <button className="button button-quiet" onClick={leave}>Выйти</button>}
         </div>
       </header>
@@ -220,10 +225,10 @@ export default function App() {
           <div className="session-id">{auth.sessionId.slice(0, 8).toUpperCase()}</div>
           <div className="nav-list">
             {([
-              ["overview", "Обзор", "◫"], ["map", "Карта колонии", "⌖"],
+              ["overview", "Обзор колонии", "◫"], ["workspace", "Мой кабинет", "▣"], ["map", "Карта колонии", "⌖"],
               ["projects", "Проекты", "▤"], ["people", "Участники", "♙"],
-              ["assistant", "ИИ-ведущий", "✧"], ["tutorial", "Обучение", "?"]
-            ] as Array<[View, string, string]>).map(([key, label, icon]) =>
+              ["assistant", "ИИ-ведущий", "✧"], ["ai-settings", "Настройки ИИ", "⚙"], ["tutorial", "Обучение", "?"]
+            ] as Array<[View, string, string]>).filter(([key]) => key !== "ai-settings" || Boolean(commander?.roles.includes("colony_commander"))).map(([key, label, icon]) =>
               <button key={key} className={view === key ? "nav-item active" : "nav-item"} onClick={() => setView(key)}>
                 <span className="nav-icon">{icon}</span>{label}
                 {key === "projects" && projects.length > 0 && <span className="nav-count">{projects.length}</span>}
@@ -240,8 +245,8 @@ export default function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
-              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : "ИИ-ведущий"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : "Сводки колонии, проектные предложения и сценарные события."}</p>
+              <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : "ИИ-ведущий"}</h1>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
             <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ 4</small></strong></div>
           </div>
@@ -249,8 +254,10 @@ export default function App() {
           {error && <div className="alert">{error}<button onClick={() => setError("")}>×</button></div>}
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
+          {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} state={state} currentPeriod={session?.current_period ?? 0} onNavigate={setView} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
-          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
+          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
+          {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
           {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} onReturnToPreviousSession={returnToPreviousSession} hasPreviousSession={Boolean(previousAuth)} busy={busy} />}
@@ -270,6 +277,107 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+
+const ROLE_INFO: Record<string, { title: string; purpose: string; duties: string[] }> = {
+  colony_commander: { title: "Командир колонии", purpose: "Обеспечивает целостность управления колонией и принимает итоговые решения.", duties: ["Приоритеты и общий план развития", "Назначение ролей и зон ответственности", "Командирские решения и продвижение периода", "Контроль межведомственных рисков и критических резервов"] },
+  domain_lead: { title: "Руководитель направления", purpose: "Отвечает за результаты закреплённых функциональных направлений.", duties: ["Готовит планы и проекты в своей зоне", "Следит за профильными показателями и отклонениями", "Согласует проекты, затрагивающие его направление", "Докладывает о рисках и потребности в ресурсах"] },
+  finance_lead: { title: "Финансовый руководитель", purpose: "Контролирует бюджет, финансовую доступность инициатив и обязательства колонии.", duties: ["Контроль доступного и зарезервированного бюджета", "Финансовая оценка проектных заявок", "Контроль затрат и финансовых рисков", "Подготовка вариантов распределения средств"] },
+  engineer: { title: "Инженер", purpose: "Разрабатывает технические решения и сопровождает их реализацию в назначенных направлениях.", duties: ["Подготовка технических параметров проектов", "Проверка реализуемости и ограничений", "Контроль исполнения и состояния объектов", "Подготовка предложений по ремонту и модернизации"] },
+  player: { title: "Участник экипажа", purpose: "Участвует в обсуждении и выполнении задач; полномочия зависят от назначенной роли.", duties: ["Изучает состояние колонии", "Предлагает решения ответственным игрокам", "Выполняет порученные задачи", "Следит за уведомлениями и изменениями"] }
+};
+const DOMAIN_INFO: Record<string, { title: string; purpose: string; metrics: Array<[string, string, string]> }> = {
+  geology: { title: "Геологоразведка и добыча", purpose: "Оценка запасов, разведка и добыча местного сырья.", metrics: [["raw_ice_kg","Запас сырого льда","кг"]] },
+  industry: { title: "Промышленность и производство", purpose: "Переработка сырья, выпуск оборудования, ремонт и производственные мощности.", metrics: [["technologies","Зарегистрировано технологий","шт."]] },
+  energy: { title: "Энергетика", purpose: "Генерация, накопители, распределение нагрузки и резервирование.", metrics: [["power_generation_kw","Мощность генерации","кВт"],["battery_soc_kwh","Заряд аккумуляторов","кВт·ч"]] },
+  life_support: { title: "Жизнеобеспечение", purpose: "Вода, кислород, атмосфера, тепло и непрерывность критических контуров.", metrics: [["oxygen_kg","Запас кислорода","кг"],["prepared_water_kg","Подготовленная вода","кг"]] },
+  construction: { title: "Строительство и инфраструктура", purpose: "Размещение, строительство и обслуживание объектов колонии.", metrics: [["infrastructure","Объектов инфраструктуры","шт."]] },
+  agriculture: { title: "Сельское хозяйство и биотехнологии", purpose: "Производство пищи, гидропоника и биологические циклы.", metrics: [["dry_food_kg","Пищевые запасы","кг"]] },
+  medicine: { title: "Медицина и санитария", purpose: "Здоровье экипажа, медицинская инфраструктура и санитарная безопасность.", metrics: [] },
+  social: { title: "Социальное развитие и демография", purpose: "Жильё, качество жизни и социальная устойчивость.", metrics: [] },
+  education: { title: "Образование и кадры", purpose: "Подготовка специалистов и кадровое планирование.", metrics: [["technologies","Технологий в реестре","шт."]] },
+  science: { title: "Наука и технологии", purpose: "Исследования, испытания, робототехника и технологическая зрелость.", metrics: [["technologies","Технологий в реестре","шт."]] },
+  planetary: { title: "Планетология и исследование территории", purpose: "Картография, оценка ресурсов и территориальных опасностей.", metrics: [["raw_ice_kg","Запас сырого льда","кг"]] },
+  transport: { title: "Транспорт и логистика", purpose: "Маршруты, перевозки, складские потоки и грузовые окна.", metrics: [] },
+  administration: { title: "Администрация и экономика", purpose: "Бюджет, приоритеты, финансирование и обязательства.", metrics: [["budget_credits","Доступный бюджет","кр."]] },
+  safety: { title: "Безопасность и аварийное реагирование", purpose: "Предупреждение аварий, инспекции и реагирование.", metrics: [["oxygen_kg","Запас кислорода","кг"],["battery_soc_kwh","Заряд аккумуляторов","кВт·ч"]] },
+  communications: { title: "Связь и информационные системы", purpose: "Связь, вычислительные ресурсы, данные и автоматизация.", metrics: [] },
+  external_relations: { title: "Межпланетные связи и снабжение", purpose: "Поставки, контракты, импорт и взаимодействие с Землёй.", metrics: [["budget_credits","Доступный бюджет","кр."]] }
+};
+function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavigate }: {
+  player: Player | undefined; players: Player[]; projects: Project[]; state: Record<string, unknown>;
+  currentPeriod: number; onNavigate: (view: View) => void;
+}) {
+  if (!player) return <section className="panel"><h2>Профиль участника не загружен</h2><p className="muted">Обновите страницу или переподключитесь к сессии.</p></section>;
+  const roles = player.roles.length ? player.roles : ["player"];
+  const domains = player.responsibility_domains || [];
+  const scopedProjects = projects.filter((project) => domains.some((domain) => project.domain_codes.includes(domain)));
+  const pending = scopedProjects.filter((project) => project.status === "submitted");
+  const active = scopedProjects.filter((project) => project.status === "executing");
+  const metricValue = (key: string) => {
+    if (key === "infrastructure") return Array.isArray(state.infrastructure) ? state.infrastructure.length : 0;
+    if (key === "technologies") return Array.isArray(state.technologies) ? state.technologies.length : 0;
+    const value = state[key];
+    return typeof value === "number" ? quantity(value, 2) : "Нет данных";
+  };
+  return <div className="role-workspace">
+    <section className="panel role-profile">
+      <div className="eyebrow">PERSONAL RESPONSIBILITY / PERIOD {currentPeriod}</div>
+      <h2>{player.display_name}</h2>
+      <div className="role-tags">{roles.map((role) => <span className="role-tag" key={role}>{ROLE_INFO[role]?.title || role}</span>)}</div>
+      {roles.map((role) => <div className="role-description" key={role}><h3>{ROLE_INFO[role]?.title || role}</h3><p>{ROLE_INFO[role]?.purpose || "Роль участника игровой сессии."}</p><ul>{(ROLE_INFO[role]?.duties || ROLE_INFO.player.duties).map((duty) => <li key={duty}>{duty}</li>)}</ul></div>)}
+    </section>
+    <section className="role-summary-grid">
+      <article className="metric-card"><span>АКТИВНЫЕ ПРОЕКТЫ</span><div><strong>{active.length}</strong><small>в работе</small></div><p>В закреплённых направлениях</p></article>
+      <article className="metric-card"><span>ТРЕБУЮТ РЕШЕНИЯ</span><div><strong>{pending.length}</strong><small>заявок</small></div><p>Ожидают согласования</p></article>
+      <article className="metric-card"><span>УЧАСТНИКОВ</span><div><strong>{players.length}</strong><small>человек</small></div><p>В общей сессии</p></article>
+    </section>
+    <section className="panel">
+      <div className="panel-heading"><div><div className="eyebrow">YOUR DOMAINS</div><h2>Зоны ответственности</h2></div><span className="count-chip">{domains.length}</span></div>
+      {domains.length === 0 ? <p className="muted">За вами пока не закреплены направления. Попросите Капитана назначить зону ответственности.</p> : domains.map((code) => {
+        const info = DOMAIN_INFO[code] || { title: code, purpose: "Описание направления не задано.", metrics: [] as Array<[string,string,string]> };
+        const related = projects.filter((project) => project.domain_codes.includes(code));
+        return <article className="domain-work-card" key={code}>
+          <h3>{info.title}</h3><p>{info.purpose}</p>
+          <div className="domain-metrics">{info.metrics.length ? info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>) : <div><span>Профильные показатели</span><strong>Пока не рассчитываются <small>в MVP</small></strong></strong></div>}</div>
+          <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {project.status}</span>)}</div>
+        </article>;
+      })}
+    </section>
+    <section className="panel">
+      <div className="panel-heading"><div><div className="eyebrow">ACTION QUEUE</div><h2>Мои задачи и решения</h2></div><button className="button button-secondary small-button" onClick={() => onNavigate("projects")}>Открыть проекты</button></div>
+      {pending.length === 0 && active.length === 0 ? <p className="muted">Нет активных задач в закреплённых направлениях.</p> : [...pending,...active].map((project) => <div className="role-task-row" key={project.id}><strong>{project.title}</strong><span>{project.status === "submitted" ? "Ожидает согласования" : "Исполняется"} · {project.domain_codes.map((domain) => DOMAIN_INFO[domain]?.title || domain).join(", ")}</span></div>)}
+    </section>
+  </div>;
+}
+function AISettings() {
+  const [provider, setProvider] = useState("yandex_ai_studio");
+  const [apiKey, setApiKey] = useState("");
+  const [folderId, setFolderId] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("yandexgpt/latest");
+  const [notice, setNotice] = useState("");
+  const config = provider === "yandex_ai_studio"
+    ? "MARS_AI_PROVIDER=yandex_ai_studio\nMARS_AI_YANDEX_API_KEY=" + (apiKey || "<вставьте_ключ>") + "\nMARS_AI_YANDEX_FOLDER_ID=" + (folderId || "<идентификатор_каталога>") + "\nMARS_AI_YANDEX_MODEL=" + (model || "yandexgpt/latest")
+    : "MARS_AI_PROVIDER=openai_compatible\nMARS_AI_BASE_URL=" + (baseUrl || "https://api.example.com/v1") + "\nMARS_AI_API_KEY=" + (apiKey || "<вставьте_ключ>") + "\nMARS_AI_MODEL=" + (model || "<название_модели>");
+  const copyConfig = () => {
+    void navigator.clipboard.writeText(config).then(() => setNotice("Конфигурация скопирована. Вставьте её в .env рядом с docker-compose.yml и перезапустите API.")).catch(() => setNotice("Не удалось автоматически скопировать. Скопируйте конфигурацию из блока ниже вручную."));
+  };
+  return <div className="ai-settings-layout">
+    <section className="panel">
+      <div className="eyebrow">AI PROVIDER / SERVER CONFIGURATION</div><h2>Подключение ИИ-ведущего</h2>
+      <p className="muted ai-settings-help">Настройка выполняется для всей игровой сессии. Ключи не сохраняются в браузере после закрытия страницы и не отправляются в игровой API: панель формирует блок для серверного файла .env. Не вставляйте секреты в общий чат и не публикуйте .env в Git.</p>
+      <label>Провайдер<select value={provider} onChange={(event) => { setProvider(event.target.value); setNotice(""); }}>{[["yandex_ai_studio","Yandex AI Studio"],["openai_compatible","OpenAI-compatible API"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      {provider === "openai_compatible" && <label>Базовый URL API<input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" /></label>}
+      {provider === "yandex_ai_studio" && <label>ID каталога Yandex Cloud<input value={folderId} onChange={(event) => setFolderId(event.target.value)} placeholder="b1g..." /></label>}
+      <label>Название модели<input value={model} onChange={(event) => setModel(event.target.value)} placeholder="yandexgpt/latest" /></label>
+      <label>API-ключ<input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Вставьте API-ключ" /></label>
+      <div className="form-foot"><span className="muted">После изменения .env выполните <code>docker compose up -d --force-recreate api</code>.</span><button className="button button-primary" onClick={copyConfig}>Скопировать настройки</button></div>
+      {notice && <p className="assistant-notice">{notice}</p>}
+    </section>
+    <section className="panel"><div className="eyebrow">CONFIGURATION PREVIEW</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через MARS_AI_PROVIDERS и MARS_AI_TASK_ROUTING. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
+  </div>;
 }
 
 function copyInviteValue(value: string) {
@@ -384,6 +492,7 @@ function Metric({ label, value, unit, detail }: { label: string; value: string; 
 
 function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   const [activeLayer, setActiveLayer] = useState("all");
+  const [selectedAsset, setSelectedAsset] = useState<Record<string, unknown> | null>(null);
   const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
   const matchesLayer = (asset: Record<string, unknown>) =>
     activeLayer === "all" || String(asset.kind || "other") === activeLayer;
@@ -395,28 +504,31 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   const visible = positioned.filter(matchesLayer);
   const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой, затем нажмите на маркер объекта. Перемещение маркеров пока не поддерживается: координаты задаются проектом и хранятся в состоянии колонии.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
       {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
     </div>
     <div className="map-canvas">
       <div className="map-grid" /><div className="map-horizon" />
-      <div className="map-base"><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></div>
+      <button className="map-base" type="button" title="Центральный узел колонии Ares-1" onClick={() => setSelectedAsset({ name: "Базовый модуль Ares-1", kind: "base", properties: { description: "Центральный узел сценария. Подробная геометрия базы пока не задана." } })}><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></button>
       {visible.map((asset, index) => {
         const properties = asset.properties as Record<string, unknown>;
-        return <div className="map-marker" key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }}><i />{String(asset.name || `Объект ${index + 1}`)}</div>;
+        return <button type="button" className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"} key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }} onClick={() => setSelectedAsset(asset)}><i />{String(asset.name || `Объект ${index + 1}`)}</button>;
       })}
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
+    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3><p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.condition ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
     {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {String(asset.kind || "other")}</span>)}</div>}
     {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
 }
 
-function ProjectList({ projects, auth, player, onRefresh }: {
-  projects: Project[]; auth: Auth; player: Player | undefined; onRefresh: () => Promise<void>;
+function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, onRefresh }: {
+  projects: Project[]; auth: Auth; player: Player | undefined; infrastructure: Array<Record<string, unknown>>;
+  resourceCatalog: Record<string, { state_key?: string; unit?: string; precision_digits?: number }>;
+  onRefresh: () => Promise<void>;
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -433,6 +545,9 @@ function ProjectList({ projects, auth, player, onRefresh }: {
   const [loadDelta, setLoadDelta] = useState("0");
   const [assetName, setAssetName] = useState("");
   const [assetKind, setAssetKind] = useState("infrastructure");
+  const [customAssetKind, setCustomAssetKind] = useState("");
+  const [assetX, setAssetX] = useState("");
+  const [assetY, setAssetY] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const roleSet = new Set(player?.roles || []);
@@ -447,9 +562,11 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     communications: "Связь", external_relations: "Внешние связи"
   };
   const resourceLabels: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(resourceCatalog).map(([key, item]) => [key, `${key} (${item.unit || "ед."})`])),
     oxygen: "Кислород, кг", food_solids: "Сухие пищевые вещества, кг",
     usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг"
   };
+  const existingAssetKinds = Array.from(new Set(infrastructure.map((asset) => String(asset.kind || "")).filter(Boolean))).sort();
   const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
@@ -483,8 +600,11 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     if (Object.keys(outputs).length) expected.resource_outputs_per_period = outputs;
     if (Number(generationDelta) > 0) expected.power_generation_kw_delta = Number(generationDelta);
     if (Number(loadDelta) > 0) expected.power_load_kw_delta = Number(loadDelta);
-    if (assetName.trim() && assetKind.trim()) {
-      expected.infrastructure = [{ name: assetName.trim(), kind: assetKind.trim(), properties: { condition: 1 } }];
+    const selectedKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+    if (assetName.trim() && selectedKind) {
+      const properties: Record<string, unknown> = { condition: 1 };
+      if (assetX.trim() !== "" && assetY.trim() !== "") { properties.x = Number(assetX); properties.y = Number(assetY); }
+      expected.infrastructure = [{ name: assetName.trim(), kind: selectedKind, properties }];
     }
     setSaving(true); setActionError("");
     try {
@@ -499,7 +619,7 @@ function ProjectList({ projects, auth, player, onRefresh }: {
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind("infrastructure");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setCustomAssetKind(""); setAssetX(""); setAssetY("");
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
@@ -516,7 +636,8 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     if (assets) assets.forEach((asset) => details.push(`Объект: ${asset.name || "без названия"}`));
     return details.join(" · ") || "Не задан";
   };
-  const invalidAsset = Boolean(assetName.trim()) && !assetKind.trim();
+  const selectedAssetKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+  const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))));
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
     <div className="project-toolbar">
@@ -529,19 +650,21 @@ function ProjectList({ projects, auth, player, onRefresh }: {
       <div className="form-grid">
         <label>Название проекта<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} placeholder="Например, резервный контур воды" /></label>
         <label>Тип проекта<select value={projectType} onChange={(event) => setProjectType(event.target.value)}>{[["construction","Строительство"],["production","Производство"],["repair","Ремонт"],["research","Исследование"],["exploration","Разведка"],["procurement","Закупка"],["infrastructure","Инфраструктура"],["other","Прочее"]].map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        <label>Бюджет, кредиты<input type="number" min="0" max="1000000000" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
-        <label>Длительность, периоды<input type="number" min="1" max="100" step="1" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>
-        <label>Трудозатраты, FTE<input type="number" min="0" max="1000000" step="0.1" value={laborFte} onChange={(event) => setLaborFte(event.target.value)} /></label>
-        <label>Энергия за период, кВт·ч<input type="number" min="0" max="1000000" step="0.1" value={energy} onChange={(event) => setEnergy(event.target.value)} /></label>
+        <label>Бюджет, игровые кредиты<input type="number" min="0" max="1000000000" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} /><small>Общая стоимость проекта. Резервируется при запуске и проверяется по доступному бюджету колонии.</small></label>
+        <label>Длительность, игровые периоды<input type="number" min="1" max="100" step="1" value={duration} onChange={(event) => setDuration(event.target.value)} /><small>Один период сценария Ares-1 равен 30 солам. Срок отсчитывается после запуска.</small></label>
+        <label>Трудозатраты, FTE<input type="number" min="0" max="1000000" step="0.1" value={laborFte} onChange={(event) => setLaborFte(event.target.value)} /><small>Средняя занятость персонала проекта в эквиваленте полной ставки на период исполнения.</small></label>
+        <label>Энергия за период, кВт·ч<input type="number" min="0" max="1000000" step="0.1" value={energy} onChange={(event) => setEnergy(event.target.value)} /><small>Электроэнергия, которую проект должен получить за каждый период выполнения.</small></label>
       </div>
       <div className="form-section"><strong>Направления проекта</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={domains.includes(code)} onChange={(event) => changeDomain(code, event.target.checked)} />{label}</label>)}</div></div>
-      <div className="form-section"><strong>Материальные требования на старте проекта</strong><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceInputs[code] || ""} onChange={(event) => setResourceInputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
-      <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
+      <div className="form-section"><strong>Материальные требования на старте проекта</strong><p className="field-help">Количество ресурсов, которое будет списано со складов при запуске проекта. Указывайте значения в единицах, показанных рядом с ресурсом. Пустое поле означает, что ресурс не требуется.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceInputs[code] || ""} onChange={(event) => setResourceInputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
+      <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><p className="field-help">Дополнительное количество ресурса, которое проект начнёт производить за каждый игровой период после завершения. Это эффект проекта, а не выпуск во время строительства.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
       <div className="form-grid">
         <label>Дополнительная генерация, кВт<input type="number" min="0" step="0.1" value={generationDelta} onChange={(event) => setGenerationDelta(event.target.value)} /></label>
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
-        <label>Вводимый объект инфраструктуры<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный резервуар" /></label>
-        <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
+        <label>Новый объект инфраструктуры<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный резервуар" /><small>Конкретный экземпляр, который появится на карте после завершения проекта.</small></label>
+        <label>Тип объекта<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}<option value="__custom__">＋ Добавить новый тип…</option></select>{assetKind === "__custom__" && <input value={customAssetKind} onChange={(event) => setCustomAssetKind(event.target.value)} maxLength={80} placeholder="Новый идентификатор типа, например water_recycler" />}<small>Выберите существующий тип или добавьте новый. Тип — категория; название выше — отдельный объект.</small></label>
+        <label>Координата X, % от ширины карты<input type="number" min="0" max="100" step="0.1" value={assetX} onChange={(event) => setAssetX(event.target.value)} placeholder="Не задана" /></label>
+        <label>Координата Y, % от высоты карты<input type="number" min="0" max="100" step="0.1" value={assetY} onChange={(event) => setAssetY(event.target.value)} placeholder="Не задана" /><small>Обе координаты необязательны. Если не заданы, объект останется в списке «без координат».</small></label>
       </div>
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
       <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} title={saving ? "Сохраняется другой проектный запрос." : "Заполните название, описание и направление; проверьте бюджет, длительность, труд, энергию и материальные значения."} onClick={() => void createProject()}>Создать черновик</button></div>

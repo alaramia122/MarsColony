@@ -134,6 +134,7 @@ def get_session(
                 .order_by(GameEventRecord.sequence)
             ).all()
             result = serialize_session(record)
+            result["resource_catalog"] = (record.scenario_snapshot or {}).get("resource_catalog", {})
             result["events"] = [
                 {
                     "sequence": event.sequence,
