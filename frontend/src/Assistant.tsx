@@ -32,6 +32,24 @@ type Briefing = {
   risks: string[]; decisions_needed: string[]; next_period_focus: string[];
 };
 
+const localizeError = (message: string) => {
+  const rules: Array<[RegExp, string]> = [
+    [/AI provider is disabled|no AI provider is configured|provider.*not configured/i, "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api."],
+    [/API key.*(missing|required)|credentials.*missing/i, "Не задан API-ключ ИИ. Проверьте настройки провайдера в файле .env."],
+    [/folder.*(missing|required)|folder id/i, "Не указан идентификатор каталога Yandex Cloud. Проверьте MARS_AI_YANDEX_FOLDER_ID."],
+    [/Invalid player token/i, "Токен игрока недействителен. Войдите в игровую сессию заново."],
+    [/Player token is required/i, "Для выполнения действия требуется авторизация игрока."],
+    [/Game session not found/i, "Игровая сессия не найдена."],
+    [/Only the colony commander/i, "Это действие доступно только командиру колонии."],
+    [/AI request limit for this session/i, "Достигнут часовой лимит запросов к ИИ для игровой сессии."],
+    [/AI request limit for this player/i, "Достигнут часовой лимит запросов к ИИ для этого игрока."],
+    [/AI event did not match its response contract/i, "ИИ вернул событие в неподдерживаемом формате. Повторите запрос позже."],
+    [/Game state changed while the event was being generated/i, "Состояние игры изменилось во время подготовки события. Обновите данные и повторите запрос."]
+  ];
+  for (const [pattern, replacement] of rules) if (pattern.test(message)) return replacement;
+  return message;
+};
+
 async function aiRequest<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -39,7 +57,7 @@ async function aiRequest<T>(path: string, token: string, init: RequestInit = {})
   const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || `Ошибка запроса: HTTP ${response.status}`);
+    throw new Error(localizeError(body.detail || `Ошибка запроса: HTTP ${response.status}`));
   }
   return response.json() as Promise<T>;
 }
@@ -84,7 +102,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
   }, [sessionId, token]);
 
   useEffect(() => {
-    void load().catch((reason: Error) => setError(reason.message));
+    void load().catch((reason: Error) => setError(localizeError(reason.message)));
   }, [load, eventWatermark]);
 
   const run = async (key: string, action: () => Promise<void>) => {
@@ -187,7 +205,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
   return <div className="assistant-layout">
     <section className="panel assistant-panel">
       <div className="panel-heading">
-        <div><div className="eyebrow">AI GAME MASTER</div><h2>Оперативная сводка</h2></div>
+        <div><div className="eyebrow">ИИ-ВЕДУЩИЙ</div><h2>Оперативная сводка</h2></div>
         <button className="button button-secondary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateBriefing()}>
           {busy === "briefing" ? "Анализ…" : "Сформировать сводку"}
         </button>
@@ -205,7 +223,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">NATURAL LANGUAGE / PROJECT OFFICE</div><h2>Предложить проект</h2></div></div>
+      <div className="panel-heading"><div><div className="eyebrow">ЕСТЕСТВЕННЫЙ ЯЗЫК / ПРОЕКТНЫЙ ОФИС</div><h2>Предложить проект</h2></div></div>
       <p className="muted assistant-help">Опишите задачу обычным языком. ИИ подготовит проектную инициативу и отметит неизвестные параметры.</p>
       <textarea className="assistant-input" value={requestText} onChange={(event) => setRequestText(event.target.value)}
         placeholder="Например: организовать резервную линию производства кислорода, чтобы повысить устойчивость жизнеобеспечения…" rows={4} maxLength={8000} />
@@ -216,7 +234,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">PROPOSAL REVIEW</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">ПРОВЕРКА ПРЕДЛОЖЕНИЙ</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
       {proposals.length === 0 ? <p className="muted assistant-empty">Здесь будут появляться предложения, сформированные игроками.</p> :
         <div className="assistant-cards">{proposals.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{item.proposal.project_type}</span></div>
@@ -249,11 +267,11 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">SCENARIO DIRECTOR</div><h2>Сценарные события</h2></div><span className="count-chip">{events.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">СЦЕНАРНЫЙ РЕЖИССЁР</div><h2>Сценарные события</h2></div><span className="count-chip">{events.length}</span></div>
       <p className="muted assistant-help">Сценарные карточки, подготовленные ИИ-ведущим и опубликованные командиром.</p>
       {isCommander && <div className="assistant-toolbar event-generation">
         <input value={eventFocus} onChange={(event) => setEventFocus(event.target.value)} maxLength={1000} placeholder="Фокус события, например: внешняя логистика или пылевая буря" />
-        <button className="button button-primary" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
+        <button className="button button-primary" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : "Для подготовки события требуется подключённый ИИ-провайдер. Без него кнопка сообщит, что именно нужно настроить."} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
       </div>}
       {events.length === 0 ? <p className="muted assistant-empty">Событий пока нет.</p> :
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
@@ -274,7 +292,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
 
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">KNOWLEDGE REGISTRY</div><h2>Реестр сущностей и версий</h2></div><span className="count-chip">{entities.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">РЕЕСТР ЗНАНИЙ</div><h2>Реестр сущностей и версий</h2></div><span className="count-chip">{entities.length}</span></div>
       <p className="muted assistant-help">Технологии, инфраструктура, процессы, ресурсы и процедуры хранятся как версии базы знаний. Утверждение добавляет запись в реестр, но не меняет расчётную модель автоматически.</p>
       {canProposeEntity && <>
         <textarea className="assistant-input" value={entityText} onChange={(event) => setEntityText(event.target.value)}
