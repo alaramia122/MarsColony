@@ -324,7 +324,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   </div>;
 }
 
-function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
+function ProjectList({ projects, auth, player, onRefresh }: {
   projects: Project[]; auth: Auth; player: Player | undefined; onRefresh: () => Promise<void>;
 }) {
   const [formOpen, setFormOpen] = useState(false);
