@@ -115,7 +115,7 @@ def _power_loads(
             load_id=str(item["load_id"]),
             requested_kw=float(item["requested_kw"]),
             priority=int(item.get("priority", 4)),
-            minimum_kw=float(item.get("minimum_kw", 0.0)),
+            minimum_kw=float(item.get("minimum_kw", item["requested_kw"])),
         ))
     return loads
 
@@ -291,13 +291,18 @@ def advance_period(
         state_key = resource["state_key"]
         current = float(state[state_key])
         capacity = _storage_capacity(scenario, resource_id)
-        new_quantity = current + float(quantity)
-        if capacity is not None and new_quantity > capacity + 1e-9:
-            raise DomainError(
-                f"Production bonus for '{resource_id}' exceeds storage capacity."
-            )
-        state[state_key] = _round_resource(new_quantity, scenario, resource_id)
-        production_bonus_report[resource_id] = float(quantity)
+        requested_quantity = float(quantity)
+        produced_quantity = requested_quantity
+        if capacity is not None:
+            produced_quantity = min(requested_quantity, max(0.0, capacity - current))
+        state[state_key] = _round_resource(
+            current + produced_quantity, scenario, resource_id
+        )
+        production_bonus_report[resource_id] = {
+            "requested": requested_quantity,
+            "produced": produced_quantity,
+            "curtailed": requested_quantity - produced_quantity,
+        }
 
     allocated_process_energy_kwh = sum(process_energy_budgets.values())
     actual_process_energy_kwh = sum(
