@@ -45,6 +45,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
         "infrastructure": [],
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
+        "power_load_kw_delta": 0.0,
     }
     for resource in scenario["resource_catalog"].values():
         state[resource["state_key"]] = float(stocks[resource["state_key"]])
@@ -186,6 +187,15 @@ def advance_period(
     battery_spec = _battery_spec(power)
     battery_soc = float(state["battery_soc_kwh"])
     interval_reports = []
+    active_loads = list(additional_loads or [])
+    commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
+    if commissioned_load_kw > 0:
+        active_loads.append({
+            "load_id": "commissioned_infrastructure",
+            "requested_kw": commissioned_load_kw,
+            "priority": 3,
+            "minimum_kw": 0.0,
+        })
     process_energy_budgets = {
         process_id: 0.0 for process_id in scenario["processes"]
     }
@@ -224,7 +234,7 @@ def advance_period(
                     else 0.0
                 )
                 for process_id in scenario["processes"]
-            }, additional_loads),
+            }, active_loads),
             duration_hours=duration,
         )
         battery_charge_report = None
