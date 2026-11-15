@@ -1,8 +1,8 @@
-import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 
 const apiBase = process.env.MARS_COLONY_API_URL || "http://127.0.0.1:8000/api/v1";
 
-async function createSession(request: Parameters<typeof test>[0] extends never ? never : any) {
+async function createSession(request: APIRequestContext) {
   const response = await request.post(`${apiBase}/sessions`, {
     data: { scenario_id: "ares-01", starter_preset_id: "balanced" },
   });
