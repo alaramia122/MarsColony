@@ -38,17 +38,29 @@ def _battery_spec(
     infrastructure: list[dict[str, Any]] | None = None,
 ) -> BatterySpec:
     battery = power["battery"]
+    assets = infrastructure or []
+    has_battery_bindings = any(
+        "battery_storage_binding" in asset.get("properties", {})
+        for asset in assets
+    )
+    battery_capacity_factor = sum(
+        max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+        for asset in assets
+        if asset.get("properties", {}).get("battery_storage_binding")
+        and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+    ) if has_battery_bindings else 1.0
     extra_capacity_kwh = sum(
         float(_asset_economic_effects(asset).get("battery_capacity_kwh", 0.0))
         * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
-        for asset in (infrastructure or [])
+        for asset in assets
         if asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
     )
+    capacity_kwh = max(0.001, float(battery["capacity_kwh"]) * battery_capacity_factor + extra_capacity_kwh)
     return BatterySpec(
-        capacity_kwh=float(battery["capacity_kwh"]) + extra_capacity_kwh,
-        minimum_charge_kwh=float(battery["minimum_charge_kwh"]),
-        maximum_charge_kw=float(battery["maximum_charge_kw"]),
-        maximum_discharge_kw=float(battery["maximum_discharge_kw"]),
+        capacity_kwh=capacity_kwh,
+        minimum_charge_kwh=min(capacity_kwh, float(battery["minimum_charge_kwh"]) * battery_capacity_factor),
+        maximum_charge_kw=float(battery["maximum_charge_kw"]) * battery_capacity_factor + extra_capacity_kwh * 0.02,
+        maximum_discharge_kw=float(battery["maximum_discharge_kw"]) * battery_capacity_factor + extra_capacity_kwh * 0.02,
         charge_efficiency=float(battery["charge_efficiency"]),
         discharge_efficiency=float(battery["discharge_efficiency"]),
     )
@@ -174,6 +186,19 @@ def advance_period(
     )
 
     infrastructure = list(state.get("infrastructure", []))
+    has_generation_binding_metadata = any(
+        "power_generation_binding" in asset.get("properties", {})
+        for asset in infrastructure
+    )
+    base_generation_factor = (
+        sum(
+            max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+            for asset in infrastructure
+            if asset.get("properties", {}).get("power_generation_binding")
+            and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+        )
+        if has_generation_binding_metadata else 1.0
+    )
     has_process_binding_metadata = any(
         "process_bindings" in asset.get("properties", {})
         for asset in infrastructure
@@ -228,6 +253,7 @@ def advance_period(
         int(power["module_count"])
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        * base_generation_factor
         + float(state.get("power_generation_kw_delta", 0.0))
         + asset_generation_kw
     )
@@ -241,12 +267,14 @@ def advance_period(
         modules_online
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        * base_generation_factor
         + float(state.get("power_generation_kw_delta", 0.0))
         + asset_generation_kw
     )
     normal_duration_hours = period_hours - service_duration_hours
     battery_spec = _battery_spec(power, infrastructure)
-    battery_soc = float(state["battery_soc_kwh"])
+    battery_soc = min(battery_spec.capacity_kwh, max(0.0, float(state["battery_soc_kwh"])))
+    state["battery_soc_kwh"] = battery_soc
     interval_reports = []
     active_loads = list(additional_loads or [])
     for asset in infrastructure:
