@@ -111,6 +111,7 @@ class ProjectApprovalRecord(Base):
         ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     decision: Mapped[str] = mapped_column(String(12), nullable=False)
+    authority_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False,
