@@ -20,6 +20,12 @@ type AIEvent = {
     assumptions: string[];
   };
 };
+type KnowledgeEntity = {
+  id: string; entity_key: string; entity_type: string; name: string;
+  description: string; domain_codes: string[]; definition: Record<string, unknown>;
+  assumptions: string[]; risks: string[]; version: number; status: string;
+};
+
 type Briefing = {
   headline: string; situation: string; key_changes: string[];
   risks: string[]; decisions_needed: string[]; next_period_focus: string[];
@@ -48,12 +54,15 @@ const domainNames: Record<string, string> = {
   communications: "Связь", external_relations: "Внешние связи"
 };
 
-export default function Assistant({ sessionId, token, isCommander, onRefresh }: {
-  sessionId: string; token: string; isCommander: boolean; onRefresh: () => Promise<void>;
+export default function Assistant({ sessionId, token, isCommander, canProposeEntity, onRefresh }: {
+  sessionId: string; token: string; isCommander: boolean; canProposeEntity: boolean;
+  onRefresh: () => Promise<void>;
 }) {
   const [requestText, setRequestText] = useState("");
   const [clarifications, setClarifications] = useState<Record<string, string>>({});
   const [eventFocus, setEventFocus] = useState("");
+  const [entityText, setEntityText] = useState("");
+  const [entities, setEntities] = useState<KnowledgeEntity[]>([]);
   const [proposals, setProposals] = useState<AIProposal[]>([]);
   const [events, setEvents] = useState<AIEvent[]>([]);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
@@ -62,12 +71,14 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
-    const [projectData, eventData] = await Promise.all([
+    const [projectData, eventData, entityData] = await Promise.all([
       aiRequest<{ proposals: AIProposal[] }>(`${API}/sessions/${sessionId}/ai/proposals`, token),
-      aiRequest<{ events: AIEvent[] }>(`${API}/sessions/${sessionId}/ai/events`, token)
+      aiRequest<{ events: AIEvent[] }>(`${API}/sessions/${sessionId}/ai/events`, token),
+      aiRequest<{ entities: KnowledgeEntity[] }>(`${API}/sessions/${sessionId}/ai/entities`, token)
     ]);
     setProposals(projectData.proposals);
     setEvents(eventData.events);
+    setEntities(entityData.entities);
   }, [sessionId, token]);
 
   useEffect(() => {
@@ -125,6 +136,28 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
       setClarifications((current) => ({ ...current, [proposal.id]: "" }));
       await load();
       setNotice("Предложение обновлено. Предыдущая версия и история уточнений сохранены.");
+    }
+  );
+
+
+  const generateEntity = () => run("entity", async () => {
+    const result = await aiRequest<KnowledgeEntity>(
+      `${API}/sessions/${sessionId}/ai/entities`, token,
+      { method: "POST", body: JSON.stringify({ text: entityText }) }
+    );
+    setEntities((current) => [result, ...current]);
+    setEntityText("");
+    setNotice("Сущность добавлена в очередь экспертной проверки. Игровая экономика не меняется.");
+  });
+
+  const entityAction = (entity: KnowledgeEntity, action: "approve" | "reject") => run(
+    `${entity.id}-${action}`, async () => {
+      await aiRequest(
+        `${API}/sessions/${sessionId}/ai/entities/${entity.id}/${action}`,
+        token, { method: "POST" }
+      );
+      await load();
+      setNotice(action === "approve" ? "Версия сущности утверждена; предыдущая активная версия сохранена в истории." : "Предложение сущности отклонено.");
     }
   );
 
@@ -236,6 +269,36 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
           </div>}
         </article>)}</div>}
     </section>}
+
+
+    <section className="panel assistant-panel">
+      <div className="panel-heading"><div><div className="eyebrow">KNOWLEDGE REGISTRY</div><h2>Реестр сущностей и версий</h2></div><span className="count-chip">{entities.length}</span></div>
+      <p className="muted assistant-help">Технологии, инфраструктура, процессы, ресурсы и процедуры хранятся как версии базы знаний. Утверждение добавляет запись в реестр, но не меняет расчётную модель автоматически.</p>
+      {canProposeEntity && <>
+        <textarea className="assistant-input" value={entityText} onChange={(event) => setEntityText(event.target.value)}
+          placeholder="Опишите новую технологию, оборудование, производственный процесс или процедуру…" rows={3} maxLength={8000} />
+        <div className="assistant-toolbar"><span className="muted small">{entityText.length}/8000 · Нужна инженерная проверка</span>
+          <button className="button button-primary" disabled={Boolean(busy) || entityText.trim().length < 5}
+            onClick={() => void generateEntity()}>{busy === "entity" ? "Формирование…" : "Предложить сущность"}</button>
+        </div>
+      </>}
+      {entities.length === 0 ? <p className="muted assistant-empty">Реестр пока пуст.</p> :
+        <div className="assistant-cards">{entities.map((entity) => <article className="assistant-card" key={entity.id}>
+          <div className="assistant-card-top">
+            <span className={`status status-${entity.status === "active" ? "approved" : entity.status === "pending_review" ? "submitted" : "rejected"}`}>{entity.status === "active" ? "Утверждена" : entity.status === "pending_review" ? "На проверке" : entity.status === "superseded" ? "Предыдущая версия" : "Отклонена"}</span>
+            <span className="muted small">v{entity.version} · {entity.entity_type}</span>
+          </div>
+          <h3>{entity.name}</h3><p>{entity.description}</p>
+          <p className="assistant-note"><b>Идентификатор:</b> {entity.entity_key}</p>
+          <p className="assistant-note"><b>Направления:</b> {entity.domain_codes.map((code) => domainNames[code] || code).join(", ")}</p>
+          {entity.assumptions.length > 0 && <BriefingList title="Допущения" items={entity.assumptions} />}
+          {entity.risks.length > 0 && <BriefingList title="Риски" items={entity.risks} />}
+          {isCommander && entity.status === "pending_review" && <div className="assistant-actions">
+            <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void entityAction(entity, "approve")}>Утвердить версию</button>
+            <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void entityAction(entity, "reject")}>Отклонить</button>
+          </div>}
+        </article>)}</div>}
+    </section>
 
     {error && <div className="alert assistant-alert">{error}</div>}
     {notice && <p className="assistant-notice">{notice}</p>}
