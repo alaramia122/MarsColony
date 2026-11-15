@@ -145,6 +145,9 @@ def propose_catalog_entity(
             catalogue = load_entity_catalog(session.scenario_id)
             resource_catalog = (session.scenario_snapshot or {}).get("resource_catalog", {})
             definition = dict(request.definition)
+            reserved_fields = {"id", "entity_type", "name", "description", "domain_codes"}
+            if reserved_fields.intersection(definition):
+                raise HTTPException(status_code=422, detail="Entity identity and responsibility fields must be supplied outside the technical definition.")
             entity_key = "custom_" + uuid4().hex[:16]
             candidate = {
                 "id": entity_key,
