@@ -86,3 +86,24 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .env-preview{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;background:#10171d;border:1px solid #34444e;border-radius:7px;color:#d8e0e3;font:10px/1.7 "DM Mono",monospace}
 @media(max-width:900px){.ai-settings-layout{grid-template-columns:1fr}.role-summary-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.role-task-row,.map-object-details{align-items:stretch;flex-direction:column}.role-task-row span{text-align:left}.role-summary-grid{grid-template-columns:1fr}}
+
+
+/* Session starter infrastructure profiles */
+.login-panel{display:block;overflow-y:auto;max-height:100vh}
+.login-form-wrap{width:min(100%,620px);margin:0 auto}
+.starter-preset-list{display:grid;gap:10px;margin:18px 0}
+.starter-preset-card{display:flex;flex-direction:column;gap:7px;width:100%;padding:14px 16px;text-align:left;color:var(--text);background:#19262e;border:1px solid #34444e;border-radius:8px;cursor:pointer;transition:border-color .15s,background .15s}
+.starter-preset-card:hover{border-color:#9b725b}
+.starter-preset-card.selected{border-color:var(--orange);background:#2a2927;box-shadow:inset 3px 0 0 var(--orange)}
+.starter-preset-card:disabled{opacity:.65;cursor:wait}
+.starter-preset-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.starter-preset-heading strong{font-size:13px}
+.starter-preset-heading>span{font:8px "DM Mono",monospace;letter-spacing:1px;color:var(--orange)}
+.starter-preset-tagline{font-size:10px;color:#e4a17a}
+.starter-preset-description,.starter-preset-tradeoff{font-size:10px;line-height:1.55;color:#aebbc0}
+.starter-preset-stats{font-size:10px;color:#d5dfe2}
+.starter-preset-stats b{color:#fff}
+.starter-preset-domains{display:flex;flex-wrap:wrap;gap:5px}
+.starter-preset-domains span{font-size:8px;color:#b7c4c8;background:#25343d;border:1px solid #354650;border-radius:4px;padding:4px 6px}
+.starter-preset-tradeoff{padding-top:6px;border-top:1px solid #34444e;color:#d5b69f}
+@media(max-width:1000px){.login-panel{max-height:none;min-height:100vh}.login-form-wrap{width:min(100%,680px)}}
