@@ -1,5 +1,6 @@
 import unittest
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -84,10 +85,11 @@ class EntityCatalogApiTests(unittest.TestCase):
             self.player["player_token"],
         )
         self.assertEqual(proposal["status"], "pending_review")
-        with self.assertRaises(Exception):
+        with self.assertRaises(HTTPException) as own_approval:
             entity_catalog_api.approve_catalog_entity(
                 self.session_id, proposal["id"], self.player["player_token"]
             )
+        self.assertEqual(own_approval.exception.status_code, 403)
         approved = entity_catalog_api.approve_catalog_entity(
             self.session_id, proposal["id"], self.owner_token
         )
@@ -100,7 +102,7 @@ class EntityCatalogApiTests(unittest.TestCase):
         self.assertEqual(custom["operation"]["power_generation_kw"], 2)
 
     def test_player_cannot_propose_definition_outside_assigned_domains(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(HTTPException) as unauthorized:
             entity_catalog_api.propose_catalog_entity(
                 self.session_id,
                 EntityProposalRequest(
@@ -112,6 +114,7 @@ class EntityCatalogApiTests(unittest.TestCase):
                 ),
                 self.player["player_token"],
             )
+        self.assertEqual(unauthorized.exception.status_code, 403)
 
 
 if __name__ == "__main__":
