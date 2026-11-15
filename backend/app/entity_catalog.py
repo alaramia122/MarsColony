@@ -14,7 +14,7 @@ ENTITY_TYPES = {"infrastructure", "equipment", "vehicle", "technology", "process
 EFFECT_KEYS = {
     "power_generation_kw", "power_load_kw",
     "resource_inputs_per_period", "resource_outputs_per_period",
-    "operating_cost_credits_per_period",
+    "operating_cost_credits_per_period", "battery_capacity_kwh",
 }
 BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements"}
 
@@ -75,7 +75,7 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
         operation = entity.get("operation", {})
         if not isinstance(operation, dict) or not set(operation).issubset(EFFECT_KEYS):
             raise EntityCatalogError("Operation contract contains unsupported effects.")
-        for key in ("power_generation_kw", "power_load_kw", "operating_cost_credits_per_period"):
+        for key in ("power_generation_kw", "power_load_kw", "operating_cost_credits_per_period", "battery_capacity_kwh"):
             if key in operation:
                 _finite_nonnegative(operation[key], key)
         for key in ("resource_inputs_per_period", "resource_outputs_per_period"):
