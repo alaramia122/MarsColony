@@ -17,11 +17,7 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 12,
-        "resource_requirements": {
-          "steel": 80,
-          "aluminium": 25,
-          "electronics": 12
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 18,
@@ -50,11 +46,7 @@
         "duration_periods": 2,
         "labor_fte": 1,
         "energy_kwh_per_period": 8,
-        "resource_requirements": {
-          "steel": 35,
-          "lithium": 18,
-          "electronics": 10
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -83,11 +75,7 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 18,
-        "resource_requirements": {
-          "steel": 65,
-          "electronics": 8,
-          "composites": 20
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -118,18 +106,12 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 14,
-        "resource_requirements": {
-          "steel": 30,
-          "electronics": 12,
-          "filters": 10
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 1.8,
-        "resource_inputs_per_period": {
-          "waste_water": 80
-        },
+        "resource_inputs_per_period": {},
         "resource_outputs_per_period": {
           "usable_water": 65
         },
@@ -156,11 +138,7 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 22,
-        "resource_requirements": {
-          "steel": 55,
-          "electronics": 18,
-          "ceramics": 12
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -193,19 +171,13 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 20,
-        "resource_requirements": {
-          "steel": 25,
-          "glass": 35,
-          "electronics": 8,
-          "nutrients": 12
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 2.2,
         "resource_inputs_per_period": {
-          "usable_water": 20,
-          "nutrients": 5
+          "usable_water": 20
         },
         "resource_outputs_per_period": {
           "food_solids": 18,
@@ -234,12 +206,7 @@
         "duration_periods": 4,
         "labor_fte": 3,
         "energy_kwh_per_period": 15,
-        "resource_requirements": {
-          "steel": 90,
-          "aluminium": 35,
-          "composites": 40,
-          "electronics": 15
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -268,18 +235,12 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 10,
-        "resource_requirements": {
-          "steel": 20,
-          "electronics": 25,
-          "medical_supplies": 20
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 1.1,
-        "resource_inputs_per_period": {
-          "medical_supplies": 2
-        },
+        "resource_inputs_per_period": {},
         "resource_outputs_per_period": {},
         "operating_cost_credits_per_period": 2
       },
@@ -304,12 +265,7 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 8,
-        "resource_requirements": {
-          "steel": 30,
-          "aluminium": 35,
-          "electronics": 20,
-          "batteries": 12
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -338,22 +294,13 @@
         "duration_periods": 3,
         "labor_fte": 2.5,
         "energy_kwh_per_period": 16,
-        "resource_requirements": {
-          "steel": 50,
-          "electronics": 10,
-          "machine_parts": 15
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 2,
-        "resource_inputs_per_period": {
-          "steel": 8,
-          "machine_parts": 2
-        },
-        "resource_outputs_per_period": {
-          "spare_parts": 6
-        },
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
         "operating_cost_credits_per_period": 2
       },
       "tags": [
@@ -376,10 +323,7 @@
         "duration_periods": 1,
         "labor_fte": 0.8,
         "energy_kwh_per_period": 4,
-        "resource_requirements": {
-          "aluminium": 12,
-          "electronics": 18
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
@@ -409,21 +353,13 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 24,
-        "resource_requirements": {
-          "steel": 35,
-          "electronics": 12,
-          "refractory_material": 15
-        }
+        "resource_requirements": {}
       },
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 3.2,
-        "resource_inputs_per_period": {
-          "regolith": 100
-        },
-        "resource_outputs_per_period": {
-          "construction_blocks": 35
-        },
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
         "operating_cost_credits_per_period": 2
       },
       "tags": [
@@ -447,9 +383,7 @@
         "duration_periods": 3,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 5,
-        "resource_requirements": {
-          "nutrients": 10
-        }
+        "resource_requirements": {}
       },
       "effects": {
         "resource_output_multiplier": {
@@ -477,9 +411,7 @@
         "duration_periods": 2,
         "labor_fte": 1,
         "energy_kwh_per_period": 3,
-        "resource_requirements": {
-          "electronics": 8
-        }
+        "resource_requirements": {}
       },
       "effects": {
         "asset_condition_loss_multiplier": 0.8
@@ -505,10 +437,7 @@
         "duration_periods": 3,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 4,
-        "resource_requirements": {
-          "electronics": 15,
-          "machine_parts": 8
-        }
+        "resource_requirements": {}
       },
       "effects": {
         "labor_demand_multiplier": 0.85
