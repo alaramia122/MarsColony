@@ -146,3 +146,13 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 }
 .entity-proposal-form textarea { width: 100%; font-family: inherit; }
 .entity-proposal-form label { display: grid; gap: 6px; }
+
+
+.entity-reference-image{display:block;max-width:100%;object-fit:cover;border:1px solid var(--border,rgba(255,255,255,.16));border-radius:9px;background:#111820}
+.catalog-image{width:104px;height:88px;flex:0 0 104px}
+.approval-image{width:min(100%,260px);height:150px;margin:0 0 10px}
+.map-object-image{width:min(100%,420px);max-height:260px;margin:12px 0}
+.entity-image-preview{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.entity-image-preview .entity-reference-image{width:min(100%,280px);height:180px}
+.catalog-entity-option{align-items:flex-start}
+@media(max-width:650px){.catalog-image{width:76px;height:72px;flex-basis:76px}.map-object-image{max-height:200px}}
