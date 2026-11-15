@@ -405,14 +405,13 @@ def create_ai_event_proposal(
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
-        provider = configured_provider()
         raw = provider.generate_json(
             "Ты — сценарный ИИ-ведущий настольной игры MarsColony. Предложи одно правдоподобное "
             "событие для текущего игрового периода, опираясь только на контекст сценария. "
             "Событие должно создавать осмысленную дилемму и несколько игровых вариантов ответа. "
             "Не выдумывай факты о текущем состоянии колонии. Не назначай автоматические изменения "
             "ресурсов и не исполняй действия. Верни JSON с полями title, category, severity "
-            "(low|moderate|high|critical), trigger, narrative, player_options (2..5), "
+            "(low|moderate|high|critical), likelihood (0..1, оценка вероятности), trigger, narrative, player_options (2..5), "
             "consequences (1..8), assumptions.",
             {"game_state": context, "focus": request.focus.strip(),
              "output_language": "Russian"},
@@ -574,7 +573,6 @@ def clarify_ai_proposal(
             context_period = session.current_period
             previous_proposal = dict(record.proposal)
             previous_version = record.version
-        provider = configured_provider()
         raw = provider.generate_json(
             "Ты — аналитический помощник MarsColony. Уточни существующее проектное предложение, "
             "учитывая ответ игрока и прежнюю версию. Сохрани все корректные исходные параметры, "
@@ -693,7 +691,6 @@ def create_ai_entity(
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
-        provider = configured_provider()
         raw = provider.generate_json(
             "Ты — инженерный редактор реестра знаний игры MarsColony. Преобразуй описание "
             "в структурированную сущность одного типа: technology, infrastructure, process, "
