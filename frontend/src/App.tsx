@@ -351,9 +351,11 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
       {domains.length === 0 ? <p className="muted">За вами пока не закреплены направления. Попросите Капитана назначить зону ответственности.</p> : domains.map((code) => {
         const info = DOMAIN_INFO[code] || { title: code, purpose: "Описание направления не задано.", metrics: [] as Array<[string,string,string]> };
         const related = projects.filter((project) => project.domain_codes.includes(code));
+        const relatedAssets = infrastructure.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(code));
         return <article className="domain-work-card" key={code}>
           <h3>{info.title}</h3><p>{info.purpose}</p>
           <div className="domain-metrics">{info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>)}<div><span>Инфраструктурные объекты направления</span><strong>{infrastructure.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(code)).length} <small>шт.</small></strong></div><div><span>Активные проекты направления</span><strong>{related.filter((project) => ["approved","executing"].includes(project.status)).length} <small>шт.</small></strong></div></div>
+          <div className="domain-projects"><strong>Стартовый комплект · {relatedAssets.length} объектов</strong>{relatedAssets.map((asset) => <span key={String(asset.id)}>{String(asset.name || asset.kind || "Инфраструктурный объект")}</span>)}</div>
           <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {project.status}</span>)}</div>
         </article>;
       })}
