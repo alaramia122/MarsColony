@@ -53,14 +53,14 @@ class InfrastructureEconomyTests(unittest.TestCase):
                 "name": "Атмосферный модуль",
                 "kind": "atmosphere_control",
                 "domain_codes": ["life_support"],
-                "properties": {"condition": 0.5, "status": "commissioned", "starter_asset": True},
+                "properties": {"condition": 0.5, "status": "commissioned", "starter_asset": True, "process_bindings": ["oxygen_isru"]},
             },
             {
                 "id": "WATER-1",
                 "name": "Водный контур",
                 "kind": "water_recycling",
                 "domain_codes": ["life_support"],
-                "properties": {"condition": 1.0, "status": "commissioned", "starter_asset": True},
+                "properties": {"condition": 1.0, "status": "commissioned", "starter_asset": True, "process_bindings": ["ice_to_usable_water"]},
             },
             {
                 "id": "GREEN-1",
@@ -84,7 +84,7 @@ class InfrastructureEconomyTests(unittest.TestCase):
             "name": "Теплица",
             "kind": "hydroponic_greenhouse",
             "domain_codes": ["agriculture", "life_support"],
-            "properties": {"condition": 1.0, "status": "commissioned"},
+            "properties": {"condition": 1.0, "status": "commissioned", "process_bindings": ["food_growing"]},
         }]
         state = initial_state(scenario)
         state["technologies"] = [{
