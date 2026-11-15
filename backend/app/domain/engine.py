@@ -26,55 +26,11 @@ def _storage_capacity(scenario: dict[str, Any], resource_id: str) -> float | Non
     return None if capacity is None else float(capacity)
 
 
-STARTER_ASSET_ECONOMICS = {
-    # Scenario-specific game assumptions for starter assets not represented by a
-    # baseline process. Values are deliberately kept separate from real-world data.
-    "drilling_rig": {
-        "power_load_kw": 1.0,
-        "resource_outputs_per_period": {"raw_ice": 120.0},
-        "operating_cost_credits_per_period": 1.0,
-    },
-    "ice_mining_rig": {
-        "power_load_kw": 2.0,
-        "resource_outputs_per_period": {"raw_ice": 240.0},
-        "operating_cost_credits_per_period": 2.0,
-    },
-    "autonomous_drill_rover": {
-        "power_load_kw": 1.2,
-        "resource_outputs_per_period": {"raw_ice": 100.0},
-        "operating_cost_credits_per_period": 1.2,
-    },
-    "backup_power_unit": {
-        "power_generation_kw": 8.0,
-        "operating_cost_credits_per_period": 1.5,
-    },
-    "emergency_power_pack": {
-        "power_generation_kw": 2.0,
-        "operating_cost_credits_per_period": 0.5,
-    },
-    "large_battery_bank": {
-        "battery_capacity_kwh": 500.0,
-    },
-}
-
-PROCESS_ASSET_BINDINGS = {
-    "oxygen_isru": {"atmosphere_control", "oxygen_backup_unit"},
-    "food_growing": {"hydroponic_greenhouse", "food_production_greenhouse"},
-    "ice_to_usable_water": {"water_recycling", "water_recovery_unit"},
-}
-PROCESS_DOMAINS = {
-    "oxygen_isru": {"life_support"},
-    "food_growing": {"agriculture", "life_support"},
-    "ice_to_usable_water": {"life_support", "industry"},
-}
-
-
 def _asset_economic_effects(asset: dict[str, Any]) -> dict[str, Any]:
     properties = asset.get("properties", {})
     configured = properties.get("economic_effects")
-    if isinstance(configured, dict):
-        return configured
-    return STARTER_ASSET_ECONOMICS.get(str(asset.get("kind", "")), {})
+    return configured if isinstance(configured, dict) else {}
+
 
 
 def _battery_spec(
@@ -217,6 +173,11 @@ def advance_period(
         {},
     )
 
+    infrastructure = list(state.get("infrastructure", []))
+    has_process_binding_metadata = any(
+        "process_bindings" in asset.get("properties", {})
+        for asset in infrastructure
+    )
     event_multipliers = {}
     process_asset_capacity = {}
     process_reports = {}
@@ -225,18 +186,25 @@ def advance_period(
         multiplier = float(event.get(multiplier_key, 1.0)) if multiplier_key else 1.0
         if multiplier < 0:
             raise DomainError(f"Event multiplier for '{process_id}' cannot be negative.")
-        asset_kinds = PROCESS_ASSET_BINDINGS.get(process_id)
-        capacity_factor = 1.0
-        if asset_kinds and state.get("infrastructure"):
-            capacity_factor = sum(
+        binding_assets = [
+            asset for asset in infrastructure
+            if process_id in asset.get("properties", {}).get("process_bindings", [])
+            and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+        ]
+        capacity_factor = (
+            sum(
                 max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
-                for asset in state.get("infrastructure", [])
-                if asset.get("kind") in asset_kinds
-                and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+                for asset in binding_assets
             )
+            if has_process_binding_metadata else 1.0
+        )
         process_asset_capacity[process_id] = capacity_factor
         technology_output_factor = 1.0
-        process_domains = PROCESS_DOMAINS.get(process_id, set())
+        process_domains = {
+            domain
+            for asset in binding_assets
+            for domain in asset.get("domain_codes", [])
+        }
         output_resources = set(process.get("outputs_per_cycle", {}))
         for technology in state.get("technologies", []):
             if process_domains.intersection(technology.get("domain_codes", [])):
@@ -248,7 +216,6 @@ def advance_period(
             * multiplier * capacity_factor * technology_output_factor
         )
 
-    infrastructure = list(state.get("infrastructure", []))
     asset_generation_kw = sum(
         float(_asset_economic_effects(asset).get("power_generation_kw", 0.0))
         * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
