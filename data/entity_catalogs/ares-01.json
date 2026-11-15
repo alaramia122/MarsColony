@@ -406,8 +406,12 @@
       "operation": {
         "power_generation_kw": 0,
         "power_load_kw": 3.2,
-        "resource_inputs_per_period": {},
-        "resource_outputs_per_period": {},
+        "resource_inputs_per_period": {
+          "raw_regolith": 100
+        },
+        "resource_outputs_per_period": {
+          "regolith_bricks": 60
+        },
         "operating_cost_credits_per_period": 2
       },
       "tags": [
