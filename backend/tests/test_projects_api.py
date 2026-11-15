@@ -814,6 +814,46 @@ class ProjectWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(command_event["payload"]["approval_mode"], "commander_order")
 
+    def test_project_can_select_and_instantiate_a_catalogue_asset(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Дополнительная солнечная ферма",
+                description="Развернуть типовой энергетический объект из каталога.",
+                project_type="construction",
+                domain_codes=["energy", "construction"],
+                budget_credits=180,
+                duration_periods=2,
+                labor_fte=1.5,
+                energy_kwh_per_period=12,
+                catalog_entity_ids=["solar_array"],
+            ),
+            self.owner_token,
+        )
+        asset = project["expected_result"]["infrastructure"][0]
+        self.assertEqual(asset["catalog_entity_id"], "solar_array")
+        self.assertEqual(asset["kind"], "power_unit")
+        self.assertEqual(asset["properties"]["economic_effects"]["power_generation_kw"], 18)
+
+    def test_project_cannot_select_catalogue_asset_outside_its_domains(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Неверная зона ответственности",
+                    description="Попытка создать объект без включения всех его направлений.",
+                    project_type="construction",
+                    domain_codes=["energy"],
+                    budget_credits=180,
+                    duration_periods=2,
+                    labor_fte=1.5,
+                    energy_kwh_per_period=12,
+                    catalog_entity_ids=["solar_array"],
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_session_enforces_twenty_player_capacity(self):
         for index in range(19):
             self.join(f"Участник {index + 1}")
