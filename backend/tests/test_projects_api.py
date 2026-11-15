@@ -168,7 +168,8 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertIn("project.execution_started", event_types)
         self.assertIn("project.progressed", event_types)
         self.assertIn("project.paused_power_shortfall", event_types)
-        self.assertIn("project.commissioned", event_types)
+        self.assertIn("project.result_applied", event_types)
+        self.assertIn("project.infrastructure_commissioned", event_types)
         self.assertIn("project.completed", event_types)
         sequences = [event["sequence"] for event in state["events"]]
         self.assertEqual(sequences, sorted(set(sequences)))
@@ -703,7 +704,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         session_state = api.get_session(self.session_id, self.owner_token)
         commissioned = next(
             event for event in session_state["events"]
-            if event["type"] == "project.commissioned"
+            if event["type"] == "project.result_applied"
             and event["payload"]["project_id"] == project["id"]
         )
         self.assertAlmostEqual(
