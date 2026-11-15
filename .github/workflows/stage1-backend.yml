@@ -17,6 +17,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "data/scenarios/**"
+      - "data/starter_presets/**"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
       - "docs/**"
