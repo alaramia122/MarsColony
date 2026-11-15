@@ -612,7 +612,7 @@ function AISettings() {
       <div className="form-foot"><span className="muted">После изменения .env выполните <code>docker compose up -d --force-recreate api</code>.</span><button className="button button-primary" onClick={copyConfig}>Скопировать настройки</button></div>
       {notice && <p className="assistant-notice">{notice}</p>}
     </section>
-    <section className="panel"><div className="eyebrow">ПРЕДПРОСМОТР НАСТРОЕК</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через реестр провайдеров и маршрутизация задач. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
+    <section className="panel"><div className="eyebrow">ПРЕДПРОСМОТР НАСТРОЕК</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">Шлюз ИИ поддерживает несколько провайдеров и маршрутизацию задач через реестр провайдеров и маршрутизация задач. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
   </div>;
 }
 
@@ -723,7 +723,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     </section>}
     <div className="section-grid">
       <section className="panel main-panel">
-        <div className="panel-heading"><div><div className="eyebrow">СОСТОЯНИЕ КОЛОНИИ</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= (session?.settings?.period_count ?? 4) ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
+        <div className="panel-heading"><div><div className="eyebrow">СОСТОЯНИЕ КОЛОНИИ</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> АКТИВНО</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= (session?.settings?.period_count ?? 4) ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
@@ -1145,7 +1145,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         </label>
         <p className="field-help">Показано {filteredCatalogEntities.length} из {catalogEntities.length} типов.</p>
         <div className="catalog-groups">
-          {catalogGroups.map((group) => <details className="catalog-group" key={group.id} open>
+          {catalogGroups.map((group) => <details className="catalog-group" key={group.id} open={group.id === "infrastructure"}>
             <summary><strong>{group.title}</strong><span>{group.items.length} позиций</span></summary>
             <div className="catalog-entity-list">
               {group.items.map((entity) => {
