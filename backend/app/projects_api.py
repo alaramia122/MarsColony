@@ -293,6 +293,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 catalog_requirements = {}
                 infrastructure = list(expected_result.get("infrastructure", []))
                 technologies = list(expected_result.get("technology_unlocks", []))
+                procedures = list(expected_result.get("procedure_unlocks", []))
                 for entity_id in selected_ids:
                     entity = available_entities.get(entity_id)
                     if entity is None:
@@ -316,6 +317,13 @@ def create_project(session_id: str, request: ProjectCreate,
                             "description": entity["description"], "level": 1,
                             "domain_codes": list(entity.get("domain_codes", [])),
                             "catalog_entity_id": entity_id, "effects": entity.get("effects", {}),
+                        })
+                    elif entity["entity_type"] == "procedure":
+                        procedures.append({
+                            "id": entity_id, "name": entity["name"],
+                            "description": entity["description"],
+                            "domain_codes": list(entity.get("domain_codes", [])),
+                            "catalog_entity_id": entity_id,
                         })
                     else:
                         infrastructure.append({
@@ -343,6 +351,8 @@ def create_project(session_id: str, request: ProjectCreate,
                     expected_result["infrastructure"] = infrastructure
                 if technologies:
                     expected_result["technology_unlocks"] = technologies
+                if procedures:
+                    expected_result["procedure_unlocks"] = procedures
 
             project = ProjectRecord(
                 session_id=session_id, author_player_id=actor.id,
@@ -359,7 +369,7 @@ def create_project(session_id: str, request: ProjectCreate,
             allowed_effects = {
                 "resource_outputs_per_period", "power_generation_kw_delta",
                 "power_load_kw_delta", "infrastructure",
-                "infrastructure_repairs", "technology_unlocks"
+                "infrastructure_repairs", "technology_unlocks", "procedure_unlocks"
             }
             if not set(expected_result).issubset(allowed_effects):
                 raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
@@ -445,6 +455,22 @@ def create_project(session_id: str, request: ProjectCreate,
                 ):
                     raise HTTPException(status_code=422, detail="Each technology unlock requires a unique ID, name and positive integer level.")
                 technology_ids.add(technology["id"])
+            procedure_unlocks = expected_result.get("procedure_unlocks", [])
+            if not isinstance(procedure_unlocks, list):
+                raise HTTPException(status_code=422, detail="Procedure unlocks must be a list.")
+            procedure_ids = set()
+            for procedure in procedure_unlocks:
+                if (
+                    not isinstance(procedure, dict)
+                    or not isinstance(procedure.get("id"), str)
+                    or not procedure["id"].strip()
+                    or not isinstance(procedure.get("name"), str)
+                    or not procedure["name"].strip()
+                    or not isinstance(procedure.get("description", ""), str)
+                    or procedure.get("id") in procedure_ids
+                ):
+                    raise HTTPException(status_code=422, detail="Each procedure unlock requires a unique ID and name.")
+                procedure_ids.add(procedure["id"])
             db.add(project)
             db.flush()
             append_event(db, session_id, "project.created", {
