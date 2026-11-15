@@ -5,12 +5,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from backend.app import api, projects_api
+from backend.app import api, projects_api, spatial_api
 from backend.app.api import CreateSessionRequest
 from backend.app.db import Base
 from backend.app.projects_api import (
     ApprovalRequest, JoinRequest, ProjectCreate, RoleAssignment, VersionRequest,
 )
+from backend.app.spatial_api import PlacementCreateRequest, PlacementDecisionRequest, propose_placement, decide_placement
 
 
 class ProjectWorkflowTests(unittest.TestCase):
@@ -26,8 +27,10 @@ class ProjectWorkflowTests(unittest.TestCase):
         )
         self.original_session_factory = api.SessionLocal
         self.original_project_session_factory = projects_api.SessionLocal
+        self.original_spatial_session_factory = spatial_api.SessionLocal
         api.SessionLocal = self.session_factory
         projects_api.SessionLocal = self.session_factory
+        spatial_api.SessionLocal = self.session_factory
         self.session = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         self.session_id = self.session["id"]
         self.owner_token = self.session["owner_token"]
@@ -36,6 +39,7 @@ class ProjectWorkflowTests(unittest.TestCase):
     def tearDown(self):
         api.SessionLocal = self.original_session_factory
         projects_api.SessionLocal = self.original_project_session_factory
+        spatial_api.SessionLocal = self.original_spatial_session_factory
         api.load_scenario = self.original_loader
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
@@ -59,7 +63,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         project_author = self.join("Инженер проекта")
         self.assign(
             domain_lead["player_id"], self.owner_token,
-            ["domain_lead"], ["energy"],
+            ["domain_lead"], ["energy", "construction"],
         )
         self.assign(
             finance_lead["player_id"], self.owner_token,
@@ -101,6 +105,21 @@ class ProjectWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(submitted["status"], "submitted")
         self.assertEqual(submitted["version"], 2)
+
+        site = propose_placement(
+            self.session_id,
+            PlacementCreateRequest(
+                project_id=project["id"], name="Площадка резервной линии",
+                q=12000, r=12000,
+            ),
+            project_author["player_token"],
+        )
+        for domain_code in ("construction", "energy"):
+            decide_placement(
+                self.session_id, site["id"],
+                PlacementDecisionRequest(decision="approve", domain_code=domain_code),
+                domain_lead["player_token"],
+            )
 
         with self.assertRaises(HTTPException) as self_approval:
             projects_api.approve_project(
