@@ -18,6 +18,7 @@ EFFECT_KEYS = {
 }
 BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements"}
 OPERATION_KEYS = EFFECT_KEYS | {"process_bindings", "power_generation_binding", "battery_storage_binding"}
+MATERIAL_RESOURCE_CODES = {"raw_regolith", "regolith_bricks", "steel", "aluminium", "electronics", "polymers", "spare_parts"}
 SERVICE_CODES = {
     "medical_beds", "isolation_beds", "lab_samples_per_period",
     "communications_bandwidth_mbps", "cargo_handling_tonnes_per_period",
@@ -118,6 +119,9 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
                     raise EntityCatalogError(f"Unknown resource '{resource_id}' in {key}.")
                 if _finite_nonnegative(quantity, f"{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{key}.{resource_id} must be positive.")
+        material_outputs = set(operation.get("resource_outputs_per_period", {})).intersection(MATERIAL_RESOURCE_CODES)
+        if material_outputs and not operation.get("resource_inputs_per_period"):
+            raise EntityCatalogError("Construction materials cannot be produced without consuming a declared input resource.")
         process_bindings = operation.get("process_bindings", [])
         if (
             not isinstance(process_bindings, list)
@@ -215,6 +219,9 @@ def validate_entity_catalogue_resources(
                     raise EntityCatalogError(f"Starter override '{kind}' references unknown resource '{resource_id}'.")
                 if _finite_nonnegative(quantity, f"{kind}.{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{kind}.{key}.{resource_id} must be positive.")
+        material_outputs = set(effects.get("resource_outputs_per_period", {})).intersection(MATERIAL_RESOURCE_CODES)
+        if material_outputs and not effects.get("resource_inputs_per_period"):
+            raise EntityCatalogError(f"Starter override '{kind}' produces construction materials without declared inputs.")
         services = effects.get("service_outputs_per_period", {})
         if not isinstance(services, dict) or not set(services).issubset(SERVICE_CODES):
             raise EntityCatalogError(f"Starter override '{kind}' references an unsupported service.")
