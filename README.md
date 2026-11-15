@@ -12,7 +12,9 @@
 
 ## Текущий статус
 
-Этапы 0–3 интегрированы в `main`. Этап 3 ожидает ручной LAN-приёмки (Issue #9). Этап 4 реализован в рабочей ветке `feat/stage4-ai-gateway-game-master` и ожидает CI/приёмки в PR #12: AI Gateway, Yandex AI Studio, ИИ-сводки, сценарные события, уточнение проектных предложений и версионируемый реестр знаний. Плейтест Ares-1 проводится после готовности локальной платформы (Issue #3).
+Этапы 0–4 интегрированы в `main`. Этап 4 включает универсальный AI Gateway, нативный адаптер Yandex AI Studio, OpenAI-compatible провайдеры, маршрутизацию задач, резервные провайдеры и функции ИИ-ведущего. Автоматический CI этапов 0–4 пройден.
+
+Остаются ручная LAN-приёмка этапа 3 (Issue #9), проверка реальных внешних AI API с пользовательскими ключами и плейтест Ares-1 после готовности локальной платформы (Issue #3).
 
 ## Документация
 
@@ -22,6 +24,7 @@
 - [Сценарий Ares-1](docs/SCENARIO_ARES_01.md) — исходная база, параметры и события.
 - [План разработки](docs/DEVELOPMENT_PLAN.md) — этапы MVP и проверки.
 - [Проектирование этапа 3](docs/STAGE3_DESIGN.md) — WebSocket, клиенты и карта.
+- [Проектирование этапа 4](docs/STAGE4_DESIGN.md) — AI Gateway и ИИ-ведущий.
 
 ## Структура
 
@@ -34,15 +37,22 @@
 
 ## Локальный запуск
 
-Требуется Docker Compose:
+Требуется Docker Desktop с Docker Compose v2.
+
+1. Скопируйте `.env.example` в `.env`.
+2. Задайте уникальный локальный `POSTGRES_PASSWORD`.
+3. Запустите из корня репозитория:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+docker compose ps
 ```
 
 После сборки:
 - Web UI: http://localhost:8080
 - Backend API: http://localhost:8000
 - OpenAPI: http://localhost:8000/docs
+
+Логи: `docker compose logs -f api web db`. Остановка: `docker compose down`. Данные PostgreSQL сохраняются в Docker volume; `docker compose down -v` удаляет этот volume вместе с данными.
 
 Первый пользователь создаёт игровую сессию и передаёт ID сессии и код приглашения остальным участникам. Токен игрока хранится в рамках вкладки браузера.
