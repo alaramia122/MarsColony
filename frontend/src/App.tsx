@@ -47,6 +47,10 @@ export default function App() {
     const saved = sessionStorage.getItem("marscolony.auth");
     return saved ? JSON.parse(saved) as Auth : null;
   });
+  const [previousAuth, setPreviousAuth] = useState<Auth | null>(() => {
+    const saved = sessionStorage.getItem("marscolony.previousAuth");
+    return saved ? JSON.parse(saved) as Auth : null;
+  });
   const [session, setSession] = useState<SessionData | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -138,6 +142,16 @@ export default function App() {
     setEvents([]);
   };
 
+  const returnToPreviousSession = () => {
+    if (!previousAuth) return;
+    sessionStorage.setItem("marscolony.auth", JSON.stringify(previousAuth));
+    sessionStorage.removeItem("marscolony.previousAuth");
+    setAuth(previousAuth);
+    setPreviousAuth(null);
+    setTutorialStep(0);
+    setView("overview");
+  };
+
   const createSession = async () => {
     setBusy(true); setError("");
     try {
@@ -148,6 +162,10 @@ export default function App() {
         sessionId: result.id, token: result.owner_token, playerId: result.owner_player_id,
         displayName: "Командир колонии", joinCode: result.join_code
       };
+      if (auth && !previousAuth) {
+        sessionStorage.setItem("marscolony.previousAuth", JSON.stringify(auth));
+        setPreviousAuth(auth);
+      }
       sessionStorage.setItem("marscolony.auth", JSON.stringify(next));
       setTutorialStep(0);
       setAuth(next);
@@ -227,7 +245,7 @@ export default function App() {
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
-          {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} busy={busy} />}
+          {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} onReturnToPreviousSession={returnToPreviousSession} hasPreviousSession={Boolean(previousAuth)} busy={busy} />}
 
           {auth.joinCode && <div className="invite-strip">
             <div className="invite-values">
@@ -322,7 +340,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
   </>;
 }
 
-function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, busy }: { step: number; onStepChange: (step: number) => void; onNavigate: (view: View) => void; onCreateTrainingSession: () => void; busy: boolean }) {
+function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, onReturnToPreviousSession, hasPreviousSession, busy }: { step: number; onStepChange: (step: number) => void; onNavigate: (view: View) => void; onCreateTrainingSession: () => void; onReturnToPreviousSession: () => void; hasPreviousSession: boolean; busy: boolean }) {
   const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
     { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
     { title: "Познакомьтесь с экипажем", explanation: "Командир распределяет роли и зоны ответственности. Руководитель направления готовит проекты в своей области, финансовый руководитель проверяет бюджет, инженер помогает разрабатывать и исполнять проекты.", task: "Если играете с другими участниками, откройте список экипажа и назначьте хотя бы одному игроку направление. Для одиночного обучения этот шаг можно пропустить.", view: "people", action: "Открыть экипаж" },
@@ -339,6 +357,7 @@ function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, bus
     <h2>Учебная миссия «Первая смена»</h2>
     <p className="muted tutorial-intro">Учебная миссия выполняется в отдельной сессии, чтобы не менять состояние вашей основной кампании. Сначала сохраните ID и код текущей сессии, затем создайте отдельную учебную сессию кнопкой ниже. Проект не требует бюджета, материалов или энергии.</p>
     <button className="button button-secondary" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Создаст новую сессию Ares-1 для обучения; текущая сессия останется сохранённой на сервере."} onClick={onCreateTrainingSession}>Создать отдельную учебную сессию</button>
+    {hasPreviousSession && <button className="button button-quiet" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Вернуться в сохранённую основную сессию."} onClick={onReturnToPreviousSession}>Вернуться к предыдущей сессии</button>}
     <div className="tutorial-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
     <div className="tutorial-step-count">ШАГ {step + 1} ИЗ {steps.length}</div>
     <h3>{current.title}</h3><p>{current.explanation}</p>
