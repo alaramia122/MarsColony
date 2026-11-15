@@ -12,7 +12,10 @@
 ## 2. Архитектура
 
 - AI Gateway отделяет игровые модули от протокола и поставщика модели.
-- Реализованы адаптеры OpenAI Chat Completions-compatible API и нативного Yandex AI Studio Foundation Models API.
+- Реализованы адаптеры OpenAI Chat Completions-compatible API и нативного Yandex AI Studio Foundation Models API. OpenAI-compatible интерфейс позволяет подключать провайдеров с совместимым протоколом, включая локальные шлюзы.
+- Поддерживается реестр нескольких конфигураций MARS_AI_PROVIDERS и маршрутизация задач MARS_AI_TASK_ROUTING; для каждой задачи задаётся упорядоченный список резервных провайдеров.
+- Профиль провайдера задаёт тип адаптера, base URL, модель, имя переменной окружения с API-ключом, лимит токенов и поддержку JSON mode. Секреты не записываются в JSON-конфигурацию.
+- Реализован последовательный fallback при ошибке провайдера. Все результаты проходят единые Pydantic- и доменные проверки.
 - Провайдер выбирается через окружение. По умолчанию AI выключен.
 - Модели получают минимальный структурированный контекст: состояние ресурсов, инфраструктуру, технологии, участников, проекты и последние события. Сессионные токены, хеши, секреты и доступ к БД модели не передаются.
 - Ответ модели считается недоверенным и проходит Pydantic-валидацию, затем доменную проверку backend.
@@ -92,7 +95,18 @@ MARS_AI_PROVIDER=disabled — значение по умолчанию. AI endpo
 
 Используется нативный endpoint https://ai.api.cloud.yandex.net/foundationModels/v1/completion, заголовок Authorization: Api-Key, x-folder-id, поле modelUri и JSON-режим jsonObject. Для API-ключа требуется scope yc.ai.foundationModels.execute; сервисному аккаунту требуется роль ai.languageModels.user в каталоге. API оплачивается по потреблению; бесплатность не предполагается.
 
-### OpenAI-compatible
+### Несколько провайдеров и маршрутизация
+`MARS_AI_PROVIDERS` — JSON-объект именованных профилей. Поддерживаемые типы: `openai_compatible` и `yandex_ai_studio`. Для OpenAI-compatible профиля задаются `base_url`, `model`, `api_key_env`, `requires_api_key`, `max_tokens` и `capabilities.json_object`. Для Yandex задаются `api_key_env`, `folder_id` и `model`.
+
+`MARS_AI_TASK_ROUTING` — JSON-объект, сопоставляющий задачу с именем профиля или упорядоченным списком профилей. Имена задач: `project_proposal`, `project_clarification`, `briefing`, `scenario_event`, `knowledge_entity`. При сбое выполняется переход к следующему профилю. Конфигурация профилей имеет приоритет над legacy single-provider переменными.
+
+Пример локальной модели:
+
+```json
+{"local":{"type":"openai_compatible","base_url":"http://ollama:11434/v1","model":"qwen2.5:7b","requires_api_key":false,"capabilities":{"json_object":false}}}
+```
+
+### OpenAI-compatible (legacy single-provider)
 - MARS_AI_PROVIDER=openai_compatible
 - MARS_AI_BASE_URL
 - MARS_AI_API_KEY
