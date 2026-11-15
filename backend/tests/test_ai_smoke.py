@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch
 
-from app.ai_gateway import ProviderError
-from app.ai_smoke import run_smoke_test
+from backend.app.ai_gateway import ProviderError
+from backend.app.ai_smoke import run_smoke_test
 
 
 class FakeProvider:
@@ -18,7 +18,7 @@ class FakeProvider:
 class AISmokeTestTests(unittest.TestCase):
     def test_smoke_test_accepts_valid_structured_response(self):
         provider = FakeProvider({"status": "ok", "message": "Связь работает"})
-        with patch("app.ai_smoke.configured_provider", return_value=provider) as configured:
+        with patch("backend.app.ai_smoke.configured_provider", return_value=provider) as configured:
             result = run_smoke_test("briefing")
 
         configured.assert_called_once_with("briefing")
@@ -28,13 +28,13 @@ class AISmokeTestTests(unittest.TestCase):
 
     def test_smoke_test_rejects_invalid_provider_contract(self):
         provider = FakeProvider({"status": "failed", "message": "Нет"})
-        with patch("app.ai_smoke.configured_provider", return_value=provider):
+        with patch("backend.app.ai_smoke.configured_provider", return_value=provider):
             with self.assertRaises(ProviderError):
                 run_smoke_test("briefing")
 
     def test_smoke_test_rejects_non_text_message(self):
         provider = FakeProvider({"status": "ok", "message": None})
-        with patch("app.ai_smoke.configured_provider", return_value=provider):
+        with patch("backend.app.ai_smoke.configured_provider", return_value=provider):
             with self.assertRaises(ProviderError):
                 run_smoke_test("briefing")
 
