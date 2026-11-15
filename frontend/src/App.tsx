@@ -272,13 +272,13 @@ function Login({ busy, error, onCreate, onJoin }: {
     <div className="login-panel">
       <div className="login-form-wrap">
         <div className="eyebrow">ДОБРО ПОЖАЛОВАТЬ</div><h2>Войти в колонию</h2><p className="muted">Создайте новую игровую сессию или подключитесь к действующей.</p>
-        <button className="button button-primary create-button" disabled={busy} onClick={onCreate}>＋ Создать новую сессию</button>
+        <button className="button button-primary create-button" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : undefined} onClick={onCreate}>＋ Создать новую сессию</button>
         <div className="form-divider"><span>или присоединиться</span></div>
         <label>ID игровой сессии<input value={sessionId} onChange={(event) => setSessionId(event.target.value)} placeholder="UUID сессии" /></label>
         <label>Ваше имя<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Например, Алексей" /></label>
         <label>Код приглашения<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="Код от командира колонии" /></label>
         {error && <div className="alert">{error}</div>}
-        <button className="button button-secondary create-button" disabled={busy || !sessionId.trim() || !displayName.trim() || !inviteCode.trim()}
+        <button className="button button-secondary create-button" disabled={busy || !sessionId.trim() || !displayName.trim() || !inviteCode.trim()} title={busy ? "Дождитесь завершения текущего запроса." : !sessionId.trim() ? "Введите полный ID игровой сессии." : !displayName.trim() ? "Введите имя участника." : "Введите код приглашения."}
           onClick={() => void onJoin(sessionId.trim(), displayName.trim(), inviteCode.trim())}>Подключиться к сессии</button>
         <div className="login-foot">Локальная игровая сеть · Ares-01 · До 20 участников</div>
       </div>
@@ -300,7 +300,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     </div>
     <div className="section-grid">
       <section className="panel main-panel">
-        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= 4} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
+        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= 4} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= 4 ? "Все четыре периода сценария завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
@@ -515,7 +515,7 @@ function ProjectList({ projects, auth, player, onRefresh }: {
         <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
       </div>
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
-      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} onClick={() => void createProject()}>Создать черновик</button></div>
+      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} title={saving ? "Сохраняется другой проектный запрос." : "Заполните название, описание и направление; проверьте бюджет, длительность, труд, энергию и материальные значения."} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
@@ -531,14 +531,14 @@ function ProjectList({ projects, auth, player, onRefresh }: {
         <div className="progress-track"><i style={{ width: `${Math.min(100, project.progress_periods / Math.max(1, project.duration_periods) * 100)}%` }} /></div>
         <div className="progress-caption"><span>Ход исполнения</span><b>{project.progress_periods} / {project.duration_periods} периодов</b></div>
         <div className="project-actions">
-          {project.status === "draft" && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button disabled={saving} onClick={() => void mutate(project, "submit")}>Отправить на согласование</button>}
+          {project.status === "draft" && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "submit")}>Отправить на согласование</button>}
           {project.status === "submitted" && ["colony_commander","domain_lead","finance_lead"].some((role) => roleSet.has(role)) && <>
-            <button disabled={saving} onClick={() => void mutate(project, "approvals", { decision: "approve" })}>Согласовать</button>
-            <button className="action-muted" disabled={saving} onClick={() => void mutate(project, "approvals", { decision: "reject" })}>Отклонить</button>
+            <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : project.author_player_id === auth.playerId && roleSet.has("colony_commander") ? "Потребуется письменное обоснование командирского распоряжения." : undefined} onClick={() => void mutate(project, "approvals", { decision: "approve" })}>Согласовать</button>
+            <button className="action-muted" disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "approvals", { decision: "reject" })}>Отклонить</button>
           </>}
-          {project.status === "approved" && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} onClick={() => void mutate(project, "execute")}>Запустить проект</button>}
-          {project.status === "executing" && project.progress_periods >= project.duration_periods && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} onClick={() => void mutate(project, "complete")}>Подтвердить завершение</button>}
-          {["draft","submitted","approved"].includes(project.status) && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button className="action-muted" disabled={saving} onClick={() => void mutate(project, "cancel")}>Отменить</button>}
+          {project.status === "approved" && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "execute")}>Запустить проект</button>}
+          {project.status === "executing" && project.progress_periods >= project.duration_periods && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "complete")}>Подтвердить завершение</button>}
+          {["draft","submitted","approved"].includes(project.status) && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button className="action-muted" disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "cancel")}>Отменить</button>}
         </div>
       </article>)}</div>
   </>;
@@ -599,7 +599,7 @@ function People({ players, technologies, auth, onRefresh }: {
       {editingPlayer === player.id && <div className="role-editor">
         <strong>Роли участника</strong><div className="check-grid role-check-grid">{Object.entries(roleLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedRoles.includes(code)} onChange={(event) => toggle(selectedRoles, code, event.target.checked, setSelectedRoles)} />{label}</label>)}</div>
         <strong>Ответственные направления</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedDomains.includes(code)} onChange={(event) => toggle(selectedDomains, code, event.target.checked, setSelectedDomains)} />{label}</label>)}</div>
-        <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
+        <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} title={saving ? "Дождитесь завершения сохранения." : selectedRoles.length === 0 ? "Назначьте участнику хотя бы одну роль." : undefined} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
       </div>}
     </div>)}
   </section><section className="panel"><div className="eyebrow">RESEARCH REGISTER</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;
