@@ -15,6 +15,7 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
             self.assertTrue(all(preset["domain_packs"][domain] for domain in expected_domains))
 
     def test_presets_create_individual_objects_for_all_domains(self):
+        expected_domains = set(load_starter_presets("ares-01")["domain_names"])
         for preset_id in ("balanced", "science", "industrial", "autonomous"):
             scenario = apply_starter_preset(load_scenario("ares-01"), preset_id)
             state = initial_state(scenario)
@@ -22,7 +23,7 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
             self.assertGreater(len(assets), 0)
             self.assertEqual(
                 {domain for asset in assets for domain in asset["domain_codes"]},
-                set(scenario["starter_preset"] and load_starter_presets("ares-01")["domain_names"]),
+                expected_domains,
             )
             self.assertTrue(all(asset["properties"]["starter_asset"] for asset in assets))
             self.assertTrue(all(asset["properties"]["simulation_effects"] == "not_modeled" for asset in assets))
