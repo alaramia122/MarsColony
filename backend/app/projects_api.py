@@ -419,8 +419,11 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                 raise HTTPException(status_code=409, detail="Project requires all approvals before execution.")
             if not can_manage_project(policy(actor), project.domain_codes):
                 raise HTTPException(status_code=403, detail="Player has no authority to execute this project.")
-            if float(session.state["budget_credits"]) + 1e-9 < project.budget_credits:
-                raise HTTPException(status_code=409, detail="Reserved budget is no longer available.")
+            if (
+                float(session.reserved_budget_credits) + 1e-9 < project.budget_credits
+                or float(session.state["budget_credits"]) + 1e-9 < project.budget_credits
+            ):
+                raise HTTPException(status_code=409, detail="Project budget reservation is unavailable.")
             session.state = dict(session.state)
             session.state["budget_credits"] = round(
                 float(session.state["budget_credits"]) - project.budget_credits, 6
