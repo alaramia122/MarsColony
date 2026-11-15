@@ -511,9 +511,8 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                 or float(session.state["budget_credits"]) + 1e-9 < project.budget_credits
             ):
                 raise HTTPException(status_code=409, detail="Project budget reservation is unavailable.")
-            session.state = dict(session.state)
-            session.state["budget_credits"] = round(
-                float(session.state["budget_credits"]) - project.budget_credits, 6
+            updated_state["budget_credits"] = round(
+                float(updated_state["budget_credits"]) - project.budget_credits, 6
             )
             session.reserved_budget_credits = max(
                 0.0, float(session.reserved_budget_credits) - project.budget_credits
@@ -528,7 +527,7 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
             })
             append_event(db, session_id, "project.execution_started", {
                 "project_id": project.id, "budget_spent": project.budget_credits,
-                "budget_remaining": session.state["budget_credits"],
+                "budget_remaining": updated_state["budget_credits"],
                 "labor_fte": project.labor_fte,
                 "energy_kwh_per_period": project.energy_kwh_per_period,
                 "started_period": project.started_period,
