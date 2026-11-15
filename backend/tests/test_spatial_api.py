@@ -13,7 +13,8 @@ from backend.app.models import GameSessionRecord, MapPlacementRecord, PlayerReco
 from backend.app.projects_api import VersionRequest
 from backend.app.spatial_api import (
     PlacementCreateRequest, PlacementDecisionRequest, decide_placement,
-    get_map, propose_placement,
+    get_map, propose_placement, create_spatial_feature, move_spatial_feature,
+    get_spatial_feature_history, SpatialFeatureCreateRequest, SpatialMoveRequest,
 )
 
 
@@ -131,6 +132,94 @@ class SpatialPlacementApiTests(unittest.TestCase):
             )
         self.assertEqual(error.exception.status_code, 409)
         self.assertIn("согласовать", error.exception.detail)
+
+    def test_transport_movement_is_authorized_and_history_is_append_only(self):
+        with self.session_factory.begin() as db:
+            transport_token = "transport-domain-lead"
+            db.add(PlayerRecord(
+                session_id=self.session_id, display_name="Руководитель транспорта",
+                token_hash=hashlib.sha256(transport_token.encode()).hexdigest(),
+                roles=["domain_lead"], responsibility_domains=["transport"],
+            ))
+        vehicle = create_spatial_feature(
+            self.session_id,
+            SpatialFeatureCreateRequest(
+                object_type="vehicle", name="Марсоход-1", q=12000, r=12000,
+                description="Разведывательный марсоход", expected_map_version=0,
+            ),
+            token=transport_token,
+        )
+        moved = move_spatial_feature(
+            self.session_id, vehicle["id"],
+            SpatialMoveRequest(q=12001, r=12000, expected_map_version=1, reason="Переход к точке отбора проб"),
+            token=transport_token,
+        )
+        self.assertEqual((moved["q"], moved["r"]), (12001, 12000))
+        history = get_spatial_feature_history(self.session_id, vehicle["id"], token=transport_token)
+        self.assertEqual(len(history["history"]), 2)
+        self.assertEqual(history["history"][-1]["reason"], "Переход к точке отбора проб")
+
+    def test_discovery_requires_completed_research_project_and_evidence(self):
+        with self.session_factory.begin() as db:
+            project = db.get(ProjectRecord, self.project_id)
+            project.project_type = "research"
+            project.status = "completed"
+            project.domain_codes = ["science"]
+            science_token = "science-domain-lead"
+            db.add(PlayerRecord(
+                session_id=self.session_id, display_name="Руководитель науки",
+                token_hash=hashlib.sha256(science_token.encode()).hexdigest(),
+                roles=["domain_lead"], responsibility_domains=["science"],
+            ))
+        discovery = create_spatial_feature(
+            self.session_id,
+            SpatialFeatureCreateRequest(
+                object_type="discovery", name="Аномалия-01", q=15000, r=15000,
+                source_project_id=self.project_id, confidence=0.82,
+                source="Спектрометрический анализ образца № 4",
+                description="Признаки гидратированных минералов",
+                expected_map_version=0,
+            ),
+            token=science_token,
+        )
+        self.assertEqual(discovery["status"], "placed")
+        self.assertEqual(discovery["metadata"]["confidence"], 0.82)
+
+    def test_blocked_zone_prevents_spatial_object_creation(self):
+        with self.session_factory.begin() as db:
+            safety_token = "safety-domain-lead"
+            transport_token = "transport-domain-lead"
+            db.add_all([
+                PlayerRecord(
+                    session_id=self.session_id, display_name="Руководитель безопасности",
+                    token_hash=hashlib.sha256(safety_token.encode()).hexdigest(),
+                    roles=["domain_lead"], responsibility_domains=["safety"],
+                ),
+                PlayerRecord(
+                    session_id=self.session_id, display_name="Руководитель транспорта",
+                    token_hash=hashlib.sha256(transport_token.encode()).hexdigest(),
+                    roles=["domain_lead"], responsibility_domains=["transport"],
+                ),
+            ])
+        create_spatial_feature(
+            self.session_id,
+            SpatialFeatureCreateRequest(
+                object_type="zone", name="Опасная зона", q=16000, r=16000,
+                footprint=[[0, 0], [1, 0]], metadata={"blocked": True},
+                expected_map_version=0,
+            ),
+            token=safety_token,
+        )
+        with self.assertRaises(HTTPException) as error:
+            create_spatial_feature(
+                self.session_id,
+                SpatialFeatureCreateRequest(
+                    object_type="vehicle", name="Марсоход-2", q=16001, r=16000,
+                    expected_map_version=1,
+                ),
+                token=transport_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
 
     def test_map_exposes_axial_registry_and_legacy_assets(self):
         with self.session_factory.begin() as db:
