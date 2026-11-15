@@ -67,9 +67,9 @@ Heartbeat передаётся каждые 15 секунд. Клиент пос
 ## 7. Проверки
 
 - Python compileall и backend unit/API/PostgreSQL integration tests.
-- WebSocket authentication, snapshot и доставка commit-события.
+- WebSocket authentication, snapshot, доставка commit-события двум клиентам и обработка неизвестной сессии.
 - TypeScript typecheck и production build.
 - Docker Compose config/build/start.
 - Smoke-проверки API и web-клиента, продвижение периода и восстановление после рестарта PostgreSQL/API.
 
-Текущий CI: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724427816), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724427805) — success; 72 backend tests passed.
+Текущий CI: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724427816), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724427805) — success; 73 backend tests passed.
