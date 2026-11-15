@@ -87,8 +87,28 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
                     raise EntityCatalogError(f"Unknown resource '{resource_id}' in {key}.")
                 if _finite_nonnegative(quantity, f"{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{key}.{resource_id} must be positive.")
-    if entity["entity_type"] == "technology" and not isinstance(entity.get("effects", {}), dict):
-        raise EntityCatalogError("Technology effects must be an object.")
+    if entity["entity_type"] == "technology":
+        effects = entity.get("effects", {})
+        if not isinstance(effects, dict):
+            raise EntityCatalogError("Technology effects must be an object.")
+        supported_effects = {
+            "resource_output_multiplier",
+            "labor_demand_multiplier",
+            "asset_condition_loss_multiplier",
+        }
+        if not set(effects).issubset(supported_effects):
+            raise EntityCatalogError("Technology contains an unsupported economic effect.")
+        multipliers = effects.get("resource_output_multiplier", {})
+        if not isinstance(multipliers, dict):
+            raise EntityCatalogError("resource_output_multiplier must be an object.")
+        for resource_id, multiplier in multipliers.items():
+            if resource_id not in resource_catalog:
+                raise EntityCatalogError(f"Unknown technology output resource '{resource_id}'.")
+            if not 0 < _finite_nonnegative(multiplier, f"resource_output_multiplier.{resource_id}") <= 3:
+                raise EntityCatalogError("Technology resource multipliers must be greater than zero and no more than 3.")
+        for key in ("labor_demand_multiplier", "asset_condition_loss_multiplier"):
+            if key in effects and not 0 < _finite_nonnegative(effects[key], key) <= 1:
+                raise EntityCatalogError(f"{key} must be greater than zero and no more than one.")
 
 
 def validate_catalog(catalogue: dict[str, Any], scenario_id: str) -> None:
