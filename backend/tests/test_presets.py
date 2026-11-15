@@ -40,6 +40,29 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
         }
         self.assertEqual(starter_kinds, set(entity_catalogue["starter_kind_overrides"]))
 
+    def test_every_starter_object_type_is_available_as_a_buildable_catalogue_entity(self):
+        starter = load_starter_presets("ares-01")
+        catalogue = load_entity_catalog("ares-01")
+        starter_kinds = {
+            asset["kind"]
+            for preset in starter["presets"]
+            for assets in preset["domain_packs"].values()
+            for asset in assets
+        }
+        buildable = {
+            entity["kind"]: entity
+            for entity in catalogue["entities"]
+            if entity["id"].startswith("starter_")
+        }
+        self.assertEqual(set(buildable), starter_kinds)
+        for kind, entity in buildable.items():
+            self.assertGreaterEqual(entity["build"]["budget_credits"], 0)
+            self.assertGreaterEqual(entity["build"]["duration_periods"], 1)
+            self.assertTrue(entity["build"]["resource_requirements"])
+            self.assertEqual(entity["operation"], {
+                **entity["operation"]
+            })
+
     def test_catalogue_contracts_are_attached_to_matching_starter_assets(self):
         scenario = apply_starter_preset(load_scenario("ares-01"), "balanced")
         assets = scenario["initial_infrastructure"]
