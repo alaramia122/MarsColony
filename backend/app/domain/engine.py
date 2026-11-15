@@ -52,6 +52,9 @@ STARTER_ASSET_ECONOMICS = {
         "power_generation_kw": 2.0,
         "operating_cost_credits_per_period": 0.5,
     },
+    "large_battery_bank": {
+        "battery_capacity_kwh": 500.0,
+    },
 }
 
 PROCESS_ASSET_BINDINGS = {
@@ -470,8 +473,7 @@ def advance_period(
     condition_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
-        effects = _asset_economic_effects(asset)
-        if not effects or asset.get("status", properties.get("status", "commissioned")) not in {"commissioned", "operational"}:
+        if asset.get("status", properties.get("status", "commissioned")) not in {"commissioned", "operational"}:
             continue
         condition_before = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
         wear = float(properties.get("condition_loss_per_period", 0.005))
