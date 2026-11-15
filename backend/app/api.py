@@ -56,6 +56,9 @@ def serialize_session(record: GameSessionRecord) -> dict:
         "scenario_version": record.scenario_version,
         "current_period": record.current_period,
         "reserved_budget_credits": record.reserved_budget_credits,
+        "available_budget_credits": max(
+            0.0, float(record.state["budget_credits"]) - float(record.reserved_budget_credits)
+        ),
         "state": record.state,
         "created_at": record.created_at,
     }
