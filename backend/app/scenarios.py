@@ -5,6 +5,8 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from .entity_catalog import SERVICE_CODES
+
 
 MODULE_PATH = Path(__file__).resolve()
 DATA_ROOTS = (MODULE_PATH.parents[2], MODULE_PATH.parents[1])
@@ -94,6 +96,12 @@ def validate_scenario(scenario: dict[str, Any]) -> None:
             raise ScenarioValidationError(
                 f"Initial stock '{state_key}' exceeds storage capacity."
             )
+
+    service_demands = scenario.get("service_demand_per_period", {})
+    if not isinstance(service_demands, dict) or not set(service_demands).issubset(SERVICE_CODES):
+        raise ScenarioValidationError("Scenario service demand references an unsupported service.")
+    for service_id, quantity in service_demands.items():
+        _positive_number(quantity, f"Service demand '{service_id}'")
 
     for process_id, process in scenario["processes"].items():
         _positive_number(
