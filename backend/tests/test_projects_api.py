@@ -173,6 +173,16 @@ class ProjectWorkflowTests(unittest.TestCase):
         sequences = [event["sequence"] for event in state["events"]]
         self.assertEqual(sequences, sorted(set(sequences)))
 
+        final_period = api.advance_game_session(
+            self.session_id,
+            api.AdvancePeriodRequest(expected_period=3),
+            player_token=self.owner_token,
+        )
+        oxygen_bonus = final_period["report"]["project_production_bonuses"]["oxygen"]
+        self.assertEqual(oxygen_bonus["requested"], 10.0)
+        self.assertEqual(oxygen_bonus["produced"], 10.0)
+        self.assertEqual(final_period["report"]["commissioned_power_fraction"], 1.0)
+
     def test_unassigned_player_cannot_create_project(self):
         player = self.join("Новый участник")
         with self.assertRaises(HTTPException) as error:
