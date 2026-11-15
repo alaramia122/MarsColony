@@ -122,3 +122,30 @@ class ProjectApprovalRecord(Base):
         DateTime(timezone=True), nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class AIProposalRecord(Base):
+    __tablename__ = "ai_proposals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    proposal: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_review")
+    created_project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
