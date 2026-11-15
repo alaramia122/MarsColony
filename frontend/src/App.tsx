@@ -258,7 +258,7 @@ export default function App() {
           {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
-          {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }\n          {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} onRefresh={refresh} />}
+          {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }\n          {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} hasProjects={projects.length > 0} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
           {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} onReturnToPreviousSession={returnToPreviousSession} hasPreviousSession={Boolean(previousAuth)} busy={busy} />}
@@ -362,9 +362,10 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
   </div>;
 }
 
-function CampaignSettings({ session, auth, onRefresh }: {
+function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
   session: SessionData;
   auth: Auth;
+  hasProjects: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const catalog = session.resource_catalog || {};
@@ -376,7 +377,7 @@ function CampaignSettings({ session, auth, onRefresh }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const locked = session.current_period > 0;
+  const locked = session.current_period > 0 || hasProjects;
   const resourceNames: Record<string, string> = {
     oxygen: "Кислород", food_solids: "Пищевые запасы", usable_water: "Подготовленная вода",
     raw_ice: "Сырой лёд"
@@ -413,7 +414,7 @@ function CampaignSettings({ session, auth, onRefresh }: {
     <section className="panel">
       <div className="eyebrow">CAMPAIGN CONFIGURATION</div><h2>Параметры игровой кампании</h2>
       <p className="muted ai-settings-help">Настройки общие для всей сессии. Изменять их может только командир, до начала первого игрового периода и до создания первого проекта. После старта кампании параметры фиксируются.</p>
-      {locked && <div className="alert">Кампания уже началась. Изменение стартовых параметров заблокировано.</div>}
+      {locked && <div className="alert">{session.current_period > 0 ? "Кампания уже началась." : "Уже создан проект."} Изменение стартовых параметров заблокировано.</div>}
       <label>Количество игровых периодов<input type="number" min="1" max="100" step="1" value={periodCount} disabled={locked} onChange={(event) => setPeriodCount(event.target.value)} /><small>Один период сценария Ares-1 равен 30 солам. Общая длительность пересчитывается автоматически.</small></label>
       <div className="form-section"><strong>Стартовые ресурсы</strong><p className="field-help">Запасы, с которыми колония начинает кампанию. Значения проверяются по вместимости соответствующих хранилищ.</p>
         <div className="form-grid">{resourceEntries.map(([key, resource]) => <label key={key}>{resourceNames[key] || key} ({resource.unit || "ед."})<input type="number" min="0" step="any" value={resources[key] ?? String(session.settings?.starting_resources?.[resource.state_key || ""] ?? 0)} disabled={locked} onChange={(event) => setResources((current) => ({ ...current, [key]: event.target.value }))} /><small>Начальный запас; вместимость хранилища проверяется сервером.</small></label>)}</div>
@@ -421,7 +422,7 @@ function CampaignSettings({ session, auth, onRefresh }: {
       <label>Стартовый бюджет, игровые кредиты<input type="number" min="0" step="0.1" value={startingCredits} disabled={locked} onChange={(event) => setStartingCredits(event.target.value)} /><small>Начальный финансовый резерв колонии.</small></label>
       {error && <div className="alert">{error}</div>}
       {notice && <p className="assistant-notice">{notice}</p>}
-      <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и неотрицательные числовые значения." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
+      <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании или создания первого проекта." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и неотрицательные числовые значения." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
     </section>
     <section className="panel"><div className="eyebrow">CURRENT CAMPAIGN</div><h2>Сводка настроек</h2>
       <div className="system-row"><div className="system-info"><strong>Игровые периоды</strong><span>Продолжительность кампании</span></div><div className="system-value">{session.settings?.period_count ?? 4}</div></div>
