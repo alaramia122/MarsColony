@@ -41,6 +41,27 @@ const numberAt = (source: Record<string, unknown>, key: string) => {
   return typeof value === "number" ? value : 0;
 };
 
+const localizeError = (message: string) => {
+  const rules: Array<[RegExp, string]> = [
+    [/AI provider is disabled|no AI provider is configured|provider.*not configured/i, "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api."],
+    [/API key.*(missing|required)|credentials.*missing/i, "Не задан API-ключ ИИ. Проверьте настройки провайдера в файле .env."],
+    [/folder.*(missing|required)|folder id/i, "Не указан идентификатор каталога Yandex Cloud. Проверьте MARS_AI_YANDEX_FOLDER_ID."],
+    [/Invalid player token/i, "Токен игрока недействителен. Войдите в игровую сессию заново."],
+    [/Player token is required/i, "Для выполнения действия требуется авторизация игрока."],
+    [/Game session not found/i, "Игровая сессия не найдена."],
+    [/Only the colony commander/i, "Это действие доступно только командиру колонии."],
+    [/Campaign settings are locked after the first period starts/i, "Параметры кампании заблокированы после начала первого периода."],
+    [/Campaign settings are locked after the first project is created/i, "Параметры кампании заблокированы после создания первого проекта."],
+    [/Game storage is unavailable/i, "Хранилище игры временно недоступно. Проверьте состояние базы данных."],
+    [/AI request limit for this session/i, "Достигнут часовой лимит запросов к ИИ для игровой сессии."],
+    [/AI request limit for this player/i, "Достигнут часовой лимит запросов к ИИ для этого игрока."],
+    [/AI event did not match its response contract/i, "ИИ вернул событие в неподдерживаемом формате. Повторите запрос позже."],
+    [/Game state changed while the event was being generated/i, "Состояние игры изменилось во время подготовки события. Обновите данные и повторите запрос."]
+  ];
+  for (const [pattern, replacement] of rules) if (pattern.test(message)) return replacement;
+  return message;
+};
+
 async function request<T>(path: string, token?: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -48,7 +69,7 @@ async function request<T>(path: string, token?: string, init: RequestInit = {}):
   const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || `Ошибка запроса: HTTP ${response.status}`);
+    throw new Error(localizeError(body.detail || `Ошибка запроса: HTTP ${response.status}`));
   }
   return response.json() as Promise<T>;
 }
@@ -103,7 +124,7 @@ export default function App() {
         const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown>; created_at?: string | null };
         if (data.type === "snapshot") {
           setConnected(true); setReconnecting(false); setError(""); setConnectionDetail("Сервер подтвердил игрока и отправил актуальный снимок сессии.");
-          void refresh().catch((reason: Error) => setError(reason.message));
+          void refresh().catch((reason: Error) => setError(localizeError(reason.message)));
         } else if (data.type === "heartbeat") {
           setConnected(true); setReconnecting(false); setConnectionDetail("Серверный heartbeat получен: " + new Date().toLocaleTimeString("ru-RU"));
         } else if (data.type === "event" && typeof data.sequence === "number") {
@@ -145,7 +166,7 @@ export default function App() {
         method: "POST", body: JSON.stringify({ expected_period: session.current_period })
       });
       await refresh();
-    } catch (reason) { setError((reason as Error).message); }
+    } catch (reason) { setError(localizeError((reason as Error).message)); }
     finally { setBusy(false); }
   };
 
@@ -341,19 +362,19 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
   };
   return <div className="role-workspace">
     <section className="panel role-profile">
-      <div className="eyebrow">PERSONAL RESPONSIBILITY / PERIOD {currentPeriod}</div>
+      <div className="eyebrow">ОТВЕТСТВЕННОСТЬ / ПЕРИОД {currentPeriod}</div>
       <h2>{player.display_name}</h2>
       <div className="role-tags">{roles.map((role) => <span className="role-tag" key={role}>{ROLE_INFO[role]?.title || role}</span>)}</div>
       {roles.map((role) => <div className="role-description" key={role}><h3>{ROLE_INFO[role]?.title || role}</h3><p>{ROLE_INFO[role]?.purpose || "Роль участника игровой сессии."}</p><ul>{(ROLE_INFO[role]?.duties || ROLE_INFO.player.duties).map((duty) => <li key={duty}>{duty}</li>)}</ul></div>)}
     </section>
-    {roles.includes("finance_lead") && <section className="panel finance-workspace-metrics"><div className="eyebrow">FINANCIAL CONTROL</div><h3>Финансовая картина</h3><div className="domain-metrics"><div><span>Доступный бюджет</span><strong>{quantity(availableBudget, 1)} <small>кр.</small></strong></div><div><span>Зарезервировано</span><strong>{quantity(reservedBudget, 1)} <small>кр.</small></strong></div><div><span>Проекты на финансовом рассмотрении</span><strong>{pending.length} <small>шт.</small></strong></div></div></section>}
+    {roles.includes("finance_lead") && <section className="panel finance-workspace-metrics"><div className="eyebrow">ФИНАНСОВЫЙ КОНТРОЛЬ</div><h3>Финансовая картина</h3><div className="domain-metrics"><div><span>Доступный бюджет</span><strong>{quantity(availableBudget, 1)} <small>кр.</small></strong></div><div><span>Зарезервировано</span><strong>{quantity(reservedBudget, 1)} <small>кр.</small></strong></div><div><span>Проекты на финансовом рассмотрении</span><strong>{pending.length} <small>шт.</small></strong></div></div></section>}
     <section className="role-summary-grid">
       <article className="metric-card"><span>АКТИВНЫЕ ПРОЕКТЫ</span><div><strong>{active.length}</strong><small>в работе</small></div><p>В закреплённых направлениях</p></article>
       <article className="metric-card"><span>ТРЕБУЮТ РЕШЕНИЯ</span><div><strong>{pending.length}</strong><small>заявок</small></div><p>Ожидают согласования</p></article>
       <article className="metric-card"><span>УЧАСТНИКОВ</span><div><strong>{players.length}</strong><small>человек</small></div><p>В общей сессии</p></article>
     </section>
     <section className="panel">
-      <div className="panel-heading"><div><div className="eyebrow">YOUR DOMAINS</div><h2>Зоны ответственности</h2></div><span className="count-chip">{domains.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">МОИ НАПРАВЛЕНИЯ</div><h2>Зоны ответственности</h2></div><span className="count-chip">{domains.length}</span></div>
       {domains.length === 0 ? <p className="muted">За вами пока не закреплены направления. Попросите Капитана назначить зону ответственности.</p> : domains.map((code) => {
         const info = DOMAIN_INFO[code] || { title: code, purpose: "Описание направления не задано.", metrics: [] as Array<[string,string,string]> };
         const related = projects.filter((project) => project.domain_codes.includes(code));
@@ -367,10 +388,10 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
       })}
     </section>
     <section className="panel">
-      <div className="panel-heading"><div><div className="eyebrow">ACTION QUEUE</div><h2>Мои задачи и решения</h2></div><button className="button button-secondary small-button" onClick={() => onNavigate("projects")}>Открыть проекты</button></div>
+      <div className="panel-heading"><div><div className="eyebrow">ОЧЕРЕДЬ ЗАДАЧ</div><h2>Мои задачи и решения</h2></div><button className="button button-secondary small-button" onClick={() => onNavigate("projects")}>Открыть проекты</button></div>
       {pending.length === 0 && active.length === 0 ? <p className="muted">Нет активных задач в закреплённых направлениях.</p> : [...pending,...active].map((project) => <div className="role-task-row" key={project.id}><strong>{project.title}</strong><span>{project.status === "submitted" ? "Ожидает согласования" : "Исполняется"} · {project.domain_codes.map((domain) => DOMAIN_INFO[domain]?.title || domain).join(", ")}</span></div>)}
     </section>
-    <section className="panel"><div className="eyebrow">RECENT ACTIVITY</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{event.event_type}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
+    <section className="panel"><div className="eyebrow">ПОСЛЕДНИЕ СОБЫТИЯ</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{event.event_type}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
   </div>;
 }
 
@@ -406,10 +427,15 @@ function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
     oxygen: "Кислород", food_solids: "Пищевые запасы",
     usable_water: "Подготовленная вода", raw_ice: "Сырой лёд"
   };
+  // Синхронизируем форму только при фактическом изменении значений на сервере.
+  // WebSocket обновляет объект session целиком; зависимость от session.settings
+  // сбрасывала незаписанный ввод при каждом таком обновлении.
+  const serverPeriodCount = session.settings?.period_count ?? 4;
+  const serverStartingCredits = session.settings?.starting_credits ?? 0;
   useEffect(() => {
-    setPeriodCount(String(session.settings?.period_count ?? 4));
-    setStartingCredits(String(session.settings?.starting_credits ?? 0));
-  }, [session.settings]);
+    setPeriodCount(String(serverPeriodCount));
+    setStartingCredits(String(serverStartingCredits));
+  }, [serverPeriodCount, serverStartingCredits]);
   const save = async () => {
     if (locked || !valid) return;
     setSaving(true); setError(""); setNotice("");
@@ -425,7 +451,7 @@ function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
   };
   return <div className="ai-settings-layout">
     <section className="panel">
-      <div className="eyebrow">CAMPAIGN CONFIGURATION</div><h2>Параметры игровой кампании</h2>
+      <div className="eyebrow">ПАРАМЕТРЫ КАМПАНИИ</div><h2>Параметры игровой кампании</h2>
       <p className="muted ai-settings-help">Здесь задаются продолжительность и финансовый резерв. Стартовая техническая и инфраструктурная комплектация выбирается капитаном на экране создания сессии.</p>
       {locked && <div className="alert">{session.current_period > 0 ? "Кампания уже началась." : "Уже создан проект."} Изменение параметров заблокировано.</div>}
       <label>Количество игровых периодов<input type="number" min="1" max="100" step="1" value={periodCount} disabled={locked} onChange={(event) => setPeriodCount(event.target.value)} /><small>Один период сценария Ares-1 равен 30 солам. Общая длительность пересчитывается автоматически.</small></label>
@@ -443,7 +469,7 @@ function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
       <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании или создания первого проекта." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и стартовый бюджет." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
     </section>
     <section className="panel">
-      <div className="eyebrow">STARTING INFRASTRUCTURE</div><h2>Выбранная комплектация</h2>
+      <div className="eyebrow">СТАРТОВАЯ ИНФРАСТРУКТУРА</div><h2>Выбранная комплектация</h2>
       <h3>{session.starter_preset?.name || "Стартовый профиль не указан"}</h3>
       <p className="muted">{session.starter_preset?.description || "Профиль стартовой инфраструктуры не сохранён в снимке сессии."}</p>
       <div className="system-row"><div className="system-info"><strong>Инфраструктурных объектов</strong><span>В начальном составе колонии</span></div><div className="system-value">{starterAssets.length}</div></div>
@@ -480,7 +506,7 @@ function AISettings() {
   };
   return <div className="ai-settings-layout">
     <section className="panel">
-      <div className="eyebrow">AI PROVIDER / SERVER CONFIGURATION</div><h2>Подключение ИИ-ведущего</h2>
+      <div className="eyebrow">ПРОВАЙДЕР ИИ / НАСТРОЙКА СЕРВЕРА</div><h2>Подключение ИИ-ведущего</h2>
       <p className="muted ai-settings-help">Настройка выполняется для всей игровой сессии. Ключи не сохраняются в браузере после закрытия страницы и не отправляются в игровой API: панель формирует блок для серверного файла .env. Не вставляйте секреты в общий чат и не публикуйте .env в Git.</p>
       <label>Провайдер<select value={provider} onChange={(event) => { setProvider(event.target.value); setNotice(""); }}>{[["yandex_ai_studio","Yandex AI Studio"],["openai_compatible","OpenAI-compatible API"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {provider === "openai_compatible" && <label>Базовый URL API<input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" /></label>}
@@ -490,7 +516,7 @@ function AISettings() {
       <div className="form-foot"><span className="muted">После изменения .env выполните <code>docker compose up -d --force-recreate api</code>.</span><button className="button button-primary" onClick={copyConfig}>Скопировать настройки</button></div>
       {notice && <p className="assistant-notice">{notice}</p>}
     </section>
-    <section className="panel"><div className="eyebrow">CONFIGURATION PREVIEW</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через MARS_AI_PROVIDERS и MARS_AI_TASK_ROUTING. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
+    <section className="panel"><div className="eyebrow">ПРЕДПРОСМОТР НАСТРОЕК</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через MARS_AI_PROVIDERS и MARS_AI_TASK_ROUTING. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
   </div>;
 }
 
@@ -532,8 +558,8 @@ function Login({ busy, error, onCreate, onJoin }: {
     <div className="login-aside">
       <div className="brand"><span className="brand-mark">M</span><span>MARS<span className="brand-light">COLONY</span></span></div>
       <div className="login-art"><div className="planet" /><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="base-glow" /></div>
-      <div className="login-caption"><div className="eyebrow">HUMANITY / NEXT FRONTIER</div><h1>Новая глава<br />начинается здесь.</h1><p>Единый центр управления марсианской экспедицией. Решения, ресурсы и люди — в одной системе.</p></div>
-      <span className="aside-foot">ARES PROGRAM · MARS COLONY SIMULATION</span>
+      <div className="login-caption"><div className="eyebrow">ЧЕЛОВЕЧЕСТВО / НОВЫЙ РУБЕЖ</div><h1>Новая глава<br />начинается здесь.</h1><p>Единый центр управления марсианской экспедицией. Решения, ресурсы и люди — в одной системе.</p></div>
+      <span className="aside-foot">ПРОГРАММА ARES · СИМУЛЯТОР МАРСИАНСКОЙ КОЛОНИИ</span>
     </div>
     <div className="login-panel">
       <div className="login-form-wrap">
@@ -592,7 +618,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
       })}</div>
     </section>}
     {Object.keys((state.service_delivery_per_period || {}) as Record<string, unknown>).length > 0 && <section className="panel inventory-panel">
-      <div className="panel-heading"><div><div className="eyebrow">OPERATIONAL SERVICES</div><h2>Обеспечение служб</h2></div><span className="muted small">мощность и спрос за период</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">РАБОТА СЛУЖБ</div><h2>Обеспечение служб</h2></div><span className="muted small">мощность и спрос за период</span></div>
       <div className="inventory-grid">{Object.entries(state.service_delivery_per_period as Record<string, {requested:number;capacity:number;served:number;unmet:number}>).map(([id, item]) => {
         const names: Record<string,string> = {medical_beds:"Медицинские койки",isolation_beds:"Изоляторы",lab_samples_per_period:"Лабораторные пробы",communications_bandwidth_mbps:"Пропускная способность связи",cargo_handling_tonnes_per_period:"Обработка грузов",transport_tonnes_per_period:"Перевозка грузов",repair_work_orders_per_period:"Ремонтные заказы",fire_response_capacity:"Пожарное реагирование",training_seats:"Учебные места",remote_observations_per_period:"Дистанционные наблюдения",command_staff_capacity:"Операторы управления",warehouse_capacity_kg:"Складская ёмкость"};
         const units: Record<string,string> = {medical_beds:"мест",isolation_beds:"мест",lab_samples_per_period:"проб/пер.",communications_bandwidth_mbps:"Мбит/с",cargo_handling_tonnes_per_period:"т/пер.",transport_tonnes_per_period:"т/пер.",repair_work_orders_per_period:"заказов/пер.",fire_response_capacity:"инцид.",training_seats:"мест",remote_observations_per_period:"набл./пер.",command_staff_capacity:"чел.",warehouse_capacity_kg:"кг"};
@@ -601,7 +627,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     </section>}
     <div className="section-grid">
       <section className="panel main-panel">
-        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= (session?.settings?.period_count ?? 4) ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
+        <div className="panel-heading"><div><div className="eyebrow">СОСТОЯНИЕ КОЛОНИИ</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= (session?.settings?.period_count ?? 4) ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
@@ -609,13 +635,13 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
         <div className="system-row"><div className="system-icon">♙</div><div className="system-info"><strong>Активные проекты</strong><span>Проекты в стадии исполнения</span></div><div className="system-value">{activeProjects.length} <small>из {projects.length}</small></div></div>
       </section>
       <section className="panel side-panel">
-        <div className="panel-heading"><div><div className="eyebrow">PROJECT OFFICE</div><h2>Проекты</h2></div><button className="text-button" onClick={onOpenProjects}>Все проекты ↗</button></div>
+        <div className="panel-heading"><div><div className="eyebrow">ПРОЕКТНЫЙ ОФИС</div><h2>Проекты</h2></div><button className="text-button" onClick={onOpenProjects}>Все проекты ↗</button></div>
         {projects.length === 0 ? <div className="empty-state"><span>▤</span><strong>Пока нет проектов</strong><p>Здесь появятся инициативы и ход их исполнения.</p></div> :
           projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{project.status} · {project.domain_codes.join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
       </section>
     </div>
     <section className="panel event-panel">
-      <div className="panel-heading"><div><div className="eyebrow">EVENT STREAM</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · PostgreSQL event log</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">ЛЕНТА СОБЫТИЙ</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · PostgreSQL event log</span></div>
       {events.length === 0 ? <p className="muted">Ожидание событий игровой сессии.</p> : events.slice().reverse().map((event) =>
         <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{event.event_type}</strong><span>{event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—"}</span></div>)}
     </section>
@@ -624,20 +650,20 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
 
 function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, onReturnToPreviousSession, hasPreviousSession, busy }: { step: number; onStepChange: (step: number) => void; onNavigate: (view: View) => void; onCreateTrainingSession: () => void; onReturnToPreviousSession: () => void; hasPreviousSession: boolean; busy: boolean }) {
   const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
-    { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
-    { title: "Познакомьтесь с экипажем", explanation: "Командир распределяет роли и зоны ответственности. Руководитель направления готовит проекты в своей области, финансовый руководитель проверяет бюджет, инженер помогает разрабатывать и исполнять проекты.", task: "Если играете с другими участниками, откройте список экипажа и назначьте хотя бы одному игроку направление. Для одиночного обучения этот шаг можно пропустить.", view: "people", action: "Открыть экипаж" },
-    { title: "Создайте учебный проект", explanation: "Проект — основной способ менять инфраструктуру и производственные возможности колонии. У него есть тип, направления, стоимость, длительность, потребность в труде, энергии и материалах.", task: "Создайте тестовый проект: название «Учебный ремонт», тип «Ремонт», направление «Энергетика», бюджет 0, длительность 1 период, труд и энергия 0. Для учебного проекта можно оставить ожидаемый результат пустым.", view: "projects", action: "Открыть проектный офис" },
-    { title: "Отправьте проект на согласование", explanation: "Отправка фиксирует версию проекта и резервирует указанный бюджет. После отправки параметры заявки проходят проверку сервером.", task: "Найдите «Учебный ремонт» и нажмите «Отправить на согласование».", view: "projects", action: "Перейти к проектам" },
-    { title: "Примите решение", explanation: "Обычный проект согласуют уполномоченные руководители затронутых направлений; для платного проекта также требуется финансовое решение. Если командир сам является автором, он может утвердить проект командирским распоряжением с обязательным письменным обоснованием. Решение попадёт в журнал.", task: "Откройте согласование проекта. Для собственного проекта командира укажите обоснование не короче 10 символов.", view: "projects", action: "Открыть согласования" },
-    { title: "Запустите исполнение", explanation: "Утверждение ещё не меняет инфраструктуру. Запуск проекта — отдельная команда: сервер повторно проверяет полномочия, материалы, трудовые и энергетические ограничения.", task: "После статуса «Согласован» нажмите «Запустить проект».", view: "projects", action: "Открыть проект" },
-    { title: "Завершите игровой период", explanation: "Период охватывает 30 марсианских солов. При его завершении сервер пересчитывает потребление, производство, энергетику и прогресс активных проектов. Действие доступно командиру.", task: "Перейдите в обзор и нажмите «Завершить период». В учебной миссии достаточно одного перехода.", view: "overview", action: "Открыть обзор" },
-    { title: "Подтвердите результат", explanation: "Когда прогресс проекта достигнет длительности, уполномоченный участник подтверждает завершение. Только после этого применяются заявленные эффекты проекта и освобождаются занятые ресурсы исполнения.", task: "Вернитесь в проектный офис, проверьте прогресс и нажмите «Подтвердить завершение».", view: "projects", action: "Открыть проектный офис" }
-  ];
-  const current = steps[step];
+    { title: "Осмотрите состояние колонии", explanation: "На обзоре собраны запасы кислорода, воды и пищи, бюджет, энергетика, инфраструктура и активные проекты. Сервер хранит общее состояние для всех участников.", task: "Откройте обзор и найдите самый критичный показатель. Обратите внимание на дефициты и предупреждения.", view: "overview", action: "Открыть обзор" },
+    { title: "Изучите свою роль и полномочия", explanation: "У каждого участника есть роль и закреплённые направления. Руководители и инженеры работают в пределах своих направлений; командир распределяет ответственность и принимает общие решения.", task: "Откройте «Мой кабинет», изучите свои направления и очередь задач. Затем посмотрите состав экипажа.", view: "workspace", action: "Открыть мой кабинет" },
+    { title: "Изучите карту и инфраструктуру", explanation: "Карта показывает известные колонии объекты и их карточки. Фильтры помогают отделить типы инфраструктуры. Объекты без координат пока находятся в списке вне карты.", task: "Откройте карту, выберите несколько слоёв и изучите карточки объектов.", view: "map", action: "Открыть карту" },
+    { title: "Выберите готовые объекты и технологии", explanation: "В проектном офисе каталог содержит типовые объекты, оборудование, транспорт, технологии, процессы и процедуры. Выбор добавляет к проекту требования и затрагиваемые направления.", task: "Откройте форму проекта и найдите подходящую сущность через поиск и тематические группы. Создавать проект необязательно.", view: "projects", action: "Открыть проектный офис" },
+    { title: "Подготовьте проект", explanation: "Проект описывает цель, направления, бюджет, срок, труд, энергию, материалы и ожидаемый результат. Сервер проверяет ресурсы и полномочия; фотография может задавать внешний вид создаваемого объекта.", task: "Создайте учебный черновик с понятной целью и выберите нужные направления. Не отправляйте его на согласование, если не уверены в параметрах.", view: "projects", action: "Создать проект" },
+    { title: "Пройдите согласование", explanation: "Отправленный проект проверяют ответственные за затронутые направления. Для платных проектов требуется финансовое решение. Автор не согласует собственный проект; командир может принять отдельное распоряжение с письменным обоснованием.", task: "Изучите блок согласований проекта. Проверьте, кто должен принять решение и какие замечания оставлены.", view: "projects", action: "Открыть согласования" },
+    { title: "Следите за исполнением", explanation: "После согласования уполномоченный игрок запускает проект. При исполнении резервируются ресурсы, учитываются труд и энергия. По завершении требуется приёмка результата.", task: "Посмотрите статусы существующих проектов и историю решений. Не запускайте реальные проекты только ради обучения.", view: "projects", action: "Открыть проекты" },
+    { title: "Познакомьтесь с ИИ-ведущим", explanation: "ИИ может подготовить сводку, проектное предложение и сценарное событие. Для этого нужен настроенный внешний провайдер. Без подключения ИИ основной игровой цикл продолжает работать.", task: "Откройте ИИ-ведущего. Если провайдер не настроен, изучите сообщение и перейдите в настройки ИИ; вводить ключи в общий игровой чат нельзя.", view: "assistant", action: "Открыть ИИ-ведущего" }
+  ];;
+  const current = steps[Math.min(step, steps.length - 1)];
   return <section className="panel tutorial-panel">
-    <div className="eyebrow">ARES-01 / TRAINING MISSION</div>
-    <h2>Учебная миссия «Первая смена»</h2>
-    <p className="muted tutorial-intro">Учебная миссия выполняется в отдельной сессии, чтобы не менять состояние вашей основной кампании. Сначала сохраните ID и код текущей сессии, затем создайте отдельную учебную сессию кнопкой ниже. Проект не требует бюджета, материалов или энергии.</p>
+    <div className="eyebrow">ARES-01 / УЧЕБНАЯ МИССИЯ</div>
+    <h2>Обучение работе с MarsColony</h2>
+    <p className="muted tutorial-intro">Руководство знакомит с актуальными разделами интерфейса, ролями, каталогом, проектами, согласованиями, картой и ИИ-ведущим. Для безопасного знакомства можно создать отдельную учебную сессию; основная кампания при этом останется сохранённой.</p>
     <button className="button button-secondary" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Создаст новую сессию Ares-1 для обучения; текущая сессия останется сохранённой на сервере."} onClick={onCreateTrainingSession}>Создать отдельную учебную сессию</button>
     {hasPreviousSession && <button className="button button-quiet" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Вернуться в сохранённую основную сессию."} onClick={onReturnToPreviousSession}>Вернуться к предыдущей сессии</button>}
     <div className="tutorial-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
@@ -670,7 +696,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   const visible = positioned.filter(matchesLayer);
   const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
       {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
@@ -703,7 +729,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
           <span className="map-marker-name">{name}</span>
         </button>;
       })}
-      <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
+      <div className="map-coordinate">ГЕКСАГОНАЛЬНАЯ СЕТКА · СХЕМА</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
     {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
@@ -983,7 +1009,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     {actionError && <div className="alert">{actionError}<button onClick={() => setActionError("")}>×</button></div>}
     {entityProposalError && <div className="alert">{entityProposalError}<button onClick={() => setEntityProposalError("")}>×</button></div>}
     {pendingEntityProposals.length > 0 && <section className="panel project-form">
-      <div className="eyebrow">ENTITY CATALOG REVIEW</div><h2>Новые типы на согласовании</h2>
+      <div className="eyebrow">ПРОВЕРКА КАТАЛОГА СУЩНОСТЕЙ</div><h2>Новые типы на согласовании</h2>
       {pendingEntityProposals.map((proposal) => {
         const canReview = roleSet.has("colony_commander") || (roleSet.has("domain_lead") && proposal.domain_codes.every((domain) => (player?.responsibility_domains || []).includes(domain)));
         return <div className="approval-history" key={proposal.id}>
@@ -995,7 +1021,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       })}
     </section>}
     {formOpen && <section className="panel project-form">
-      <div className="eyebrow">NEW PROJECT PROPOSAL</div><h2>Новая инициатива</h2>
+      <div className="eyebrow">НОВЫЙ ПРОЕКТ</div><h2>Новая инициатива</h2>
       <div className="form-grid">
         <label>Название проекта<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} placeholder="Например, резервный контур воды" /></label>
         <label>Тип проекта<select value={projectType} onChange={(event) => setProjectType(event.target.value)}>{[["construction","Строительство"],["production","Производство"],["repair","Ремонт"],["research","Исследование"],["exploration","Разведка"],["procurement","Закупка"],["infrastructure","Инфраструктура"],["other","Прочее"]].map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
@@ -1190,7 +1216,7 @@ function People({ players, technologies, auth, onRefresh }: {
     finally { setSaving(false); }
   };
   return <div className="people-layout"><section className="panel">
-    <div className="panel-heading"><div><div className="eyebrow">CREW MANIFEST</div><h2>Участники экспедиции</h2></div><span className="count-chip">{players.length} / 20</span></div>
+    <div className="panel-heading"><div><div className="eyebrow">СОСТАВ ЭКИПАЖА</div><h2>Участники экспедиции</h2></div><span className="count-chip">{players.length} / 20</span></div>
     {error && <div className="alert">{error}<button onClick={() => setError("")}>×</button></div>}
     {players.map((player) => <div className="person-card" key={player.id}>
       <div className="person-row"><div className="person-avatar">{player.display_name.slice(0, 1)}</div><div className="person-details"><strong>{player.display_name}</strong><span>{player.roles.map((role) => roleLabels[role] || role).join(", ")}</span><small>{player.responsibility_domains.map((code) => domainLabels[code] || code).join(" · ") || "Без закреплённых направлений"}</small></div>
@@ -1201,5 +1227,5 @@ function People({ players, technologies, auth, onRefresh }: {
         <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} title={saving ? "Дождитесь завершения сохранения." : selectedRoles.length === 0 ? "Назначьте участнику хотя бы одну роль." : undefined} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
       </div>}
     </div>)}
-  </section><section className="panel"><div className="eyebrow">RESEARCH REGISTER</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;
+  </section><section className="panel"><div className="eyebrow">РЕЕСТР ИССЛЕДОВАНИЙ</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;
 }
