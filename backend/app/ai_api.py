@@ -13,12 +13,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .ai_gateway import (
-    ProjectProposal, ProviderError, build_provider_context, configured_provider,
+    ColonyBriefing, GameEventProposal, ProjectProposal, ProviderError,
+    build_game_context, build_provider_context, configured_provider,
 )
 from .db import SessionLocal
 from .domain.projects import DOMAIN_CODES, PROJECT_TYPES, can_propose_project
 from .models import (
-    AIProposalRecord, GameEventRecord, GameSessionRecord, PlayerRecord, ProjectRecord,
+    AIEventProposalRecord, AIProposalRecord, GameEventRecord, GameSessionRecord,
+    PlayerRecord, ProjectRecord,
 )
 from .projects_api import authenticate, policy
 
@@ -40,6 +42,7 @@ def _append_event(db, session_id: str, event_type: str, payload: dict) -> None:
         payload=payload,
     ))
     db.flush()
+    return sequence
 
 
 def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) -> None:
@@ -275,5 +278,217 @@ def reject_ai_proposal(
                 "proposal_id": record.id, "rejected_by": actor.id,
             })
             return _serialize(record)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+class EventGenerationRequest(BaseModel):
+    focus: str = Field(default="", max_length=1000)
+
+
+def _event_serialize(record: AIEventProposalRecord) -> dict:
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "author_player_id": record.author_player_id,
+        "period_created": record.period_created,
+        "proposal": record.proposal,
+        "status": record.status,
+        "published_sequence": record.published_sequence,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+    }
+
+
+def _load_game_context(db, session):
+    players = db.scalars(select(PlayerRecord).where(
+        PlayerRecord.session_id == session.id
+    ).order_by(PlayerRecord.created_at)).all()
+    projects = db.scalars(select(ProjectRecord).where(
+        ProjectRecord.session_id == session.id
+    ).order_by(ProjectRecord.created_at)).all()
+    events = db.scalars(select(GameEventRecord).where(
+        GameEventRecord.session_id == session.id
+    ).order_by(GameEventRecord.sequence)).all()
+    return build_game_context(session, players, projects, events)
+
+
+@router.post("/sessions/{session_id}/ai/briefing")
+def create_colony_briefing(
+    session_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal() as db:
+            session = db.get(GameSessionRecord, session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            authenticate(db, session_id, token)
+            context = _load_game_context(db, session)
+            period = session.current_period
+        provider = configured_provider()
+        raw = provider.generate_json(
+            "Ты — ИИ-ведущий MarsColony. Составь краткую оперативную сводку только по переданным фактам. "
+            "Не добавляй несуществующие события, числа, причины или технические выводы. "
+            "Отделяй наблюдаемые факты от рисков и вопросов. Верни JSON с полями "
+            "headline, situation, key_changes, risks, decisions_needed, next_period_focus.",
+            {"game_state": context, "output_language": "Russian"},
+        )
+        briefing = ColonyBriefing.model_validate(raw)
+        return {"period": period, "briefing": briefing.model_dump()}
+    except ProviderError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ValidationError as error:
+        raise HTTPException(status_code=502, detail="AI briefing did not match its response contract.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/events", status_code=201)
+def create_ai_event_proposal(
+    session_id: str,
+    request: EventGenerationRequest,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal() as db:
+            session = db.get(GameSessionRecord, session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can request a game event.")
+            context = _load_game_context(db, session)
+            context_period = session.current_period
+        provider = configured_provider()
+        raw = provider.generate_json(
+            "Ты — сценарный ИИ-ведущий настольной игры MarsColony. Предложи одно правдоподобное "
+            "событие для текущего игрового периода, опираясь только на контекст сценария. "
+            "Событие должно создавать осмысленную дилемму и несколько игровых вариантов ответа. "
+            "Не выдумывай факты о текущем состоянии колонии. Не назначай автоматические изменения "
+            "ресурсов и не исполняй действия. Верни JSON с полями title, category, severity "
+            "(low|moderate|high|critical), trigger, narrative, player_options (2..5), "
+            "consequences (1..8), assumptions.",
+            {"game_state": context, "focus": request.focus.strip(),
+             "output_language": "Russian"},
+        )
+        proposal = GameEventProposal.model_validate(raw)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can request a game event.")
+            if session.current_period != context_period:
+                raise HTTPException(status_code=409, detail="Game period changed while the event was being generated.")
+            record = AIEventProposalRecord(
+                session_id=session_id, author_player_id=actor.id,
+                period_created=context_period, proposal=proposal.model_dump(),
+                status="pending_review",
+            )
+            db.add(record)
+            db.flush()
+            _append_event(db, session_id, "gm.event_proposed", {
+                "proposal_id": record.id, "period": context_period,
+                "status": record.status,
+            })
+            return _event_serialize(record)
+    except ProviderError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ValidationError as error:
+        raise HTTPException(status_code=502, detail="AI event did not match its response contract.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.get("/sessions/{session_id}/ai/events")
+def list_ai_event_proposals(
+    session_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal() as db:
+            authenticate(db, session_id, token)
+            records = db.scalars(select(AIEventProposalRecord).where(
+                AIEventProposalRecord.session_id == session_id
+            ).order_by(AIEventProposalRecord.created_at.desc())).all()
+            return {"events": [_event_serialize(item) for item in records]}
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/events/{proposal_id}/publish")
+def publish_ai_event(
+    session_id: str,
+    proposal_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can publish a game event.")
+            record = db.scalar(select(AIEventProposalRecord).where(
+                AIEventProposalRecord.id == proposal_id,
+                AIEventProposalRecord.session_id == session_id,
+            ).with_for_update())
+            if record is None:
+                raise HTTPException(status_code=404, detail="AI event proposal not found.")
+            if record.status != "pending_review":
+                raise HTTPException(status_code=409, detail="AI event proposal has already been processed.")
+            if record.period_created != session.current_period:
+                raise HTTPException(status_code=409, detail="AI event proposal belongs to an earlier game period.")
+            sequence = _append_event(db, session_id, "gm.event_published", {
+                "proposal_id": record.id,
+                "period": record.period_created,
+                "published_by": actor.id,
+                "event": record.proposal,
+            })
+            record.status = "published"
+            record.published_sequence = sequence
+            record.updated_at = datetime.now(timezone.utc)
+            return _event_serialize(record)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/events/{proposal_id}/reject")
+def reject_ai_event(
+    session_id: str,
+    proposal_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can reject a game event.")
+            record = db.scalar(select(AIEventProposalRecord).where(
+                AIEventProposalRecord.id == proposal_id,
+                AIEventProposalRecord.session_id == session_id,
+            ).with_for_update())
+            if record is None:
+                raise HTTPException(status_code=404, detail="AI event proposal not found.")
+            if record.status != "pending_review":
+                raise HTTPException(status_code=409, detail="AI event proposal has already been processed.")
+            record.status = "rejected"
+            record.updated_at = datetime.now(timezone.utc)
+            _append_event(db, session_id, "gm.event_rejected", {
+                "proposal_id": record.id, "rejected_by": actor.id,
+            })
+            return _event_serialize(record)
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
