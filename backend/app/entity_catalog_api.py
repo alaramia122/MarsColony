@@ -3,18 +3,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from uuid import uuid4
-import base64
-import binascii
-from io import BytesIO
-
-from PIL import Image, ImageOps, UnidentifiedImageError
-
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import SessionLocal
+from .entity_images import image_record_to_data_url, sanitize_image_data_url
 from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity, validate_entity_catalogue_resources
 from .domain.projects import DOMAIN_CODES
 from .models import GameEntityImageRecord, GameEntityRecord, GameEventRecord, GameSessionRecord
@@ -52,43 +47,6 @@ def _append_event(db, session_id: str, event_type: str, payload: dict) -> None:
     db.flush()
 
 
-def _sanitize_entity_image(data_url: str | None) -> tuple[bytes, str] | None:
-    if not data_url:
-        return None
-    if not data_url.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
-        raise HTTPException(status_code=422, detail="Use a JPEG, PNG or WebP image.")
-    try:
-        encoded = data_url.split(",", 1)[1]
-        raw = base64.b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error) as error:
-        raise HTTPException(status_code=422, detail="Image data is not valid base64.") from error
-    if not raw or len(raw) > 4 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Image must not exceed 4 MiB.")
-    try:
-        with Image.open(BytesIO(raw)) as source:
-            if source.format not in {"JPEG", "PNG", "WEBP"}:
-                raise HTTPException(status_code=422, detail="Use a JPEG, PNG or WebP image.")
-            if source.width > 12000 or source.height > 12000 or source.width * source.height > 40_000_000:
-                raise HTTPException(status_code=413, detail="Image dimensions exceed the 40-megapixel limit.")
-            source.load()
-            image = ImageOps.exif_transpose(source)
-            image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
-            if image.mode not in {"RGB", "RGBA"}:
-                image = image.convert("RGBA" if "transparency" in image.info else "RGB")
-            output = BytesIO()
-            image.save(output, format="WEBP", quality=82, method=6)
-            return output.getvalue(), "image/webp"
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
-        raise HTTPException(status_code=422, detail="Image file is damaged or cannot be decoded.") from error
-
-
-def _image_data_url(image: GameEntityImageRecord | None) -> str | None:
-    if image is None:
-        return None
-    encoded = base64.b64encode(image.image_data).decode("ascii")
-    return f"data:{image.media_type};base64,{encoded}"
-
-
 def _serialize_entity(record: GameEntityRecord, image: GameEntityImageRecord | None = None) -> dict:
     return {
         "id": record.id,
@@ -104,7 +62,7 @@ def _serialize_entity(record: GameEntityRecord, image: GameEntityImageRecord | N
         "status": record.status,
         "author_player_id": record.author_player_id,
         "approved_by_player_id": record.approved_by_player_id,
-        "image_data_url": _image_data_url(image),
+        "image_data_url": image_record_to_data_url(image),
     }
 
 
@@ -154,7 +112,7 @@ def get_entity_catalog(
                         **(item.definition or {}),
                         "custom": True,
                         "record_id": item.id,
-                        "image_data_url": _image_data_url(images_by_entity.get(item.id)),
+                        "image_data_url": image_record_to_data_url(images_by_entity.get(item.id)),
                     }
                     for item in custom
                 ],
@@ -227,7 +185,7 @@ def propose_catalog_entity(
             )
             db.add(record)
             db.flush()
-            sanitized_image = _sanitize_entity_image(request.image_data_url)
+            sanitized_image = sanitize_image_data_url(request.image_data_url)
             if sanitized_image is not None:
                 image_bytes, media_type = sanitized_image
                 db.add(GameEntityImageRecord(
