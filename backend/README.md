@@ -47,7 +47,7 @@ Content-Type: application/json
 {"scenario_id":"ares-01"}
 ~~~
 
-Session creation returns `owner_player_id`, `owner_token` and `join_code`. The owner token authenticates the creator as `colony_commander`; the invitation code allows additional participants to join. Store both values securely: they are returned only once. The database stores SHA-256 hashes rather than the raw credentials.
+Session creation returns `owner_player_id`, `owner_token` and `join_code`. A session accepts up to 20 participants. The owner token authenticates the creator as `colony_commander`; the invitation code allows additional participants to join. Store both values securely: they are returned only once. The database stores SHA-256 hashes rather than the raw credentials.
 
 All participant endpoints use the `X-Player-Token` header. Tokens are scoped to one session. The commander assigns `domain_lead`, `finance_lead`, `engineer` or `player` roles. Domain leads and engineers receive one or more of the 16 responsibility domains; engineers may propose and execute scoped projects but do not replace domain-lead approval. The `colony_commander` role has session-wide authority.
 
