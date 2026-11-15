@@ -177,7 +177,15 @@ def advance_game_session(
                 )
             scenario = record.scenario_snapshot or load_scenario(record.scenario_id)
             next_period = record.current_period + 1
-            new_state, report = advance_period(scenario, record.state, next_period)
+            reserved_budget = float(record.reserved_budget_credits)
+            engine_state = dict(record.state)
+            engine_state["budget_credits"] = max(
+                0.0, float(engine_state["budget_credits"]) - reserved_budget
+            )
+            new_state, report = advance_period(scenario, engine_state, next_period)
+            new_state["budget_credits"] = round(
+                float(new_state["budget_credits"]) + reserved_budget, 6
+            )
             record.current_period = next_period
             record.state = new_state
             db.add(GameEventRecord(
