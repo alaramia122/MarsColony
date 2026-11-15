@@ -312,7 +312,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
   if (!player) return <section className="panel"><h2>Профиль участника не загружен</h2><p className="muted">Обновите страницу или переподключитесь к сессии.</p></section>;
   const roles = player.roles.length ? player.roles : ["player"];
   const domains = player.responsibility_domains || [];
-  const scopedProjects = projects.filter((project) => domains.some((domain) => project.domain_codes.includes(domain)));
+  const scopedProjects = roles.includes("finance_lead") ? projects : projects.filter((project) => domains.some((domain) => project.domain_codes.includes(domain)));
   const pending = scopedProjects.filter((project) => project.status === "submitted");
   const active = scopedProjects.filter((project) => project.status === "executing");
   const metricValue = (key: string) => {
@@ -328,6 +328,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
       <div className="role-tags">{roles.map((role) => <span className="role-tag" key={role}>{ROLE_INFO[role]?.title || role}</span>)}</div>
       {roles.map((role) => <div className="role-description" key={role}><h3>{ROLE_INFO[role]?.title || role}</h3><p>{ROLE_INFO[role]?.purpose || "Роль участника игровой сессии."}</p><ul>{(ROLE_INFO[role]?.duties || ROLE_INFO.player.duties).map((duty) => <li key={duty}>{duty}</li>)}</ul></div>)}
     </section>
+    {roles.includes("finance_lead") && <section className="panel finance-workspace-metrics"><div className="eyebrow">FINANCIAL CONTROL</div><h3>Финансовая картина</h3><div className="domain-metrics"><div><span>Доступный бюджет</span><strong>{metricValue("budget_credits")} <small>кр.</small></strong></div><div><span>Проекты на финансовом рассмотрении</span><strong>{pending.length} <small>шт.</small></strong></div></div></section>}
     <section className="role-summary-grid">
       <article className="metric-card"><span>АКТИВНЫЕ ПРОЕКТЫ</span><div><strong>{active.length}</strong><small>в работе</small></div><p>В закреплённых направлениях</p></article>
       <article className="metric-card"><span>ТРЕБУЮТ РЕШЕНИЯ</span><div><strong>{pending.length}</strong><small>заявок</small></div><p>Ожидают согласования</p></article>
@@ -340,7 +341,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
         const related = projects.filter((project) => project.domain_codes.includes(code));
         return <article className="domain-work-card" key={code}>
           <h3>{info.title}</h3><p>{info.purpose}</p>
-          <div className="domain-metrics">{info.metrics.length ? info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>) : <div><span>Профильные показатели</span><strong>Пока не рассчитываются <small>в MVP</small></strong></strong></div>}</div>
+          <div className="domain-metrics">{info.metrics.length ? info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>) : <div><span>Профильные показатели</span><strong>Пока не рассчитываются <small>в MVP</small></strong></div>}</div>
           <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {project.status}</span>)}</div>
         </article>;
       })}
