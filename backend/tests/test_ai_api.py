@@ -15,6 +15,17 @@ from backend.app.ai_api import ClarificationRequest, EventGenerationRequest, Pro
 
 class FakeProvider:
     def generate_json(self, system_prompt, payload):
+        if "инженерный редактор реестра знаний" in system_prompt:
+            return {
+                "entity_key": "oxygen_catalytic_filter",
+                "entity_type": "technology",
+                "name": "Каталитический фильтр кислорода",
+                "description": "Концепция каталитической очистки кислородного контура.",
+                "domain_codes": ["life_support"],
+                "definition": {"maturity": "concept", "inputs": ["contaminated_gas"], "outputs": ["cleaned_gas"]},
+                "assumptions": ["Параметры эффективности не подтверждены."],
+                "risks": ["Требуется инженерная проверка."],
+            }
         if "Уточни существующее проектное предложение" in system_prompt:
             return {
                 "title": "Резервная линия кислорода — уточнённая",
@@ -103,6 +114,33 @@ class AIProposalAPITests(unittest.TestCase):
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
 
+
+
+    def test_knowledge_entity_is_reviewed_and_versions_are_preserved(self):
+        first = ai_api.create_ai_entity(
+            self.session_id,
+            ai_api.EntityGenerationRequest(text="Добавить каталитический фильтр кислородного контура."),
+            token=self.token,
+        )
+        self.assertEqual(first["status"], "pending_review")
+        approved_first = ai_api.approve_ai_entity(
+            self.session_id, first["id"], token=self.token
+        )
+        self.assertEqual(approved_first["status"], "active")
+        second = ai_api.create_ai_entity(
+            self.session_id,
+            ai_api.EntityGenerationRequest(text="Обновить описание каталитического фильтра."),
+            token=self.token,
+        )
+        self.assertEqual(second["version"], 2)
+        approved_second = ai_api.approve_ai_entity(
+            self.session_id, second["id"], token=self.token
+        )
+        self.assertEqual(approved_second["status"], "active")
+        entities = ai_api.list_ai_entities(self.session_id, token=self.token)["entities"]
+        statuses = {item["id"]: item["status"] for item in entities}
+        self.assertEqual(statuses[first["id"]], "superseded")
+        self.assertEqual(statuses[second["id"]], "active")
 
     def test_ai_briefing_is_grounded_in_session_context(self):
         result = ai_api.create_colony_briefing(self.session_id, token=self.token)
