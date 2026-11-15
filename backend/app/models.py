@@ -252,3 +252,39 @@ class AIRequestUsageRecord(Base):
     )
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+
+class MapPlacementRecord(Base):
+    """Versioned placement proposal and authoritative spatial object record."""
+    __tablename__ = "map_placements"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    author_player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    object_type: Mapped[str] = mapped_column(String(32), nullable=False, default="infrastructure")
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    q: Mapped[int] = mapped_column(Integer, nullable=False)
+    r: Mapped[int] = mapped_column(Integer, nullable=False)
+    footprint: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    domain_codes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    required_approvals: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    approvals: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_approval")
+    map_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
