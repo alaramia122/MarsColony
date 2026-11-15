@@ -18,7 +18,7 @@ from .domain.projects import (
 )
 from .models import (
     GameEntityImageRecord, GameEntityRecord, GameEventRecord, GameSessionRecord, PlayerRecord,
-    ProjectApprovalRecord, ProjectRecord,
+    ProjectApprovalRecord, ProjectRecord, MapPlacementRecord,
 )
 from .entity_catalog import MATERIAL_RESOURCE_CODES, EntityCatalogError, load_entity_catalog, validate_entity
 
@@ -781,6 +781,17 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                 raise HTTPException(status_code=409, detail="Project version is stale.")
             if project.status != "approved":
                 raise HTTPException(status_code=409, detail="Project requires all approvals before execution.")
+            if project.project_type in {"construction", "infrastructure"}:
+                approved_site = db.scalar(select(MapPlacementRecord.id).where(
+                    MapPlacementRecord.session_id == session_id,
+                    MapPlacementRecord.project_id == project_id,
+                    MapPlacementRecord.status == "placed",
+                ))
+                if approved_site is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Для запуска строительного проекта необходимо согласовать и закрепить площадку на карте.",
+                    )
             if not can_manage_project(policy(actor), project.domain_codes):
                 raise HTTPException(status_code=403, detail="Player has no authority to execute this project.")
             scenario = session.scenario_snapshot or {}
