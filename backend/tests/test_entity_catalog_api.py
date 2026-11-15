@@ -125,6 +125,31 @@ class EntityCatalogApiTests(unittest.TestCase):
             proposal["catalog_id"],
         )
 
+    def test_starter_asset_catalogue_type_carries_its_simulation_bindings(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Установка атмосферного контура",
+                description="Создание каталожного объекта с привязкой к кислородному процессу.",
+                project_type="construction",
+                domain_codes=["life_support"],
+                budget_credits=140,
+                duration_periods=3,
+                labor_fte=1.5,
+                energy_kwh_per_period=8,
+                resource_requirements={
+                    "steel": 40, "aluminium": 20, "electronics": 5,
+                    "polymers": 10, "regolith_bricks": 40,
+                },
+                catalog_entity_ids=["starter_atmosphere_control"],
+            ),
+            self.owner_token,
+        )
+        asset = project["expected_result"]["infrastructure"][0]
+        self.assertEqual(asset["kind"], "atmosphere_control")
+        self.assertEqual(asset["properties"]["process_bindings"], ["oxygen_isru"])
+        self.assertEqual(asset["properties"]["condition_loss_per_period"], 0.005)
+
     def test_builtin_construction_catalogue_requires_real_material_stocks(self):
         request = ProjectCreate(
             title="Строительство солнечной электростанции",
