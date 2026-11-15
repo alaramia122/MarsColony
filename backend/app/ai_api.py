@@ -130,7 +130,10 @@ def create_ai_proposal(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
+            if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
+                raise HTTPException(status_code=403, detail="Player has no authority to propose a project.")
             context = build_provider_context(session, actor)
+            context_period = session.current_period
         provider = configured_provider()
         proposal = provider.propose_project(request.text.strip(), context)
         with SessionLocal.begin() as db:
@@ -140,6 +143,8 @@ def create_ai_proposal(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
+            if session.current_period != context_period:
+                raise HTTPException(status_code=409, detail="Game period changed while the AI proposal was being generated; retry with current context.")
             _validate_proposal(proposal, session, actor)
             record = AIProposalRecord(
                 session_id=session_id,
