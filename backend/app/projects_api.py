@@ -260,7 +260,8 @@ def create_project(session_id: str, request: ProjectCreate,
             if not project.title or not project.description:
                 raise HTTPException(status_code=422, detail="Project title and description are required.")
             allowed_effects = {
-                "resource_outputs_per_period", "power_generation_kw_delta", "infrastructure"
+                "resource_outputs_per_period", "power_generation_kw_delta",
+                "power_load_kw_delta", "infrastructure"
             }
             if not set(request.expected_result).issubset(allowed_effects):
                 raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
@@ -282,6 +283,14 @@ def create_project(session_id: str, request: ProjectCreate,
                 or generation_delta < 0
             ):
                 raise HTTPException(status_code=422, detail="Power generation effect must be finite and non-negative.")
+            load_delta = request.expected_result.get("power_load_kw_delta", 0.0)
+            if (
+                isinstance(load_delta, bool)
+                or not isinstance(load_delta, (int, float))
+                or not math.isfinite(float(load_delta))
+                or load_delta < 0
+            ):
+                raise HTTPException(status_code=422, detail="Power load effect must be finite and non-negative.")
             infrastructure = request.expected_result.get("infrastructure", [])
             if not isinstance(infrastructure, list):
                 raise HTTPException(status_code=422, detail="Infrastructure result must be a list.")
@@ -563,6 +572,10 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 float(state.get("power_generation_kw_delta", 0.0))
                 + float(expected.get("power_generation_kw_delta", 0.0)), 6
             )
+            state["power_load_kw_delta"] = round(
+                float(state.get("power_load_kw_delta", 0.0))
+                + float(expected.get("power_load_kw_delta", 0.0)), 6
+            )
             infrastructure = list(state.get("infrastructure", []))
             commissioned = []
             for item in expected.get("infrastructure", []):
@@ -586,6 +599,7 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 "project_id": project.id,
                 "resource_outputs_per_period": expected.get("resource_outputs_per_period", {}),
                 "power_generation_kw_delta": expected.get("power_generation_kw_delta", 0.0),
+                "power_load_kw_delta": expected.get("power_load_kw_delta", 0.0),
                 "infrastructure": commissioned,
             })
             append_event(db, session_id, "project.completed", {
