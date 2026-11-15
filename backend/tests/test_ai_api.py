@@ -10,10 +10,31 @@ from backend.app import ai_api, api, projects_api
 from backend.app.api import CreateSessionRequest
 from backend.app.ai_gateway import ProjectProposal
 from backend.app.db import Base
-from backend.app.ai_api import ProposalRequest
+from backend.app.ai_api import EventGenerationRequest, ProposalRequest
 
 
 class FakeProvider:
+    def generate_json(self, system_prompt, payload):
+        if "оперативную сводку" in system_prompt:
+            return {
+                "headline": "Колония работает штатно",
+                "situation": "Сводка сформирована по данным текущей сессии.",
+                "key_changes": ["Изменений в переданном контексте нет."],
+                "risks": [],
+                "decisions_needed": [],
+                "next_period_focus": ["Контролировать запасы."],
+            }
+        return {
+            "title": "Пылевая буря в районе базы",
+            "category": "environment",
+            "severity": "moderate",
+            "trigger": "Наблюдение за погодными условиями.",
+            "narrative": "В районе базы усиливается пылевая буря.",
+            "player_options": ["Укрыть внешнее оборудование.", "Продолжить работы с ограничениями."],
+            "consequences": ["Возможны задержки внешних работ."],
+            "assumptions": ["Событие является сценарным предложением."],
+        }
+
     def propose_project(self, text, context):
         self.text = text
         self.context = context
@@ -64,6 +85,37 @@ class AIProposalAPITests(unittest.TestCase):
         api.SessionLocal, projects_api.SessionLocal, ai_api.SessionLocal = self.original_factories
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
+
+
+    def test_ai_briefing_is_grounded_in_session_context(self):
+        result = ai_api.create_colony_briefing(self.session_id, token=self.token)
+        self.assertEqual(result["period"], 0)
+        self.assertEqual(result["briefing"]["headline"], "Колония работает штатно")
+
+    def test_game_event_requires_commander_and_explicit_publication(self):
+        proposal = ai_api.create_ai_event_proposal(
+            self.session_id, EventGenerationRequest(focus="погода"), token=self.token
+        )
+        self.assertEqual(proposal["status"], "pending_review")
+        published = ai_api.publish_ai_event(
+            self.session_id, proposal["id"], token=self.token
+        )
+        self.assertEqual(published["status"], "published")
+        self.assertIsNotNone(published["published_sequence"])
+        events = ai_api.list_ai_event_proposals(self.session_id, token=self.token)
+        self.assertEqual(events["events"][0]["status"], "published")
+        with self.assertRaises(HTTPException) as error:
+            ai_api.publish_ai_event(self.session_id, proposal["id"], token=self.token)
+        self.assertEqual(error.exception.status_code, 409)
+
+    def test_game_event_can_be_rejected_by_commander(self):
+        proposal = ai_api.create_ai_event_proposal(
+            self.session_id, EventGenerationRequest(), token=self.token
+        )
+        rejected = ai_api.reject_ai_event(
+            self.session_id, proposal["id"], token=self.token
+        )
+        self.assertEqual(rejected["status"], "rejected")
 
     def test_natural_language_becomes_persisted_pending_proposal(self):
         result = ai_api.create_ai_proposal(
