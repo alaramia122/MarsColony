@@ -114,3 +114,35 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .starter-preset-details>div:first-of-type{margin-top:6px}
 .starter-preset-details strong{color:#d6e0e3;font-weight:600}
 .starter-preset-details>div span{color:#9eafb6}
+
+
+.catalog-entity-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+.catalog-entity-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  cursor: pointer;
+}
+.catalog-entity-option input { margin-top: 4px; }
+.catalog-entity-option span { display: grid; gap: 5px; min-width: 0; }
+.catalog-entity-option small { color: var(--muted, #9aa4b2); line-height: 1.4; }
+.entity-proposal-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  border-radius: 12px;
+  background: rgba(255,255,255,.02);
+}
+.entity-proposal-form textarea { width: 100%; font-family: inherit; }
+.entity-proposal-form label { display: grid; gap: 6px; }
