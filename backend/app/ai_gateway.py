@@ -45,6 +45,7 @@ class GameEventProposal(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     category: str = Field(min_length=2, max_length=40)
     severity: str = Field(pattern="^(low|moderate|high|critical)$")
+    likelihood: float = Field(ge=0.0, le=1.0)
     trigger: str = Field(min_length=1, max_length=1000)
     narrative: str = Field(min_length=1, max_length=5000)
     player_options: list[str] = Field(min_length=2, max_length=5)
