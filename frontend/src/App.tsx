@@ -290,24 +290,34 @@ function Metric({ label, value, unit, detail }: { label: string; value: string; 
 }
 
 function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
+  const [activeLayer, setActiveLayer] = useState("all");
+  const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
+  const matchesLayer = (asset: Record<string, unknown>) =>
+    activeLayer === "all" || String(asset.kind || "other") === activeLayer;
   const positioned = assets.filter((asset) => {
     const properties = asset.properties as Record<string, unknown> | undefined;
-    return properties && typeof properties.x === "number" && typeof properties.y === "number";
+    return properties && typeof properties.x === "number" && typeof properties.y === "number"
+      && properties.x >= 0 && properties.x <= 100 && properties.y >= 0 && properties.y <= 100;
   });
+  const visible = positioned.filter(matchesLayer);
+  const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2></div><div className="layer-chip">◉ Инфраструктура</div></div>
+    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-layers" aria-label="Слои карты">
+      <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
+      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
+    </div>
     <div className="map-canvas">
-      <div className="map-grid" />
-      <div className="map-horizon" />
+      <div className="map-grid" /><div className="map-horizon" />
       <div className="map-base"><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></div>
-      {positioned.map((asset, index) => {
+      {visible.map((asset, index) => {
         const properties = asset.properties as Record<string, unknown>;
         return <div className="map-marker" key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }}><i />{String(asset.name || `Объект ${index + 1}`)}</div>;
       })}
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
-    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{assets.length} объектов · {positioned.length} с координатами</span></div>
-    {assets.length > positioned.length && <div className="unplaced"><strong>Объекты без координат размещения</strong><p>Для этих объектов сервер пока не хранит координаты. Они не размещаются на схеме до задания геометрии в данных сценария или проекта.</p>{assets.filter((asset) => !positioned.includes(asset)).map((asset) => <span key={String(asset.id)}>{String(asset.name)}</span>)}</div>}
+    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
+    {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {String(asset.kind || "other")}</span>)}</div>}
     {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
 }
@@ -433,7 +443,7 @@ function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
         <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
       </div>
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
-      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} onClick={() => void createProject()}>Создать черновик</button></div>
+      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
