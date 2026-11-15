@@ -54,6 +54,14 @@ class ResourceProcessTests(unittest.TestCase):
         )
         self.assertEqual(report["energy_used_kwh"], 25.0)
 
+    def test_zero_cycles_is_a_valid_no_op(self):
+        result, report = execute_process(
+            self.stocks, {"ice": 1.0}, {"water": 1.0}, 0.0
+        )
+        self.assertEqual(result, self.stocks)
+        self.assertEqual(report["completed_cycles"], 0.0)
+        self.assertTrue(report["completed"])
+
     def test_input_stock_mapping_is_not_mutated(self):
         before = dict(self.stocks)
         execute_process(self.stocks, {"ice": 1.0}, {"water": 1.0}, 10.0)

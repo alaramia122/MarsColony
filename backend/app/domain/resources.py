@@ -66,8 +66,8 @@ def execute_process(
         raise ResourceModelError(
             "A resource cannot be both an input and an output in one process recipe."
         )
-    if not isfinite(requested_cycles) or requested_cycles <= 0:
-        raise ResourceModelError("Requested cycles must be finite and positive.")
+    if not isfinite(requested_cycles) or requested_cycles < 0:
+        raise ResourceModelError("Requested cycles must be finite and non-negative.")
     if not isfinite(energy_kwh_per_cycle) or energy_kwh_per_cycle < 0:
         raise ResourceModelError("Energy per cycle must be finite and non-negative.")
     if energy_available_kwh is not None:
@@ -118,8 +118,11 @@ def execute_process(
         )
     for resource_id, amount in produced.items():
         stock = result[resource_id]
+        new_quantity = stock.quantity + amount
+        if stock.capacity is not None:
+            new_quantity = min(stock.capacity, new_quantity)
         result[resource_id] = ResourceStock(
-            quantity=stock.quantity + amount,
+            quantity=new_quantity,
             capacity=stock.capacity,
         )
 

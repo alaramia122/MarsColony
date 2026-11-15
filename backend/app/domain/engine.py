@@ -36,7 +36,7 @@ def advance_period(
     """Calculate one period and return (new_state, report).
 
     Material production is constrained by input stocks and storage capacities.
-    Demand shortfalls are explicit; no material stock is allowed to go negative.
+    Demand shortfalls are explicit; no material stock or budget goes negative.
     """
     period_count = int(scenario["time"]["period_count"])
     expected_period = int(state["period"]) + 1
@@ -146,6 +146,11 @@ def advance_period(
     water_end = max(0.0, water_available - water_demand)
     ice_end = water_stocks["raw_ice"].quantity
     requested_ice = requested_water / ice_yield
+    ice_shortfall = (
+        max(0.0, requested_ice - ice_used)
+        if "input:raw_ice" in water_process["limiting_constraints"]
+        else 0.0
+    )
 
     load_kw = sum(float(value) for value in power["loads_kw"].values())
     generation_kw = (
@@ -187,10 +192,10 @@ def advance_period(
         )
 
     finance = scenario["finance"]
-    budget_end = (
-        float(state["budget_credits"])
-        - float(finance["operating_cost_per_period"])
-    )
+    operating_cost = float(finance["operating_cost_per_period"])
+    budget_available = float(state["budget_credits"])
+    budget_unmet = max(0.0, operating_cost - budget_available)
+    budget_end = max(0.0, budget_available - operating_cost)
 
     new_state = {
         "period": period_number,
@@ -216,7 +221,7 @@ def advance_period(
         "water_output_kg": water_output,
         "water_unmet_kg": water_unmet,
         "raw_ice_used_kg": ice_used,
-        "raw_ice_shortfall_kg": max(0.0, requested_ice - ice_used),
+        "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": {
             "oxygen_isru": oxygen_process,
             "food_growing": food_process,
@@ -237,13 +242,14 @@ def advance_period(
             "within_reserve": service_power_ok,
         },
         "power_dispatch": power_dispatch,
-        "budget_cost_credits": float(finance["operating_cost_per_period"]),
+        "budget_cost_credits": operating_cost,
+        "budget_unmet_credits": budget_unmet,
         "event_id": event.get("id"),
         "demand_fully_met": (
             oxygen_unmet == 0.0
             and food_unmet == 0.0
             and water_unmet == 0.0
-            and requested_ice <= float(state["raw_ice_kg"])
+            and ice_shortfall == 0.0
         ),
     }
     return new_state, report

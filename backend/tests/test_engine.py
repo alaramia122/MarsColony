@@ -67,6 +67,13 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(report["water_output_kg"], 80.0)
         self.assertGreater(report["raw_ice_shortfall_kg"], 0.0)
 
+    def test_budget_shortfall_is_reported_without_negative_balance(self):
+        state = initial_state(SCENARIO)
+        state["budget_credits"] = 10.0
+        new_state, report = advance_period(SCENARIO, state, 1)
+        self.assertEqual(new_state["budget_credits"], 0.0)
+        self.assertEqual(report["budget_unmet_credits"], 15.0)
+
     def test_scheduled_reactor_service_checks_critical_reserve_and_dispatch(self):
         state = initial_state(SCENARIO)
         state, _ = advance_period(SCENARIO, state, 1)
