@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from uuid import uuid4
+import base64
+import binascii
+from io import BytesIO
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -12,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .db import SessionLocal
 from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity, validate_entity_catalogue_resources
 from .domain.projects import DOMAIN_CODES
-from .models import GameEntityRecord, GameEventRecord, GameSessionRecord
+from .models import GameEntityImageRecord, GameEntityRecord, GameEventRecord, GameSessionRecord
 from .projects_api import authenticate
 
 router = APIRouter(prefix="/api/v1")
@@ -27,6 +32,7 @@ class EntityProposalRequest(BaseModel):
     assumptions: list[str] = Field(default_factory=list, max_length=30)
     risks: list[str] = Field(default_factory=list, max_length=30)
     source_text: str = Field(default="", max_length=8000)
+    image_data_url: str | None = Field(default=None, max_length=6_000_000)
 
 
 class EntityApprovalRequest(BaseModel):
@@ -46,7 +52,44 @@ def _append_event(db, session_id: str, event_type: str, payload: dict) -> None:
     db.flush()
 
 
-def _serialize_entity(record: GameEntityRecord) -> dict:
+def _sanitize_entity_image(data_url: str | None) -> tuple[bytes, str] | None:
+    if not data_url:
+        return None
+    if not data_url.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
+        raise HTTPException(status_code=422, detail="Use a JPEG, PNG or WebP image.")
+    try:
+        encoded = data_url.split(",", 1)[1]
+        raw = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise HTTPException(status_code=422, detail="Image data is not valid base64.") from error
+    if not raw or len(raw) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image must not exceed 4 MiB.")
+    try:
+        with Image.open(BytesIO(raw)) as source:
+            if source.format not in {"JPEG", "PNG", "WEBP"}:
+                raise HTTPException(status_code=422, detail="Use a JPEG, PNG or WebP image.")
+            if source.width > 12000 or source.height > 12000 or source.width * source.height > 40_000_000:
+                raise HTTPException(status_code=413, detail="Image dimensions exceed the 40-megapixel limit.")
+            source.load()
+            image = ImageOps.exif_transpose(source)
+            image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+            if image.mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGBA" if "transparency" in image.info else "RGB")
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=82, method=6)
+            return output.getvalue(), "image/webp"
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+        raise HTTPException(status_code=422, detail="Image file is damaged or cannot be decoded.") from error
+
+
+def _image_data_url(image: GameEntityImageRecord | None) -> str | None:
+    if image is None:
+        return None
+    encoded = base64.b64encode(image.image_data).decode("ascii")
+    return f"data:{image.media_type};base64,{encoded}"
+
+
+def _serialize_entity(record: GameEntityRecord, image: GameEntityImageRecord | None = None) -> dict:
     return {
         "id": record.id,
         "catalog_id": record.entity_key,
@@ -61,6 +104,7 @@ def _serialize_entity(record: GameEntityRecord) -> dict:
         "status": record.status,
         "author_player_id": record.author_player_id,
         "approved_by_player_id": record.approved_by_player_id,
+        "image_data_url": _image_data_url(image),
     }
 
 
@@ -93,6 +137,10 @@ def get_entity_catalog(
                 GameEntityRecord.session_id == session_id,
                 GameEntityRecord.status == "pending_review",
             ).order_by(GameEntityRecord.created_at)).all()
+            image_records = db.scalars(select(GameEntityImageRecord).where(
+                GameEntityImageRecord.entity_id.in_([item.id for item in custom + own_pending + pending])
+            )).all() if custom or own_pending or pending else []
+            images_by_entity = {item.entity_id: item for item in image_records}
             return {
                 "scenario_id": session.scenario_id,
                 "version": catalogue.get("version"),
@@ -106,11 +154,12 @@ def get_entity_catalog(
                         **(item.definition or {}),
                         "custom": True,
                         "record_id": item.id,
+                        "image_data_url": _image_data_url(images_by_entity.get(item.id)),
                     }
                     for item in custom
                 ],
-                "my_pending_proposals": [_serialize_entity(item) for item in own_pending],
-                "pending_proposals": [_serialize_entity(item) for item in pending],
+                "my_pending_proposals": [_serialize_entity(item, images_by_entity.get(item.id)) for item in own_pending],
+                "pending_proposals": [_serialize_entity(item, images_by_entity.get(item.id)) for item in pending],
             }
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -178,12 +227,20 @@ def propose_catalog_entity(
             )
             db.add(record)
             db.flush()
+            sanitized_image = _sanitize_entity_image(request.image_data_url)
+            if sanitized_image is not None:
+                image_bytes, media_type = sanitized_image
+                db.add(GameEntityImageRecord(
+                    entity_id=record.id, media_type=media_type,
+                    image_data=image_bytes, size_bytes=len(image_bytes),
+                ))
             _append_event(db, session_id, "catalog.entity_proposed", {
                 "entity_id": record.id, "entity_key": entity_key,
                 "entity_type": record.entity_type, "domain_codes": domains,
                 "author_player_id": actor.id,
             })
-            return _serialize_entity(record)
+            image_record = db.get(GameEntityImageRecord, record.id)
+            return _serialize_entity(record, image_record)
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except EntityCatalogError as error:
