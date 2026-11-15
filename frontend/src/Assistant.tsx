@@ -72,6 +72,22 @@ const domainNames: Record<string, string> = {
   transport: "Транспорт", administration: "Администрация", safety: "Безопасность",
   communications: "Связь", external_relations: "Внешние связи"
 };
+const projectTypeNames: Record<string, string> = {
+  construction: "Строительство", production: "Производство", repair: "Ремонт",
+  research: "Исследование", exploration: "Разведка", procurement: "Закупка",
+  infrastructure: "Инфраструктура", other: "Прочее"
+};
+const severityNames: Record<string, string> = {
+  low: "Низкая", moderate: "Умеренная", high: "Высокая", critical: "Критическая"
+};
+const resourceNames: Record<string, string> = {
+  oxygen: "Кислород", food_solids: "Пищевые запасы", usable_water: "Подготовленная вода",
+  raw_ice: "Сырой лёд", raw_regolith: "Исходный реголит", regolith_bricks: "Реголитовые блоки",
+  steel: "Конструкционная сталь", aluminium: "Алюминиевые сплавы",
+  electronics: "Электронные компоненты", polymers: "Полимеры и герметики",
+  spare_parts: "Запасные части"
+};
+
 
 export default function Assistant({ sessionId, token, playerId, eventWatermark, isCommander, canProposeEntity, onRefresh }: {
   sessionId: string; token: string; playerId: string; eventWatermark: number;
@@ -237,7 +253,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
       <div className="panel-heading"><div><div className="eyebrow">ПРОВЕРКА ПРЕДЛОЖЕНИЙ</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
       {proposals.length === 0 ? <p className="muted assistant-empty">Здесь будут появляться предложения, сформированные игроками.</p> :
         <div className="assistant-cards">{proposals.map((item) => <article className="assistant-card" key={item.id}>
-          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{item.proposal.project_type}</span></div>
+          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{projectTypeNames[item.proposal.project_type] || item.proposal.project_type}</span></div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.description}</p>
           <div className="assistant-facts">
             <span>Бюджет <b>{money(item.proposal.budget_credits)} кр.</b></span>
@@ -246,7 +262,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
             <span>Энергия <b>{money(item.proposal.energy_kwh_per_period)} кВт·ч/пер.</b></span>
             <span className="assistant-fact-wide">Направления <b>{item.proposal.domain_codes.map((code) => domainNames[code] || code).join(", ")}</b></span>
           </div>
-          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${key}: ${money(value)}`).join(" · ")}</p>}
+          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${resourceNames[key] || key}: ${money(value)}`).join(" · ")}</p>}
           {item.proposal.rationale && <p className="assistant-note"><b>Обоснование:</b> {item.proposal.rationale}</p>}
           {item.proposal.assumptions.length > 0 && <BriefingList title="Допущения" items={item.proposal.assumptions} />}
           {item.proposal.risks.length > 0 && <BriefingList title="Риски" items={item.proposal.risks} />}
@@ -277,7 +293,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
             <span className={`status status-${item.status === "published" ? "approved" : item.status === "pending_review" ? "submitted" : "rejected"}`}>{item.status === "published" ? "Опубликовано" : item.status === "pending_review" ? "На проверке" : "Отклонено"}</span>
-            <span className="muted small">Период {item.period_created} · {item.proposal.severity} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
+            <span className="muted small">Период {item.period_created} · {severityNames[item.proposal.severity] || item.proposal.severity} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
           </div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.narrative}</p>
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
