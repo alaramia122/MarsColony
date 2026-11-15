@@ -13,7 +13,9 @@ type Player = { id: string; display_name: string; roles: string[]; responsibilit
 type Project = {
   id: string; author_player_id: string; version: number; title: string; description: string; project_type: string; status: string;
   domain_codes: string[]; budget_credits: number; progress_periods: number;
-  duration_periods: number; approvals?: Array<{ decision: string }>;
+  duration_periods: number; labor_fte: number; energy_kwh_per_period: number;
+  resource_requirements: Record<string, number>; expected_result: Record<string, unknown>;
+  approvals?: Array<{ decision: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown> };
 type View = "overview" | "map" | "projects" | "people";
@@ -207,8 +209,8 @@ export default function App() {
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
-          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
-          {view === "people" && <People players={players} technologies={technologies} />}
+          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} onRefresh={refresh} />}
+          {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
 
           {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
         </section>
@@ -310,16 +312,25 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   </div>;
 }
 
-function ProjectList({ projects, auth, player, onRefresh }: {
-  projects: Project[]; auth: Auth; player: Player | undefined; onRefresh: () => Promise<void>;
+function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
+  projects: Project[]; auth: Auth; player: Player | undefined;
+  infrastructure: Array<Record<string, unknown>>; onRefresh: () => Promise<void>;
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [domain, setDomain] = useState("life_support");
+  const [domains, setDomains] = useState<string[]>(["life_support"]);
   const [projectType, setProjectType] = useState("construction");
   const [budget, setBudget] = useState("0");
   const [duration, setDuration] = useState("1");
+  const [laborFte, setLaborFte] = useState("0");
+  const [energy, setEnergy] = useState("0");
+  const [resourceInputs, setResourceInputs] = useState<Record<string, string>>({});
+  const [resourceOutputs, setResourceOutputs] = useState<Record<string, string>>({});
+  const [generationDelta, setGenerationDelta] = useState("0");
+  const [loadDelta, setLoadDelta] = useState("0");
+  const [assetName, setAssetName] = useState("");
+  const [assetKind, setAssetKind] = useState("infrastructure");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const roleSet = new Set(player?.roles || []);
@@ -333,6 +344,13 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     transport: "Транспорт", administration: "Администрация", safety: "Безопасность",
     communications: "Связь", external_relations: "Внешние связи"
   };
+  const resourceLabels: Record<string, string> = {
+    oxygen: "Кислород, кг", food_solids: "Сухие пищевые вещества, кг",
+    usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг"
+  };
+  const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
+    checked ? [...current, code] : current.filter((item) => item !== code)
+  );
   const mutate = async (project: Project, action: string, extra: Record<string, unknown> = {}) => {
     setSaving(true); setActionError("");
     try {
@@ -344,22 +362,40 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     finally { setSaving(false); }
   };
   const createProject = async () => {
+    const requirements = Object.fromEntries(Object.entries(resourceInputs)
+      .filter(([, value]) => value.trim() !== "" && Number(value) > 0)
+      .map(([key, value]) => [key, Number(value)]));
+    const outputs = Object.fromEntries(Object.entries(resourceOutputs)
+      .filter(([, value]) => value.trim() !== "" && Number(value) > 0)
+      .map(([key, value]) => [key, Number(value)]));
+    const expected: Record<string, unknown> = {};
+    if (Object.keys(outputs).length) expected.resource_outputs_per_period = outputs;
+    if (Number(generationDelta) > 0) expected.power_generation_kw_delta = Number(generationDelta);
+    if (Number(loadDelta) > 0) expected.power_load_kw_delta = Number(loadDelta);
+    if (assetName.trim() && assetKind.trim()) {
+      expected.infrastructure = [{ name: assetName.trim(), kind: assetKind.trim(), properties: { condition: 1 } }];
+    }
     setSaving(true); setActionError("");
     try {
       await request(`${API}/sessions/${auth.sessionId}/projects`, auth.token, {
         method: "POST",
         body: JSON.stringify({
-          title, description, project_type: projectType, domain_codes: [domain],
+          title, description, project_type: projectType, domain_codes: domains,
           budget_credits: Number(budget), duration_periods: Number(duration),
-          labor_fte: 0, energy_kwh_per_period: 0,
-          resource_requirements: {}, expected_result: {}
+          labor_fte: Number(laborFte), energy_kwh_per_period: Number(energy),
+          resource_requirements: requirements, expected_result: expected
         })
       });
-      setTitle(""); setDescription(""); setBudget("0"); setDuration("1"); setFormOpen(false);
-      await onRefresh();
+      setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
+      setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind("infrastructure");
+      setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
   };
+  const validNumber = (value: string, maximum = 1000000) =>
+    value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= maximum;
+  const invalidAsset = Boolean(assetName.trim()) !== Boolean(assetKind.trim());
   return <>
     <div className="project-toolbar">
       <div className="muted small">{projects.length} инициатив · сервер проверяет полномочия и доступность ресурсов</div>
@@ -370,19 +406,35 @@ function ProjectList({ projects, auth, player, onRefresh }: {
       <div className="eyebrow">NEW PROJECT PROPOSAL</div><h2>Новая инициатива</h2>
       <div className="form-grid">
         <label>Название проекта<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} placeholder="Например, резервный контур воды" /></label>
-        <label>Направление<select value={domain} onChange={(event) => setDomain(event.target.value)}>{Object.entries(domainLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
         <label>Тип проекта<select value={projectType} onChange={(event) => setProjectType(event.target.value)}>{[["construction","Строительство"],["production","Производство"],["repair","Ремонт"],["research","Исследование"],["exploration","Разведка"],["procurement","Закупка"],["infrastructure","Инфраструктура"],["other","Прочее"]].map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        <label>Бюджет, кредиты<input type="number" min="0" step="1" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
+        <label>Бюджет, кредиты<input type="number" min="0" max="1000000000" step="0.1" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
         <label>Длительность, периоды<input type="number" min="1" max="100" step="1" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>
+        <label>Трудозатраты, FTE<input type="number" min="0" max="1000000" step="0.1" value={laborFte} onChange={(event) => setLaborFte(event.target.value)} /></label>
+        <label>Энергия за период, кВт·ч<input type="number" min="0" max="1000000" step="0.1" value={energy} onChange={(event) => setEnergy(event.target.value)} /></label>
       </div>
-      <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель и ожидаемый результат проекта." /></label>
-      <div className="form-foot"><span className="muted">Материалы, труд и энергопотребление можно будет уточнить в расширенной карточке.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || Number(budget) < 0 || Number(duration) < 1} onClick={() => void createProject()}>Создать черновик</button></div>
+      <div className="form-section"><strong>Направления проекта</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={domains.includes(code)} onChange={(event) => changeDomain(code, event.target.checked)} />{label}</label>)}</div></div>
+      <div className="form-section"><strong>Материальные требования на старте проекта</strong><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceInputs[code] || ""} onChange={(event) => setResourceInputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
+      <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
+      <div className="form-grid">
+        <label>Дополнительная генерация, кВт<input type="number" min="0" step="0.1" value={generationDelta} onChange={(event) => setGenerationDelta(event.target.value)} /></label>
+        <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
+        <label>Вводимый объект инфраструктуры<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный резервуар" /></label>
+        <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
+      </div>
+      <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
+      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
         <div className="project-card-top"><span className="eyebrow">{project.project_type.toUpperCase()}</span><span className={`status status-${project.status}`}>{labels[project.status] || project.status}</span></div>
         <h3>{project.title}</h3><p>{project.description}</p>
         <div className="project-meta"><span>{project.domain_codes.map((code) => domainLabels[code] || code).join(" · ")}</span><strong>{money(project.budget_credits)} кр.</strong></div>
+        <div className="project-detail-grid">
+          <span>Труд: <b>{quantity(project.labor_fte || 0, 2)} FTE</b></span>
+          <span>Энергия: <b>{quantity(project.energy_kwh_per_period || 0, 1)} кВт·ч/период</b></span>
+          <span>Материалы: <b>{Object.keys(project.resource_requirements || {}).length}</b></span>
+          <span>Эффекты: <b>{Object.keys(project.expected_result || {}).length}</b></span>
+        </div>
         <div className="progress-track"><i style={{ width: `${Math.min(100, project.progress_periods / Math.max(1, project.duration_periods) * 100)}%` }} /></div>
         <div className="progress-caption"><span>Ход исполнения</span><b>{project.progress_periods} / {project.duration_periods} периодов</b></div>
         <div className="project-actions">
@@ -398,7 +450,64 @@ function ProjectList({ projects, auth, player, onRefresh }: {
       </article>)}</div>
   </>;
 }
-function People({ players, technologies }: { players: Player[]; technologies: Array<Record<string, unknown>> }) {
-  const roleLabels: Record<string, string> = { colony_commander: "Командир колонии", domain_lead: "Руководитель направления", finance_lead: "Финансовый руководитель", engineer: "Инженер", player: "Участник" };
-  return <div className="people-layout"><section className="panel"><div className="panel-heading"><div><div className="eyebrow">CREW MANIFEST</div><h2>Участники экспедиции</h2></div><span className="count-chip">{players.length} / 20</span></div>{players.map((player) => <div className="person-row" key={player.id}><div className="person-avatar">{player.display_name.slice(0, 1)}</div><div className="person-details"><strong>{player.display_name}</strong><span>{player.roles.map((role) => roleLabels[role] || role).join(", ")}</span><small>{player.responsibility_domains.join(" · ") || "Без закреплённых направлений"}</small></div></div>)}</section><section className="panel"><div className="eyebrow">RESEARCH REGISTER</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;
+
+function People({ players, technologies, auth, onRefresh }: {
+  players: Player[]; technologies: Array<Record<string, unknown>>; auth: Auth;
+  onRefresh: () => Promise<void>;
+}) {
+  const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const roleLabels: Record<string, string> = {
+    colony_commander: "Командир колонии", domain_lead: "Руководитель направления",
+    finance_lead: "Финансовый руководитель", engineer: "Инженер", player: "Участник"
+  };
+  const domainLabels: Record<string, string> = {
+    geology: "Геология", industry: "Промышленность", energy: "Энергетика",
+    life_support: "Жизнеобеспечение", construction: "Строительство",
+    agriculture: "Агрокомплекс", medicine: "Медицина", social: "Социальное развитие",
+    education: "Образование", science: "Наука", planetary: "Планетология",
+    transport: "Транспорт", administration: "Администрация", safety: "Безопасность",
+    communications: "Связь", external_relations: "Внешние связи"
+  };
+  const isCommander = players.find((item) => item.id === auth.playerId)?.roles.includes("colony_commander") || false;
+  const beginEdit = (player: Player) => {
+    setEditingPlayer(player.id); setSelectedRoles(player.roles); setSelectedDomains(player.responsibility_domains); setError("");
+  };
+  const toggle = (items: string[], value: string, checked: boolean, setter: (next: string[]) => void) =>
+    setter(checked ? [...items, value] : items.filter((item) => item !== value));
+  const saveRoles = async () => {
+    if (!editingPlayer) return;
+    const needsDomains = selectedRoles.includes("domain_lead") || selectedRoles.includes("engineer");
+    if (needsDomains && selectedDomains.length === 0) {
+      setError("Для руководителя направления и инженера необходимо назначить хотя бы одно направление.");
+      return;
+    }
+    setSaving(true); setError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/players/${editingPlayer}/roles`, auth.token, {
+        method: "PUT", body: JSON.stringify({
+          roles: selectedRoles,
+          responsibility_domains: needsDomains ? selectedDomains : []
+        })
+      });
+      setEditingPlayer(null); await onRefresh();
+    } catch (reason) { setError((reason as Error).message); }
+    finally { setSaving(false); }
+  };
+  return <div className="people-layout"><section className="panel">
+    <div className="panel-heading"><div><div className="eyebrow">CREW MANIFEST</div><h2>Участники экспедиции</h2></div><span className="count-chip">{players.length} / 20</span></div>
+    {error && <div className="alert">{error}<button onClick={() => setError("")}>×</button></div>}
+    {players.map((player) => <div className="person-card" key={player.id}>
+      <div className="person-row"><div className="person-avatar">{player.display_name.slice(0, 1)}</div><div className="person-details"><strong>{player.display_name}</strong><span>{player.roles.map((role) => roleLabels[role] || role).join(", ")}</span><small>{player.responsibility_domains.map((code) => domainLabels[code] || code).join(" · ") || "Без закреплённых направлений"}</small></div>
+      {isCommander && <button className="button button-quiet role-edit-button" onClick={() => editingPlayer === player.id ? setEditingPlayer(null) : beginEdit(player)}>{editingPlayer === player.id ? "Закрыть" : "Полномочия"}</button>}</div>
+      {editingPlayer === player.id && <div className="role-editor">
+        <strong>Роли участника</strong><div className="check-grid role-check-grid">{Object.entries(roleLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedRoles.includes(code)} onChange={(event) => toggle(selectedRoles, code, event.target.checked, setSelectedRoles)} />{label}</label>)}</div>
+        <strong>Ответственные направления</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedDomains.includes(code)} onChange={(event) => toggle(selectedDomains, code, event.target.checked, setSelectedDomains)} />{label}</label>)}</div>
+        <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
+      </div>}
+    </div>)}
+  </section><section className="panel"><div className="eyebrow">RESEARCH REGISTER</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;
 }
