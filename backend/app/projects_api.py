@@ -20,7 +20,7 @@ from .models import (
     GameEntityImageRecord, GameEntityRecord, GameEventRecord, GameSessionRecord, PlayerRecord,
     ProjectApprovalRecord, ProjectRecord,
 )
-from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity
+from .entity_catalog import MATERIAL_RESOURCE_CODES, EntityCatalogError, load_entity_catalog, validate_entity
 
 router = APIRouter(prefix="/api/v1")
 MAX_SESSION_PLAYERS = 20
@@ -417,6 +417,8 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not math.isfinite(float(quantity)) or quantity <= 0
                 ):
                     raise HTTPException(status_code=422, detail=f"Invalid output quantity for: {resource_id}.")
+                if resource_id in MATERIAL_RESOURCE_CODES:
+                    raise HTTPException(status_code=422, detail=f"Construction material '{resource_id}' can only be produced by a commissioned catalogue asset with a validated input recipe.")
             generation_delta = expected_result.get("power_generation_kw_delta", 0.0)
             if (
                 isinstance(generation_delta, bool)
