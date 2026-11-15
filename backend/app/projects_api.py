@@ -386,10 +386,12 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                     token: str | None = Header(default=None, alias="X-Player-Token")) -> dict:
     try:
         with SessionLocal.begin() as db:
-            actor = authenticate(db, session_id, token)
             session = db.scalar(select(GameSessionRecord).where(
                 GameSessionRecord.id == session_id
             ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
             project = db.scalar(select(ProjectRecord).where(
                 ProjectRecord.id == project_id, ProjectRecord.session_id == session_id
             ).with_for_update())
