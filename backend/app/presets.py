@@ -1,5 +1,6 @@
 """Starter infrastructure presets for MarsColony sessions."""
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,8 @@ DOMAIN_POSITIONS = {
 
 def load_starter_presets(scenario_id: str) -> dict[str, Any]:
     """Load and validate the infrastructure preset catalogue for a scenario."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", scenario_id):
+        raise FileNotFoundError("Scenario identifier has an invalid format.")
     for root in DATA_ROOTS:
         path = root / "data" / "starter_presets" / f"{scenario_id}.json"
         if not path.is_file():
