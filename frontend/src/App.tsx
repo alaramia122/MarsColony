@@ -83,23 +83,77 @@ const numberAt = (source: Record<string, unknown>, key: string) => {
 };
 
 const localizeError = (message: string) => {
-  const rules: Array<[RegExp, string]> = [
-    [/AI provider is disabled|no AI provider is configured|provider.*not configured/i, "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api."],
-    [/API key.*(missing|required)|credentials.*missing/i, "Не задан API-ключ ИИ. Проверьте настройки провайдера в файле .env."],
-    [/folder.*(missing|required)|folder id/i, "Не указан идентификатор каталога Yandex Cloud. Проверьте MARS_AI_YANDEX_FOLDER_ID."],
-    [/Invalid player token/i, "Токен игрока недействителен. Войдите в игровую сессию заново."],
-    [/Player token is required/i, "Для выполнения действия требуется авторизация игрока."],
-    [/Game session not found/i, "Игровая сессия не найдена."],
-    [/Only the colony commander/i, "Это действие доступно только командиру колонии."],
-    [/Campaign settings are locked after the first period starts/i, "Параметры кампании заблокированы после начала первого периода."],
-    [/Campaign settings are locked after the first project is created/i, "Параметры кампании заблокированы после создания первого проекта."],
-    [/Game storage is unavailable/i, "Хранилище игры временно недоступно. Проверьте состояние базы данных."],
-    [/AI request limit for this session/i, "Достигнут часовой лимит запросов к ИИ для игровой сессии."],
-    [/AI request limit for this player/i, "Достигнут часовой лимит запросов к ИИ для этого игрока."],
-    [/AI event did not match its response contract/i, "ИИ вернул событие в неподдерживаемом формате. Повторите запрос позже."],
-    [/Game state changed while the event was being generated/i, "Состояние игры изменилось во время подготовки события. Обновите данные и повторите запрос."]
+  const exact: Record<string, string> = {
+    "AI provider is not configured.": "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api.",
+    "Player token is required.": "Для выполнения действия требуется авторизация игрока.",
+    "Invalid player token for this session.": "Токен игрока недействителен. Войдите в игровую сессию заново.",
+    "Game session not found.": "Игровая сессия не найдена.",
+    "Game storage is unavailable.": "Хранилище игры временно недоступно. Проверьте состояние базы данных.",
+    "Only the colony commander can change campaign settings.": "Изменять параметры кампании может только командир колонии.",
+    "Campaign settings are locked after the first period starts.": "Параметры кампании заблокированы после начала первого периода.",
+    "Campaign settings are locked after the first project is created.": "Параметры кампании заблокированы после создания первого проекта.",
+    "Only the colony commander can advance the period.": "Завершить игровой период может только командир колонии.",
+    "Only the colony commander can request a game event.": "Запрашивать сценарные события может только командир колонии.",
+    "Only the colony commander can publish a game event.": "Публиковать сценарные события может только командир колонии.",
+    "Only the colony commander can reject a game event.": "Отклонять сценарные события может только командир колонии.",
+    "AI event did not match its response contract.": "ИИ вернул событие в неподдерживаемом формате. Повторите запрос позже.",
+    "AI briefing did not match its response contract.": "ИИ вернул сводку в неподдерживаемом формате. Повторите запрос позже.",
+    "Project domains must be unique valid domain codes.": "Укажите неповторяющиеся допустимые направления проекта.",
+    "Unknown project type.": "Выбран неизвестный тип проекта.",
+    "Player has no authority to propose this project.": "У вас недостаточно полномочий для создания проекта в выбранных направлениях.",
+    "Project labor demand exceeds scenario workforce capacity.": "Потребность проекта в персонале превышает доступную численность работников.",
+    "Project energy demand must be finite.": "Потребность проекта в энергии должна быть конечным числом.",
+    "Project title and description are required.": "Укажите название и описание проекта.",
+    "Only draft projects can be submitted.": "На согласование можно отправить только черновик проекта.",
+    "Only the author or colony commander can submit.": "Отправить проект на согласование может только его автор или командир колонии.",
+    "Insufficient unreserved colony budget.": "Недостаточно свободного бюджета колонии.",
+    "Decision must be approve or reject.": "Выберите решение: согласовать или отклонить.",
+    "Only submitted projects can be approved.": "Решение можно принять только по проекту, отправленному на согласование.",
+    "Project authors cannot approve their own project; a commander may issue a documented command order.": "Автор проекта не может согласовать его самостоятельно. Командир может оформить отдельное распоряжение с обоснованием.",
+    "A command order for the commander's own project requires a justification of at least 10 characters.": "Для командирского распоряжения по собственному проекту требуется обоснование не короче 10 символов.",
+    "Player has no approval authority.": "У вас нет полномочий согласовывать этот проект.",
+    "Player has already voted on this project.": "Вы уже приняли решение по этому проекту.",
+    "Project requires all approvals before execution.": "Для запуска проекта необходимо получить все обязательные согласования.",
+    "Player has no authority to execute this project.": "У вас нет полномочий запускать этот проект.",
+    "Only executing projects can be completed.": "Подтвердить завершение можно только для исполняемого проекта.",
+    "Project has not completed its required execution periods.": "Проект ещё не отработал необходимое количество периодов.",
+    "Only the author or colony commander can cancel.": "Отменить проект может только его автор или командир колонии.",
+    "AI proposal has already been processed.": "Это предложение ИИ уже обработано.",
+    "Only pending proposals can be clarified.": "Уточнять можно только предложения, ожидающие проверки.",
+    "The clarification limit for this proposal has been reached.": "Достигнут лимит уточнений для этого предложения.",
+    "AI event proposal has already been processed.": "Это сценарное событие уже обработано.",
+    "AI event proposal belongs to an earlier game period.": "Это событие относится к предыдущему игровому периоду.",
+    "Knowledge entity is not pending review.": "Сущность уже не ожидает проверки.",
+    "Only the colony commander can approve a knowledge entity.": "Утверждать записи реестра знаний может только командир колонии.",
+    "Only the colony commander can reject a knowledge entity.": "Отклонять записи реестра знаний может только командир колонии."
+  };
+  if (exact[message]) return exact[message];
+  const patterns: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+    [/^AI provider is not configured\.$/i, () => "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api."],
+    [/^Yandex AI Studio requires MARS_AI_YANDEX_API_KEY and MARS_AI_YANDEX_FOLDER_ID\.$/i, () => "Для Yandex AI Studio укажите API-ключ и идентификатор каталога в файле .env."],
+    [/^OpenAI-compatible provider requires MARS_AI_BASE_URL, MARS_AI_API_KEY and MARS_AI_MODEL\.$/i, () => "Для совместимого API укажите адрес, API-ключ и название модели в файле .env."],
+    [/^AI request limit for this session has been reached/i, () => "Достигнут часовой лимит запросов к ИИ для игровой сессии."],
+    [/^AI request limit for this player has been reached/i, () => "Достигнут часовой лимит запросов к ИИ для этого игрока."],
+    [/^Unknown starting resource: (.+)\.$/, m => `Неизвестный стартовый ресурс: ${m[1]}.`],
+    [/^Starting resource '(.+)' must be finite and non-negative\.$/, m => `Количество ресурса «${m[1]}» должно быть конечным неотрицательным числом.`],
+    [/^Starting resource '(.+)' exceeds storage capacity \((.+)\)\.$/, m => `Запас ресурса «${m[1]}» превышает вместимость хранилища (${m[2]}).`],
+    [/^Unknown resource requirement: (.+)\.$/, m => `Неизвестный требуемый ресурс: ${m[1]}.`],
+    [/^Invalid quantity for resource: (.+)\.$/, m => `Некорректное количество ресурса: ${m[1]}.`],
+    [/^Unknown or unapproved catalogue entity: (.+)\.$/, m => `Тип сущности «${m[1]}» не найден или ещё не утверждён.`],
+    [/^Project budget is below selected entities' minimum \((.+) credits\)\.$/, m => `Бюджет проекта ниже минимального для выбранных сущностей (${m[1]} игровых кредитов).`],
+    [/^Project labor is below selected entities' minimum \((.+) FTE\)\.$/, m => `Трудозатраты проекта ниже минимальных для выбранных сущностей (${m[1]} FTE).`],
+    [/^Project energy is below selected entities' minimum \((.+) kWh per period\)\.$/, m => `Энергия проекта ниже минимальной потребности выбранных сущностей (${m[1]} кВт·ч за период).`],
+    [/^Insufficient resource '(.+)' to start the project\.$/, m => `Недостаточно ресурса «${m[1]}» для запуска проекта.`],
+    [/^Only the colony commander/i, () => "Это действие доступно только командиру колонии."],
+    [/^Player has no authority/i, () => "У вас недостаточно полномочий для выполнения этого действия."],
+    [/^Game state changed while the event was being generated/i, () => "Состояние игры изменилось во время подготовки события. Обновите данные и повторите запрос."],
+    [/^Game state changed while the AI proposal was being generated/i, () => "Состояние игры изменилось во время подготовки предложения ИИ. Повторите запрос."],
+    [/^Unsupported AI provider adapter/i, () => "Выбранный тип ИИ-провайдера не поддерживается."]
   ];
-  for (const [pattern, replacement] of rules) if (pattern.test(message)) return replacement;
+  for (const [pattern, translate] of patterns) {
+    const match = message.match(pattern);
+    if (match) return translate(match);
+  }
   return message;
 };
 
