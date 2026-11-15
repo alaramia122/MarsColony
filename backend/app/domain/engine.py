@@ -186,6 +186,7 @@ def advance_period(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Calculate one period and return a new state and a detailed report."""
     state = dict(state)
+    state["infrastructure"] = deepcopy(state.get("infrastructure", []))
     battery_soc_start = float(
         state.get("battery_soc_kwh", scenario["power"]["battery"]["initial_charge_kwh"])
     )
