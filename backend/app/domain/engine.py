@@ -158,11 +158,10 @@ def advance_period(
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
     )
-    generated_kwh = generation_kw * period_hours
-    consumed_kwh = load_kw * period_hours
-    energy_margin_kwh = generated_kwh - consumed_kwh
 
     service_duration_hours = float(event.get("duration_hours", 0.0))
+    if service_duration_hours < 0 or service_duration_hours > period_hours:
+        raise DomainError("Power-service duration must fit inside the current period.")
     modules_online = int(event.get("modules_online", power["module_count"]))
     service_available_kw = (
         modules_online
@@ -175,11 +174,17 @@ def advance_period(
         max(0.0, critical_peak_kw - service_available_kw)
         * service_duration_hours
     )
+    battery_capacity_kwh = float(power["battery_capacity_kwh"])
+    battery_discharge_kwh = min(service_battery_required_kwh, battery_capacity_kwh)
+    battery_shortfall_kwh = max(
+        0.0, service_battery_required_kwh - battery_discharge_kwh
+    )
     service_power_ok = (
         service_available_kw >= critical_load_kw
-        and service_battery_required_kwh <= float(power["battery_capacity_kwh"])
+        and battery_shortfall_kwh == 0.0
     )
     power_dispatch = None
+    normal_duration_hours = period_hours - service_duration_hours
     if service_duration_hours > 0:
         flexible_load_kw = max(0.0, load_kw - critical_load_kw)
         power_dispatch = dispatch_power(
@@ -190,6 +195,24 @@ def advance_period(
             ],
             duration_hours=service_duration_hours,
         )
+
+    generated_kwh = (
+        generation_kw * normal_duration_hours
+        + service_available_kw * service_duration_hours
+    )
+    service_consumed_kwh = (
+        power_dispatch["allocated_kwh"]
+        if power_dispatch is not None
+        else load_kw * service_duration_hours
+    )
+    consumed_kwh = (
+        load_kw * normal_duration_hours
+        + service_consumed_kwh
+        + battery_discharge_kwh
+    )
+    energy_margin_kwh = (
+        generated_kwh + battery_discharge_kwh - consumed_kwh
+    )
 
     finance = scenario["finance"]
     operating_cost = float(finance["operating_cost_per_period"])
@@ -229,6 +252,7 @@ def advance_period(
         },
         "available_generation_kw": generation_kw,
         "average_load_kw": load_kw,
+        "average_served_load_kw": consumed_kwh / period_hours,
         "generated_kwh": generated_kwh,
         "consumed_kwh": consumed_kwh,
         "energy_margin_kwh": energy_margin_kwh,
@@ -238,7 +262,9 @@ def advance_period(
             "critical_load_kw": critical_load_kw,
             "duration_hours": service_duration_hours,
             "battery_required_kwh": service_battery_required_kwh,
-            "battery_capacity_kwh": float(power["battery_capacity_kwh"]),
+            "battery_capacity_kwh": battery_capacity_kwh,
+            "battery_discharge_kwh": battery_discharge_kwh,
+            "battery_shortfall_kwh": battery_shortfall_kwh,
             "within_reserve": service_power_ok,
         },
         "power_dispatch": power_dispatch,

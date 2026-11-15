@@ -33,7 +33,7 @@ Each session stores the exact scenario definition used at creation. Later edits 
 - `backend/app/domain/resources.py` — deterministic material-process execution, input constraints, energy use and storage capacity.
 - `backend/app/domain/energy.py` — priority-based electrical load dispatch with minimum stable loads.
 
-The resource and energy modules are scenario-independent domain primitives. Scenario-specific recipes and dispatch tables can be added without changing their calculation rules.
+The resource and energy modules are scenario-independent domain primitives. The Ares-1 engine already uses them for oxygen production, greenhouse output, ice-to-water processing and the reactor-service dispatch. Process energy demand is reported separately from the aggregate electrical balance.
 
 ## Persistence and validation
 
@@ -43,4 +43,4 @@ The Compose stack starts PostgreSQL and the API. Database credentials can be ove
 
 ## Current development boundary
 
-This stage establishes reusable material and electrical calculation primitives and a persistent Ares-1 campaign. Detailed scenario production recipes, battery state-of-charge and charge/discharge efficiencies, projects, player permissions, authentication, WebSocket synchronization and frontend remain subsequent work. The initial API is intended for a trusted development LAN; authentication and authorization are required before exposing it beyond that environment.
+The Ares-1 engine calculates the maintenance interval separately from the normal operating interval and reports generator output, served load, battery reserve requirement and curtailed flexible demand. Battery state-of-charge, charge/discharge power limits and efficiency still require implementation. Projects, player permissions, authentication, WebSocket synchronization and frontend belong to subsequent stages. The initial API is intended for a trusted development LAN; authentication and authorization are required before exposing it beyond that environment.

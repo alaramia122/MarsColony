@@ -89,6 +89,32 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(dispatch["loads"][1]["allocated_kw"], 5.0)
         self.assertGreater(dispatch["shed_kwh"], 0.0)
 
+        period_hours = SCENARIO["time"]["period_sols"] * SCENARIO["time"]["hours_per_sol"]
+        requested_load_kw = sum(SCENARIO["power"]["loads_kw"].values())
+        expected_generation = 72.0 * (period_hours - 48.0) + 36.0 * 48.0
+        expected_consumption = (
+            requested_load_kw * (period_hours - 48.0)
+            + 36.0 * 48.0
+            + 96.0
+        )
+        self.assertAlmostEqual(report["generated_kwh"], expected_generation, places=5)
+        self.assertAlmostEqual(report["consumed_kwh"], expected_consumption, places=5)
+        self.assertAlmostEqual(
+            report["energy_margin_kwh"],
+            expected_generation + 96.0 - expected_consumption,
+            places=5,
+        )
+        self.assertAlmostEqual(service["battery_discharge_kwh"], 96.0)
+        self.assertEqual(service["battery_shortfall_kwh"], 0.0)
+
+    def test_power_service_cannot_exceed_period_duration(self):
+        scenario = json.loads(json.dumps(SCENARIO))
+        scenario["scripted_events"][1]["duration_hours"] = 1000.0
+        state = initial_state(scenario)
+        state, _ = advance_period(scenario, state, 1)
+        with self.assertRaises(DomainError):
+            advance_period(scenario, state, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
