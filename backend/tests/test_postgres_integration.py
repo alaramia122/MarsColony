@@ -74,7 +74,7 @@ class PostgreSQLSessionTests(unittest.TestCase):
             self.assertGreaterEqual(state["raw_ice_kg"], 0.0)
             self.assertAlmostEqual(state["battery_soc_kwh"], 1000.0, places=5)
             self.assertTrue(
-                all(event["payload"]["demand_fully_met"] for event in restored["events"][1:])
+                all(event["payload"]["essential_demands_met"] for event in restored["events"][1:])
             )
         finally:
             with api.SessionLocal.begin() as db:

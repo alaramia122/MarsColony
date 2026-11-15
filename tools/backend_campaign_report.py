@@ -19,7 +19,8 @@ def main() -> None:
             "water_output_kg": report["water_output_kg"],
             "energy_margin_kwh": report["energy_margin_kwh"],
             "battery_soc_kwh": state["battery_soc_kwh"],
-            "demand_fully_met": report["demand_fully_met"],
+            "essential_demands_met": report["essential_demands_met"],
+            "all_electrical_loads_served": report["all_electrical_loads_served"],
         })
     print(json.dumps({
         "scenario_id": scenario["scenario_id"],

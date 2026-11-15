@@ -347,6 +347,17 @@ def advance_period(
             and critical_allocation["allocated_kw"] >= float(power["critical_load_kw"]) - 1e-9
         )
     )
+    critical_services_met = all(
+        any(
+            allocation["load_id"] == power["critical_dispatch_group_id"]
+            and allocation["allocated_kw"] >= float(power["critical_load_kw"]) - 1e-9
+            for allocation in interval["dispatch"]["loads"]
+        )
+        for interval in interval_reports
+    )
+    all_electrical_loads_served = all(
+        interval["dispatch"]["all_loads_served"] for interval in interval_reports
+    )
     battery_config = power["battery"]
     report = {
         "period": period_number,
@@ -412,11 +423,14 @@ def advance_period(
         "budget_cost_credits": operating_cost,
         "budget_unmet_credits": budget_unmet,
         "event_id": event.get("id"),
-        "demand_fully_met": (
+        "shed_kwh": total_shed_kwh,
+        "all_electrical_loads_served": all_electrical_loads_served,
+        "essential_demands_met": (
             oxygen_unmet <= 1e-9
             and food_unmet <= 1e-9
             and water_unmet <= 1e-9
             and ice_shortfall <= 1e-9
+            and critical_services_met
             and service_power_ok
         ),
     }

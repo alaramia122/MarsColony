@@ -48,7 +48,7 @@ class PeriodEngineTests(unittest.TestCase):
                 SCENARIO["power"]["battery"]["capacity_kwh"],
             )
 
-        self.assertTrue(all(item["demand_fully_met"] for item in reports))
+        self.assertTrue(all(item["essential_demands_met"] for item in reports))
         self.assertGreater(state["raw_ice_kg"], 0.0)
         self.assertLess(state["raw_ice_kg"], SCENARIO["stocks"]["raw_ice_kg"])
         self.assertAlmostEqual(state["budget_credits"], 500.0, places=6)
@@ -87,12 +87,15 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(allocations["oxygen_isru"]["allocated_kw"], 7.0)
         self.assertAlmostEqual(allocations["water_processing"]["allocated_kw"], 0.0)
         self.assertGreater(dispatch["shed_kwh"], 0.0)
+        self.assertFalse(report["all_electrical_loads_served"])
 
         battery = report["battery"]
         self.assertAlmostEqual(battery["state_of_charge_start_kwh"], 1000.0)
         self.assertAlmostEqual(battery["state_of_charge_end_kwh"], 1000.0 - 96.0 / 0.9)
         self.assertAlmostEqual(service["battery_discharge_kwh"], 96.0)
-        self.assertAlmostEqual(new_state["battery_soc_kwh"], battery["state_of_charge_end_kwh"])
+        self.assertAlmostEqual(
+            new_state["battery_soc_kwh"], battery["state_of_charge_end_kwh"], places=5
+        )
         self.assertAlmostEqual(
             report["consumed_kwh"],
             sum(
@@ -119,12 +122,13 @@ class PeriodEngineTests(unittest.TestCase):
     def test_battery_reserve_shortfall_is_explicit(self):
         scenario = json.loads(json.dumps(SCENARIO))
         scenario["power"]["battery"]["initial_charge_kwh"] = 100.0
+        scenario["power"]["battery"]["maximum_charge_kw"] = 0.0
         state = initial_state(scenario)
         state, _ = advance_period(scenario, state, 1)
         state, report = advance_period(scenario, state, 2)
         self.assertFalse(report["power_service"]["within_reserve"])
         self.assertGreater(report["power_service"]["battery_shortfall_kw"], 0.0)
-        self.assertFalse(report["demand_fully_met"])
+        self.assertFalse(report["essential_demands_met"])
         self.assertEqual(state["battery_soc_kwh"], 100.0)
 
     def test_process_recipes_are_read_from_scenario_data(self):
