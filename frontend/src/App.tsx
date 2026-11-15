@@ -254,7 +254,7 @@ export default function App() {
           {error && <div className="alert">{error}<button onClick={() => setError("")}>×</button></div>}
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
-          {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} state={state} currentPeriod={session?.current_period ?? 0} onNavigate={setView} />}
+          {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
           {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
@@ -305,9 +305,9 @@ const DOMAIN_INFO: Record<string, { title: string; purpose: string; metrics: Arr
   communications: { title: "Связь и информационные системы", purpose: "Связь, вычислительные ресурсы, данные и автоматизация.", metrics: [] },
   external_relations: { title: "Межпланетные связи и снабжение", purpose: "Поставки, контракты, импорт и взаимодействие с Землёй.", metrics: [["budget_credits","Доступный бюджет","кр."]] }
 };
-function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavigate }: {
-  player: Player | undefined; players: Player[]; projects: Project[]; state: Record<string, unknown>;
-  currentPeriod: number; onNavigate: (view: View) => void;
+function RoleWorkspace({ player, players, projects, events, state, currentPeriod, availableBudget, reservedBudget, onNavigate }: {
+  player: Player | undefined; players: Player[]; projects: Project[]; events: EventMessage[]; state: Record<string, unknown>;
+  currentPeriod: number; availableBudget: number; reservedBudget: number; onNavigate: (view: View) => void;
 }) {
   if (!player) return <section className="panel"><h2>Профиль участника не загружен</h2><p className="muted">Обновите страницу или переподключитесь к сессии.</p></section>;
   const roles = player.roles.length ? player.roles : ["player"];
@@ -315,8 +315,15 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
   const scopedProjects = roles.includes("finance_lead") ? projects : projects.filter((project) => domains.some((domain) => project.domain_codes.includes(domain)));
   const pending = scopedProjects.filter((project) => project.status === "submitted");
   const active = scopedProjects.filter((project) => project.status === "executing");
+  const infrastructure = Array.isArray(state.infrastructure) ? state.infrastructure as Array<Record<string, unknown>> : [];
+  const relevantEvents = events.filter((event) => {
+    const projectId = String(event.payload.project_id || "");
+    if (projectId) return scopedProjects.some((project) => project.id === projectId);
+    const actorId = String(event.payload.player_id || event.payload.assigned_by || "");
+    return actorId === player.id;
+  }).slice(-6).reverse();
   const metricValue = (key: string) => {
-    if (key === "infrastructure") return Array.isArray(state.infrastructure) ? state.infrastructure.length : 0;
+    if (key === "infrastructure") return infrastructure.length;
     if (key === "technologies") return Array.isArray(state.technologies) ? state.technologies.length : 0;
     const value = state[key];
     return typeof value === "number" ? quantity(value, 2) : "Нет данных";
@@ -328,7 +335,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
       <div className="role-tags">{roles.map((role) => <span className="role-tag" key={role}>{ROLE_INFO[role]?.title || role}</span>)}</div>
       {roles.map((role) => <div className="role-description" key={role}><h3>{ROLE_INFO[role]?.title || role}</h3><p>{ROLE_INFO[role]?.purpose || "Роль участника игровой сессии."}</p><ul>{(ROLE_INFO[role]?.duties || ROLE_INFO.player.duties).map((duty) => <li key={duty}>{duty}</li>)}</ul></div>)}
     </section>
-    {roles.includes("finance_lead") && <section className="panel finance-workspace-metrics"><div className="eyebrow">FINANCIAL CONTROL</div><h3>Финансовая картина</h3><div className="domain-metrics"><div><span>Доступный бюджет</span><strong>{metricValue("budget_credits")} <small>кр.</small></strong></div><div><span>Проекты на финансовом рассмотрении</span><strong>{pending.length} <small>шт.</small></strong></div></div></section>}
+    {roles.includes("finance_lead") && <section className="panel finance-workspace-metrics"><div className="eyebrow">FINANCIAL CONTROL</div><h3>Финансовая картина</h3><div className="domain-metrics"><div><span>Доступный бюджет</span><strong>{quantity(availableBudget, 1)} <small>кр.</small></strong></div><div><span>Зарезервировано</span><strong>{quantity(reservedBudget, 1)} <small>кр.</small></strong></div><div><span>Проекты на финансовом рассмотрении</span><strong>{pending.length} <small>шт.</small></strong></div></div></section>}
     <section className="role-summary-grid">
       <article className="metric-card"><span>АКТИВНЫЕ ПРОЕКТЫ</span><div><strong>{active.length}</strong><small>в работе</small></div><p>В закреплённых направлениях</p></article>
       <article className="metric-card"><span>ТРЕБУЮТ РЕШЕНИЯ</span><div><strong>{pending.length}</strong><small>заявок</small></div><p>Ожидают согласования</p></article>
@@ -341,7 +348,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
         const related = projects.filter((project) => project.domain_codes.includes(code));
         return <article className="domain-work-card" key={code}>
           <h3>{info.title}</h3><p>{info.purpose}</p>
-          <div className="domain-metrics">{info.metrics.length ? info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>) : <div><span>Профильные показатели</span><strong>Пока не рассчитываются <small>в MVP</small></strong></div>}</div>
+          <div className="domain-metrics">{info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>)}<div><span>Инфраструктурные объекты направления</span><strong>{infrastructure.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(code)).length} <small>шт.</small></strong></div><div><span>Активные проекты направления</span><strong>{related.filter((project) => ["approved","executing"].includes(project.status)).length} <small>шт.</small></strong></div></div>
           <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {project.status}</span>)}</div>
         </article>;
       })}
@@ -350,6 +357,7 @@ function RoleWorkspace({ player, players, projects, state, currentPeriod, onNavi
       <div className="panel-heading"><div><div className="eyebrow">ACTION QUEUE</div><h2>Мои задачи и решения</h2></div><button className="button button-secondary small-button" onClick={() => onNavigate("projects")}>Открыть проекты</button></div>
       {pending.length === 0 && active.length === 0 ? <p className="muted">Нет активных задач в закреплённых направлениях.</p> : [...pending,...active].map((project) => <div className="role-task-row" key={project.id}><strong>{project.title}</strong><span>{project.status === "submitted" ? "Ожидает согласования" : "Исполняется"} · {project.domain_codes.map((domain) => DOMAIN_INFO[domain]?.title || domain).join(", ")}</span></div>)}
     </section>
+    <section className="panel"><div className="eyebrow">RECENT ACTIVITY</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{event.event_type}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
   </div>;
 }
 function AISettings() {
