@@ -713,6 +713,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [assetKind, setAssetKind] = useState("infrastructure");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
+  const [assetImageDataUrl, setAssetImageDataUrl] = useState("");
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
   const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
   const [catalogError, setCatalogError] = useState("");
@@ -910,12 +911,13 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           budget_credits: Number(budget), duration_periods: Number(duration),
           labor_fte: Number(laborFte), energy_kwh_per_period: Number(energy),
           resource_requirements: requirements, expected_result: expected,
-          catalog_entity_ids: selectedCatalogIds
+          catalog_entity_ids: selectedCatalogIds,
+          asset_image_data_url: assetImageDataUrl || null
         })
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY("");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetImageDataUrl("");
       setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
@@ -1057,9 +1059,33 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
         <label>Дополнительная инвентарная запись<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный контейнер" /><small>Создаёт только запись об экземпляре без самостоятельной экономической модели. Для работающего оборудования выберите тип из каталога выше; для нового типа отправьте предложение на согласование.</small></label>
         <label>Тип инвентарной записи<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select><small>Это не создаёт новый тип в каталоге и не добавляет производительность.</small></label>
+        <label>Фотография создаваемого объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+            setActionError("Поддерживаются изображения JPEG, PNG и WebP.");
+            event.target.value = "";
+            return;
+          }
+          if (file.size > 4 * 1024 * 1024) {
+            setActionError("Размер исходного изображения не должен превышать 4 МиБ.");
+            event.target.value = "";
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") {
+              setAssetImageDataUrl(reader.result);
+              setActionError("");
+            }
+          };
+          reader.onerror = () => setActionError("Не удалось прочитать изображение объекта.");
+          reader.readAsDataURL(file);
+        }} /><small>Можно заменить фотографию типа из каталога для этого экземпляра. Один проект с фотографией должен создавать ровно один инфраструктурный объект.</small></label>
         <label>Координата X, % от ширины карты<input type="number" min="0" max="100" step="0.1" value={assetX} onChange={(event) => setAssetX(event.target.value)} placeholder="Не задана" /></label>
         <label>Координата Y, % от высоты карты<input type="number" min="0" max="100" step="0.1" value={assetY} onChange={(event) => setAssetY(event.target.value)} placeholder="Не задана" /><small>Обе координаты необязательны. Если не заданы, объект останется в списке «без координат».</small></label>
       </div>
+      {assetImageDataUrl && <div className="entity-image-preview"><img className="entity-reference-image" src={assetImageDataUrl} alt="Предпросмотр фотографии создаваемого объекта" /><button type="button" className="button button-quiet small-button" onClick={() => setAssetImageDataUrl("")}>Убрать фотографию объекта</button></div>}
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
       <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} title={saving ? "Сохраняется другой проектный запрос." : "Заполните название, описание и направление; проверьте бюджет, длительность, труд, энергию и материальные значения."} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
