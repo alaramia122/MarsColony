@@ -635,6 +635,114 @@ class ProjectWorkflowTests(unittest.TestCase):
             )
         self.assertEqual(error.exception.status_code, 422)
 
+    def test_repair_project_restores_infrastructure_condition(self):
+        from backend.app.models import GameSessionRecord
+        with self.session_factory.begin() as db:
+            session = db.get(GameSessionRecord, self.session_id)
+            state = dict(session.state)
+            state["infrastructure"] = [{
+                "id": "facility-1",
+                "name": "Основной энергетический модуль",
+                "kind": "power_unit",
+                "condition": 0.4,
+                "properties": {},
+                "domain_codes": ["energy"],
+                "commissioned_period": 0,
+                "project_id": "seed",
+            }]
+            session.state = state
+        lead = self.join("Руководитель энергетики")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["energy"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Ремонт энергетического модуля",
+                description="Восстановление технического состояния оборудования.",
+                project_type="repair",
+                domain_codes=["energy"],
+                budget_credits=0,
+                duration_periods=1,
+                expected_result={
+                    "infrastructure_repairs": [{
+                        "infrastructure_id": "facility-1",
+                        "condition_delta": 0.35,
+                    }]
+                },
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        projects_api.execute_project(
+            self.session_id, project["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+        api.advance_game_session(
+            self.session_id, api.AdvancePeriodRequest(expected_period=0),
+            player_token=self.owner_token,
+        )
+        projects_api.complete_project(
+            self.session_id, project["id"], VersionRequest(expected_version=5),
+            self.owner_token,
+        )
+        state = api.get_session(self.session_id, self.owner_token)["state"]
+        self.assertAlmostEqual(state["infrastructure"][0]["condition"], 0.75)
+
+    def test_research_project_unlocks_technology_on_completion(self):
+        lead = self.join("Руководитель науки")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["science"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Новая технология переработки",
+                description="Завершить исследовательскую программу.",
+                project_type="research",
+                domain_codes=["science"],
+                budget_credits=0,
+                duration_periods=1,
+                expected_result={
+                    "technology_unlocks": [{
+                        "id": "water-electrolysis-v2",
+                        "name": "Улучшенный электролиз воды",
+                        "description": "Повышенная эффективность водородного контура.",
+                        "level": 2,
+                    }]
+                },
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        projects_api.execute_project(
+            self.session_id, project["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+        api.advance_game_session(
+            self.session_id, api.AdvancePeriodRequest(expected_period=0),
+            player_token=self.owner_token,
+        )
+        projects_api.complete_project(
+            self.session_id, project["id"], VersionRequest(expected_version=5),
+            self.owner_token,
+        )
+        technologies = api.get_session(self.session_id, self.owner_token)["state"]["technologies"]
+        self.assertEqual(technologies[0]["id"], "water-electrolysis-v2")
+        self.assertEqual(technologies[0]["level"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
