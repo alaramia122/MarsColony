@@ -324,7 +324,7 @@ def advance_period(
         powered_quantity = requested_quantity * commissioned_power_fraction
         produced_quantity = powered_quantity
         if capacity is not None:
-            produced_quantity = min(requested_quantity, max(0.0, capacity - current))
+            produced_quantity = min(powered_quantity, max(0.0, capacity - current))
         state[state_key] = _round_resource(
             current + produced_quantity, scenario, resource_id
         )
