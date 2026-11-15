@@ -591,12 +591,12 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
         return <div className="inventory-item" key={id}><span>{label[id] || id}</span><strong>{quantity(numberAt(state, resource.state_key || ""), 2)} <small>{resource.unit || "ед."}</small></strong></div>;
       })}</div>
     </section>}
-    {Object.keys((state.service_capacity_per_period || {}) as Record<string, number>).length > 0 && <section className="panel inventory-panel">
-      <div className="panel-heading"><div><div className="eyebrow">OPERATIONAL SERVICES</div><h2>Доступная мощность служб</h2></div><span className="muted small">за период, с учётом состояния объектов</span></div>
-      <div className="inventory-grid">{Object.entries(state.service_capacity_per_period as Record<string, number>).map(([id, value]) => {
+    {Object.keys((state.service_delivery_per_period || {}) as Record<string, unknown>).length > 0 && <section className="panel inventory-panel">
+      <div className="panel-heading"><div><div className="eyebrow">OPERATIONAL SERVICES</div><h2>Обеспечение служб</h2></div><span className="muted small">мощность и спрос за период</span></div>
+      <div className="inventory-grid">{Object.entries(state.service_delivery_per_period as Record<string, {requested:number;capacity:number;served:number;unmet:number}>).map(([id, item]) => {
         const names: Record<string,string> = {medical_beds:"Медицинские койки",isolation_beds:"Изоляторы",lab_samples_per_period:"Лабораторные пробы",communications_bandwidth_mbps:"Пропускная способность связи",cargo_handling_tonnes_per_period:"Обработка грузов",transport_tonnes_per_period:"Перевозка грузов",repair_work_orders_per_period:"Ремонтные заказы",fire_response_capacity:"Пожарное реагирование",training_seats:"Учебные места",remote_observations_per_period:"Дистанционные наблюдения",command_staff_capacity:"Операторы управления",warehouse_capacity_kg:"Складская ёмкость"};
         const units: Record<string,string> = {medical_beds:"мест",isolation_beds:"мест",lab_samples_per_period:"проб/пер.",communications_bandwidth_mbps:"Мбит/с",cargo_handling_tonnes_per_period:"т/пер.",transport_tonnes_per_period:"т/пер.",repair_work_orders_per_period:"заказов/пер.",fire_response_capacity:"инцид.",training_seats:"мест",remote_observations_per_period:"набл./пер.",command_staff_capacity:"чел.",warehouse_capacity_kg:"кг"};
-        return <div className="inventory-item" key={id}><span>{names[id] || id}</span><strong>{quantity(value, 2)} <small>{units[id] || ""}</small></strong></div>;
+        return <div className="inventory-item" key={id}><span>{names[id] || id}</span><strong>{quantity(item.served, 2)} / {quantity(item.requested, 2)} <small>{units[id] || ""}</small></strong><small>Мощность {quantity(item.capacity, 2)} · дефицит {quantity(item.unmet, 2)}</small></div>;
       })}</div>
     </section>}
     <div className="section-grid">
