@@ -106,6 +106,7 @@ jobs:
           assert '/api/v1/sessions/{session_id}/entity-catalog/proposals' in spec['paths']
           assert '/api/v1/sessions/{session_id}/map' in spec['paths']
           assert '/api/v1/sessions/{session_id}/map/placements' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/map/placements/{placement_id}/decisions' in spec['paths']
           assert '/health/ready' in spec['paths']
           "
           curl -fsS http://localhost:8000/api/v1/scenarios/ares-01/starter-presets | python -c "import json,sys; d=json.load(sys.stdin); assert len(d['presets']) == 4; assert all(len(p['domain_packs']) == 16 for p in d['presets'])"
