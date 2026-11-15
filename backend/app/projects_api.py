@@ -206,6 +206,12 @@ def create_project(session_id: str, request: ProjectCreate,
             actor = authenticate(db, session_id, token)
             if not can_propose_project(policy(actor), domains):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose this project.")
+            catalog = (session.scenario_snapshot or {}).get("resource_catalog", {})
+            for resource_id, quantity in request.resource_requirements.items():
+                if resource_id not in catalog:
+                    raise HTTPException(status_code=422, detail=f"Unknown resource requirement: {resource_id}.")
+                if isinstance(quantity, bool) or not isinstance(quantity, (int, float)) or quantity < 0:
+                    raise HTTPException(status_code=422, detail=f"Invalid quantity for resource: {resource_id}.")
             project = ProjectRecord(
                 session_id=session_id, author_player_id=actor.id,
                 title=request.title.strip(), description=request.description.strip(),
@@ -423,6 +429,49 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
             project.version += 1
             append_event(db, session_id, "project.completed", {
                 "project_id": project.id, "completed_by": actor.id,
+            })
+            return serialize_project(project)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+
+@router.post("/sessions/{session_id}/projects/{project_id}/cancel")
+def cancel_project(session_id: str, project_id: str, request: VersionRequest,
+                   token: str | None = Header(default=None, alias="X-Player-Token")) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            project = db.scalar(select(ProjectRecord).where(
+                ProjectRecord.id == project_id, ProjectRecord.session_id == session_id
+            ).with_for_update())
+            if project is None:
+                raise HTTPException(status_code=404, detail="Project not found.")
+            if project.version != request.expected_version:
+                raise HTTPException(status_code=409, detail="Project version is stale.")
+            if project.status not in {"draft", "submitted", "approved"}:
+                raise HTTPException(status_code=409, detail="Project cannot be cancelled in its current status.")
+            is_commander = "colony_commander" in (actor.roles or [])
+            if actor.id != project.author_player_id and not is_commander:
+                raise HTTPException(status_code=403, detail="Only the author or colony commander can cancel.")
+            previous_status = project.status
+            if previous_status in {"submitted", "approved"}:
+                session.reserved_budget_credits = max(
+                    0.0, float(session.reserved_budget_credits) - project.budget_credits
+                )
+                append_event(db, session_id, "project.budget_released", {
+                    "project_id": project.id, "amount": project.budget_credits,
+                })
+            project.status = "cancelled"
+            project.version += 1
+            append_event(db, session_id, "project.cancelled", {
+                "project_id": project.id, "cancelled_by": actor.id,
+                "previous_status": previous_status,
             })
             return serialize_project(project)
     except SQLAlchemyError as error:
