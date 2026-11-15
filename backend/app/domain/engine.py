@@ -116,6 +116,24 @@ def advance_period(
     consumed_kwh = load_kw * period_hours
     energy_margin_kwh = generated_kwh - consumed_kwh
 
+    service_duration_hours = float(event.get("duration_hours", 0.0))
+    modules_online = int(event.get("modules_online", power["module_count"]))
+    service_available_kw = (
+        modules_online
+        * float(power["module_nominal_kw"])
+        * float(power["availability_factor"])
+    )
+    critical_load_kw = float(power["critical_load_kw"])
+    critical_peak_kw = float(power["critical_peak_kw"])
+    service_battery_required_kwh = (
+        max(0.0, critical_peak_kw - service_available_kw)
+        * service_duration_hours
+    )
+    service_power_ok = (
+        service_available_kw >= critical_load_kw
+        and service_battery_required_kwh <= float(power["battery_capacity_kwh"])
+    )
+
     finance = scenario["finance"]
     budget_end = (
         float(state["budget_credits"])
@@ -152,6 +170,15 @@ def advance_period(
         "generated_kwh": generated_kwh,
         "consumed_kwh": consumed_kwh,
         "energy_margin_kwh": energy_margin_kwh,
+        "power_service": {
+            "modules_online": modules_online,
+            "available_kw": service_available_kw,
+            "critical_load_kw": critical_load_kw,
+            "duration_hours": service_duration_hours,
+            "battery_required_kwh": service_battery_required_kwh,
+            "battery_capacity_kwh": float(power["battery_capacity_kwh"]),
+            "within_reserve": service_power_ok,
+        },
         "budget_cost_credits": float(finance["operating_cost_per_period"]),
         "event_id": event.get("id"),
         "demand_fully_met": (
