@@ -540,6 +540,84 @@ class ProjectWorkflowTests(unittest.TestCase):
             )
         self.assertEqual(error.exception.status_code, 409)
 
+    def test_engineer_can_create_scoped_project_but_cannot_approve_it(self):
+        engineer = self.join("Инженер колонии")
+        self.assign(engineer["player_id"], self.owner_token, ["engineer"], ["energy"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Инженерная заявка",
+                description="Проверка инженерных полномочий.",
+                project_type="repair",
+                domain_codes=["energy"],
+                budget_credits=0,
+                duration_periods=1,
+            ),
+            engineer["player_token"],
+        )
+        submitted = projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            engineer["player_token"],
+        )
+        self.assertEqual(submitted["status"], "submitted")
+        with self.assertRaises(HTTPException) as error:
+            projects_api.approve_project(
+                self.session_id, project["id"],
+                ApprovalRequest(decision="approve", expected_version=2),
+                engineer["player_token"],
+            )
+        self.assertEqual(error.exception.status_code, 403)
+
+    def test_ready_project_releases_fte_and_energy_until_commissioned(self):
+        lead = self.join("Руководитель энергетики")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["energy"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Короткий энергетический проект",
+                description="После срока работы ресурсы освобождаются.",
+                project_type="repair",
+                domain_codes=["energy"],
+                budget_credits=0,
+                duration_periods=1,
+                labor_fte=16,
+                energy_kwh_per_period=100,
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        projects_api.execute_project(
+            self.session_id, project["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+        api.advance_game_session(
+            self.session_id, api.AdvancePeriodRequest(expected_period=0),
+            player_token=self.owner_token,
+        )
+        with self.session_factory() as db:
+            from backend.app.models import ProjectRecord
+            ready = db.get(ProjectRecord, project["id"])
+            self.assertEqual(ready.progress_periods, 1)
+            self.assertEqual(ready.version, 5)
+        second_period = api.advance_game_session(
+            self.session_id, api.AdvancePeriodRequest(expected_period=1),
+            player_token=self.owner_token,
+        )
+        self.assertEqual(second_period["report"]["project_execution"], [])
+        with self.session_factory() as db:
+            from backend.app.models import ProjectRecord
+            ready = db.get(ProjectRecord, project["id"])
+            self.assertEqual(ready.progress_periods, 1)
+            self.assertEqual(ready.version, 5)
+
 
 if __name__ == "__main__":
     unittest.main()
