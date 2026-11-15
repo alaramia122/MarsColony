@@ -26,7 +26,16 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
                 expected_domains,
             )
             self.assertTrue(all(asset["properties"]["starter_asset"] for asset in assets))
-            self.assertTrue(all(asset["properties"]["simulation_effects"] == "not_modeled" for asset in assets))
+            self.assertTrue(any(asset["properties"]["simulation_effects"] == "modeled" for asset in assets))
+            self.assertTrue(any(asset["properties"]["simulation_effects"] == "not_modeled" for asset in assets))
+
+    def test_catalogue_contracts_are_attached_to_matching_starter_assets(self):
+        scenario = apply_starter_preset(load_scenario("ares-01"), "balanced")
+        assets = scenario["initial_infrastructure"]
+        drilling_rig = next(asset for asset in assets if asset["kind"] == "drilling_rig")
+        atmosphere = next(asset for asset in assets if asset["kind"] == "atmosphere_control")
+        self.assertEqual(drilling_rig["properties"]["economic_effects"]["resource_outputs_per_period"]["raw_ice"], 120)
+        self.assertEqual(atmosphere["properties"]["process_bindings"], ["oxygen_isru"])
 
     def test_presets_have_distinct_infrastructure_compositions(self):
         catalogue = load_starter_presets("ares-01")
