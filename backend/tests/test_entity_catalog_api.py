@@ -166,11 +166,16 @@ class EntityCatalogApiTests(unittest.TestCase):
             projects_api.create_project(self.session_id, request, self.owner_token)
         self.assertEqual(missing_materials.exception.status_code, 422)
         request.resource_requirements = {"steel": 80, "aluminium": 60, "electronics": 15}
+        image_buffer = BytesIO()
+        Image.new("RGB", (2, 2), (60, 130, 200)).save(image_buffer, format="PNG")
+        request.asset_image_data_url = "data:image/png;base64," + base64.b64encode(image_buffer.getvalue()).decode("ascii")
         project = projects_api.create_project(self.session_id, request, self.owner_token)
         self.assertEqual(
             project["resource_requirements"],
             {"steel": 80, "aluminium": 60, "electronics": 15},
         )
+        asset = project["expected_result"]["infrastructure"][0]
+        self.assertTrue(asset["properties"]["image_data_url"].startswith("data:image/webp;base64,"))
 
     def test_custom_entity_photo_is_sanitized_persisted_and_inherited_by_project_asset(self):
         image_buffer = BytesIO()
