@@ -328,7 +328,10 @@ def create_project(session_id: str, request: ProjectCreate,
                     if entity is None:
                         raise HTTPException(status_code=422, detail=f"Unknown or unapproved catalogue entity: {entity_id}.")
                     try:
-                        validate_entity(entity, catalog, session.scenario_id)
+                        validate_entity(
+                            {key: value for key, value in entity.items() if key != "image_data_url"},
+                            catalog, session.scenario_id,
+                        )
                     except EntityCatalogError as error:
                         raise HTTPException(status_code=422, detail=str(error)) from error
                     if not set(entity.get("domain_codes", [])).issubset(set(domains)):
