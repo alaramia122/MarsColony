@@ -153,9 +153,6 @@ def advance_game_session(
 ) -> dict:
     try:
         with SessionLocal.begin() as db:
-            player = _authenticate_player(db, session_id, player_token)
-            if "colony_commander" not in (player.roles or []):
-                raise HTTPException(status_code=403, detail="Only the colony commander can advance the period.")
             record = db.scalar(
                 select(GameSessionRecord)
                 .where(GameSessionRecord.id == session_id)
@@ -163,6 +160,9 @@ def advance_game_session(
             )
             if record is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
+            player = _authenticate_player(db, session_id, player_token)
+            if "colony_commander" not in (player.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can advance the period.")
             if (
                 request is not None
                 and request.expected_period is not None
