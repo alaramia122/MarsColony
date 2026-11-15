@@ -207,7 +207,7 @@ def advance_period(
             raise DomainError(f"Event multiplier for '{process_id}' cannot be negative.")
         asset_kinds = PROCESS_ASSET_BINDINGS.get(process_id)
         capacity_factor = 1.0
-        if asset_kinds:
+        if asset_kinds and state.get("infrastructure"):
             capacity_factor = sum(
                 max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
                 for asset in state.get("infrastructure", [])
@@ -386,11 +386,19 @@ def advance_period(
     asset_operation_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
-        effects = properties.get("economic_effects", {})
+        effects = _asset_economic_effects(asset)
         status = asset.get("status", properties.get("status", "commissioned"))
         if not effects or status not in {"commissioned", "operational"}:
             continue
         condition = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
+        asset_domains = set(asset.get("domain_codes", []))
+        technology_output_multipliers = {}
+        for technology in state.get("technologies", []):
+            if asset_domains.intersection(technology.get("domain_codes", [])):
+                for resource_id, multiplier in technology.get("effects", {}).get("resource_output_multiplier", {}).items():
+                    technology_output_multipliers[resource_id] = (
+                        technology_output_multipliers.get(resource_id, 1.0) * float(multiplier)
+                    )
         requested_kw = float(effects.get("power_load_kw", 0.0)) * condition
         requested_energy = requested_kw * period_hours
         delivered_energy = sum(
@@ -453,7 +461,7 @@ def advance_period(
     condition_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
-        effects = properties.get("economic_effects", {})
+        effects = _asset_economic_effects(asset)
         if not effects or asset.get("status", properties.get("status", "commissioned")) not in {"commissioned", "operational"}:
             continue
         condition_before = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
