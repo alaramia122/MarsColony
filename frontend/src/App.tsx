@@ -17,10 +17,10 @@ type Project = {
   domain_codes: string[]; budget_credits: number; progress_periods: number;
   duration_periods: number; labor_fte: number; energy_kwh_per_period: number;
   resource_requirements: Record<string, number>; expected_result: Record<string, unknown>;
-  approvals?: Array<{ decision: string }>;
+  approvals?: Array<{ player_id: string; decision: string; comment: string; approval_mode: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
-type View = "overview" | "map" | "projects" | "people" | "assistant";
+type View = "overview" | "map" | "projects" | "people" | "assistant" | "tutorial";
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
@@ -47,11 +47,16 @@ export default function App() {
     const saved = sessionStorage.getItem("marscolony.auth");
     return saved ? JSON.parse(saved) as Auth : null;
   });
+  const [previousAuth, setPreviousAuth] = useState<Auth | null>(() => {
+    const saved = sessionStorage.getItem("marscolony.previousAuth");
+    return saved ? JSON.parse(saved) as Auth : null;
+  });
   const [session, setSession] = useState<SessionData | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [events, setEvents] = useState<EventMessage[]>([]);
   const [view, setView] = useState<View>("overview");
+  const [tutorialStep, setTutorialStep] = useState(0);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState("");
@@ -131,10 +136,28 @@ export default function App() {
 
   const leave = () => {
     sessionStorage.removeItem("marscolony.auth");
+    sessionStorage.removeItem("marscolony.previousAuth");
+    setPreviousAuth(null);
     setAuth(null);
     setSession(null);
     setConnected(false); setReconnecting(false);
     setEvents([]);
+  };
+
+  const returnToPreviousSession = () => {
+    if (!previousAuth) return;
+    sessionStorage.setItem("marscolony.auth", JSON.stringify(previousAuth));
+    sessionStorage.removeItem("marscolony.previousAuth");
+    setAuth(previousAuth);
+    setPreviousAuth(null);
+    setSession(null);
+    setPlayers([]);
+    setProjects([]);
+    setEvents([]);
+    setConnected(false);
+    setReconnecting(false);
+    setTutorialStep(0);
+    setView("overview");
   };
 
   const createSession = async () => {
@@ -147,7 +170,12 @@ export default function App() {
         sessionId: result.id, token: result.owner_token, playerId: result.owner_player_id,
         displayName: "Командир колонии", joinCode: result.join_code
       };
+      if (auth && !previousAuth) {
+        sessionStorage.setItem("marscolony.previousAuth", JSON.stringify(auth));
+        setPreviousAuth(auth);
+      }
       sessionStorage.setItem("marscolony.auth", JSON.stringify(next));
+      setTutorialStep(0);
       setAuth(next);
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(false); }
@@ -194,7 +222,7 @@ export default function App() {
             {([
               ["overview", "Обзор", "◫"], ["map", "Карта колонии", "⌖"],
               ["projects", "Проекты", "▤"], ["people", "Участники", "♙"],
-              ["assistant", "ИИ-ведущий", "✧"]
+              ["assistant", "ИИ-ведущий", "✧"], ["tutorial", "Обучение", "?"]
             ] as Array<[View, string, string]>).map(([key, label, icon]) =>
               <button key={key} className={view === key ? "nav-item active" : "nav-item"} onClick={() => setView(key)}>
                 <span className="nav-icon">{icon}</span>{label}
@@ -212,8 +240,8 @@ export default function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
-              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : "ИИ-ведущий"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : "Сводки колонии, проектные предложения и сценарные события."}</p>
+              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : "ИИ-ведущий"}</h1>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
             <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ 4</small></strong></div>
           </div>
@@ -225,12 +253,33 @@ export default function App() {
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
+          {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} onReturnToPreviousSession={returnToPreviousSession} hasPreviousSession={Boolean(previousAuth)} busy={busy} />}
 
-          {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
+          {auth.joinCode && <div className="invite-strip">
+            <div className="invite-values">
+              <div><span>ПОЛНЫЙ ID СЕССИИ</span><strong className="invite-code">{auth.sessionId}</strong></div>
+              <div><span>КОД ПРИГЛАШЕНИЯ</span><strong className="invite-code">{auth.joinCode}</strong></div>
+            </div>
+            <div className="invite-actions">
+              <button className="button button-quiet" onClick={() => copyInviteValue(auth.sessionId)}>Копировать ID</button>
+              <button className="button button-quiet" onClick={() => copyInviteValue(auth.joinCode || "")}>Копировать код</button>
+              <button className="button button-secondary" onClick={() => copyInviteValue(`ID: ${auth.sessionId}\nКод: ${auth.joinCode}`)}>Копировать приглашение</button>
+            </div>
+          </div>}
         </section>
       </main>
     </div>
   );
+}
+
+function copyInviteValue(value: string) {
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(value).catch(() => {
+      window.prompt("Скопируйте данные приглашения:", value);
+    });
+  } else {
+    window.prompt("Скопируйте данные приглашения:", value);
+  }
 }
 
 function Login({ busy, error, onCreate, onJoin }: {
@@ -251,13 +300,13 @@ function Login({ busy, error, onCreate, onJoin }: {
     <div className="login-panel">
       <div className="login-form-wrap">
         <div className="eyebrow">ДОБРО ПОЖАЛОВАТЬ</div><h2>Войти в колонию</h2><p className="muted">Создайте новую игровую сессию или подключитесь к действующей.</p>
-        <button className="button button-primary create-button" disabled={busy} onClick={onCreate}>＋ Создать новую сессию</button>
+        <button className="button button-primary create-button" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : undefined} onClick={onCreate}>＋ Создать новую сессию</button>
         <div className="form-divider"><span>или присоединиться</span></div>
         <label>ID игровой сессии<input value={sessionId} onChange={(event) => setSessionId(event.target.value)} placeholder="UUID сессии" /></label>
         <label>Ваше имя<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Например, Алексей" /></label>
         <label>Код приглашения<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="Код от командира колонии" /></label>
         {error && <div className="alert">{error}</div>}
-        <button className="button button-secondary create-button" disabled={busy || !sessionId.trim() || !displayName.trim() || !inviteCode.trim()}
+        <button className="button button-secondary create-button" disabled={busy || !sessionId.trim() || !displayName.trim() || !inviteCode.trim()} title={busy ? "Дождитесь завершения текущего запроса." : !sessionId.trim() ? "Введите полный ID игровой сессии." : !displayName.trim() ? "Введите имя участника." : "Введите код приглашения."}
           onClick={() => void onJoin(sessionId.trim(), displayName.trim(), inviteCode.trim())}>Подключиться к сессии</button>
         <div className="login-foot">Локальная игровая сеть · Ares-01 · До 20 участников</div>
       </div>
@@ -279,7 +328,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     </div>
     <div className="section-grid">
       <section className="panel main-panel">
-        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= 4} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
+        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= 4} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= 4 ? "Все четыре периода сценария завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
@@ -299,6 +348,36 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
   </>;
 }
 
+function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, onReturnToPreviousSession, hasPreviousSession, busy }: { step: number; onStepChange: (step: number) => void; onNavigate: (view: View) => void; onCreateTrainingSession: () => void; onReturnToPreviousSession: () => void; hasPreviousSession: boolean; busy: boolean }) {
+  const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
+    { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
+    { title: "Познакомьтесь с экипажем", explanation: "Командир распределяет роли и зоны ответственности. Руководитель направления готовит проекты в своей области, финансовый руководитель проверяет бюджет, инженер помогает разрабатывать и исполнять проекты.", task: "Если играете с другими участниками, откройте список экипажа и назначьте хотя бы одному игроку направление. Для одиночного обучения этот шаг можно пропустить.", view: "people", action: "Открыть экипаж" },
+    { title: "Создайте учебный проект", explanation: "Проект — основной способ менять инфраструктуру и производственные возможности колонии. У него есть тип, направления, стоимость, длительность, потребность в труде, энергии и материалах.", task: "Создайте тестовый проект: название «Учебный ремонт», тип «Ремонт», направление «Энергетика», бюджет 0, длительность 1 период, труд и энергия 0. Для учебного проекта можно оставить ожидаемый результат пустым.", view: "projects", action: "Открыть проектный офис" },
+    { title: "Отправьте проект на согласование", explanation: "Отправка фиксирует версию проекта и резервирует указанный бюджет. После отправки параметры заявки проходят проверку сервером.", task: "Найдите «Учебный ремонт» и нажмите «Отправить на согласование».", view: "projects", action: "Перейти к проектам" },
+    { title: "Примите решение", explanation: "Обычный проект согласуют уполномоченные руководители затронутых направлений; для платного проекта также требуется финансовое решение. Если командир сам является автором, он может утвердить проект командирским распоряжением с обязательным письменным обоснованием. Решение попадёт в журнал.", task: "Откройте согласование проекта. Для собственного проекта командира укажите обоснование не короче 10 символов.", view: "projects", action: "Открыть согласования" },
+    { title: "Запустите исполнение", explanation: "Утверждение ещё не меняет инфраструктуру. Запуск проекта — отдельная команда: сервер повторно проверяет полномочия, материалы, трудовые и энергетические ограничения.", task: "После статуса «Согласован» нажмите «Запустить проект».", view: "projects", action: "Открыть проект" },
+    { title: "Завершите игровой период", explanation: "Период охватывает 30 марсианских солов. При его завершении сервер пересчитывает потребление, производство, энергетику и прогресс активных проектов. Действие доступно командиру.", task: "Перейдите в обзор и нажмите «Завершить период». В учебной миссии достаточно одного перехода.", view: "overview", action: "Открыть обзор" },
+    { title: "Подтвердите результат", explanation: "Когда прогресс проекта достигнет длительности, уполномоченный участник подтверждает завершение. Только после этого применяются заявленные эффекты проекта и освобождаются занятые ресурсы исполнения.", task: "Вернитесь в проектный офис, проверьте прогресс и нажмите «Подтвердить завершение».", view: "projects", action: "Открыть проектный офис" }
+  ];
+  const current = steps[step];
+  return <section className="panel tutorial-panel">
+    <div className="eyebrow">ARES-01 / TRAINING MISSION</div>
+    <h2>Учебная миссия «Первая смена»</h2>
+    <p className="muted tutorial-intro">Учебная миссия выполняется в отдельной сессии, чтобы не менять состояние вашей основной кампании. Сначала сохраните ID и код текущей сессии, затем создайте отдельную учебную сессию кнопкой ниже. Проект не требует бюджета, материалов или энергии.</p>
+    <button className="button button-secondary" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Создаст новую сессию Ares-1 для обучения; текущая сессия останется сохранённой на сервере."} onClick={onCreateTrainingSession}>Создать отдельную учебную сессию</button>
+    {hasPreviousSession && <button className="button button-quiet" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Вернуться в сохранённую основную сессию."} onClick={onReturnToPreviousSession}>Вернуться к предыдущей сессии</button>}
+    <div className="tutorial-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
+    <div className="tutorial-step-count">ШАГ {step + 1} ИЗ {steps.length}</div>
+    <h3>{current.title}</h3><p>{current.explanation}</p>
+    <div className="tutorial-task"><strong>Ваше задание</strong><p>{current.task}</p></div>
+    <div className="tutorial-actions">
+      <button className="button button-quiet" disabled={step === 0} title={step === 0 ? "Это первый шаг учебной миссии." : undefined} onClick={() => onStepChange(Math.max(0, step - 1))}>Назад</button>
+      <button className="button button-secondary" onClick={() => onNavigate(current.view)}>{current.action}</button>
+      <button className="button button-primary" disabled={step === steps.length - 1} title={step === steps.length - 1 ? "Учебная миссия завершена." : undefined} onClick={() => onStepChange(Math.min(steps.length - 1, step + 1))}>{step === steps.length - 1 ? "Завершено" : "Следующий шаг"}</button>
+    </div>
+    <p className="muted tutorial-foot">Подсказка: в обычной партии команда планирует проекты, согласует межведомственные решения, запускает исполнение и только затем завершает период. ИИ-ведущий — дополнительный помощник; базовый игровой цикл работает без внешней модели.</p>
+  </section>;
+}
 function Metric({ label, value, unit, detail }: { label: string; value: string; unit: string; detail: string }) {
   return <div className="metric-card"><span>{label}</span><div><strong>{value}</strong><small>{unit}</small></div><p>{detail}</p></div>;
 }
@@ -375,10 +454,19 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
   const mutate = async (project: Project, action: string, extra: Record<string, unknown> = {}) => {
+    let actionData = extra;
+    if (action === "approvals" && extra.decision === "approve" && project.author_player_id === auth.playerId && roleSet.has("colony_commander")) {
+      const justification = window.prompt("Командирское распоряжение по собственному проекту. Укажите обоснование (не менее 10 символов):");
+      if (!justification || justification.trim().length < 10) {
+        setActionError("Командирское распоряжение не отправлено: требуется обоснование не короче 10 символов.");
+        return;
+      }
+      actionData = { ...extra, comment: justification.trim() };
+    }
     setSaving(true); setActionError("");
     try {
       await request(`${API}/sessions/${auth.sessionId}/projects/${project.id}/${action}`, auth.token, {
-        method: "POST", body: JSON.stringify({ expected_version: project.version, ...extra })
+        method: "POST", body: JSON.stringify({ expected_version: project.version, ...actionData })
       });
       await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
@@ -456,7 +544,7 @@ function ProjectList({ projects, auth, player, onRefresh }: {
         <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
       </div>
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
-      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} onClick={() => void createProject()}>Создать черновик</button></div>
+      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} title={saving ? "Сохраняется другой проектный запрос." : "Заполните название, описание и направление; проверьте бюджет, длительность, труд, энергию и материальные значения."} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
@@ -468,18 +556,24 @@ function ProjectList({ projects, auth, player, onRefresh }: {
           <span>Энергия: <b>{quantity(project.energy_kwh_per_period || 0, 1)} кВт·ч/период</b></span>
           <span className="project-data-line">Материалы при запуске: <b>{Object.entries(project.resource_requirements || {}).map(([key, value]) => `${resourceLabels[key] || key}: ${quantity(value, 2)}`).join(" · ") || "Не заданы"}</b></span>
           <span className="project-data-line">Результат после завершения: <b>{describeEffects(project.expected_result || {})}</b></span>
-        </div>
+        </div>        {project.approvals && project.approvals.length > 0 && <div className="approval-history">
+          <strong>История решений</strong>
+          {project.approvals.map((approval, index) => <p key={index}>
+            {approval.approval_mode === "commander_order" ? "Командирское распоряжение" : "Согласование"} · {approval.decision === "approve" ? "одобрено" : "отклонено"}
+            {approval.comment ? ` — ${approval.comment}` : ""}
+          </p>)}
+        </div>}
         <div className="progress-track"><i style={{ width: `${Math.min(100, project.progress_periods / Math.max(1, project.duration_periods) * 100)}%` }} /></div>
         <div className="progress-caption"><span>Ход исполнения</span><b>{project.progress_periods} / {project.duration_periods} периодов</b></div>
         <div className="project-actions">
-          {project.status === "draft" && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button disabled={saving} onClick={() => void mutate(project, "submit")}>Отправить на согласование</button>}
+          {project.status === "draft" && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "submit")}>Отправить на согласование</button>}
           {project.status === "submitted" && ["colony_commander","domain_lead","finance_lead"].some((role) => roleSet.has(role)) && <>
-            <button disabled={saving} onClick={() => void mutate(project, "approvals", { decision: "approve" })}>Согласовать</button>
-            <button className="action-muted" disabled={saving} onClick={() => void mutate(project, "approvals", { decision: "reject" })}>Отклонить</button>
+            <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : project.author_player_id === auth.playerId && roleSet.has("colony_commander") ? "Потребуется письменное обоснование командирского распоряжения." : undefined} onClick={() => void mutate(project, "approvals", { decision: "approve" })}>Согласовать</button>
+            <button className="action-muted" disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "approvals", { decision: "reject" })}>Отклонить</button>
           </>}
-          {project.status === "approved" && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} onClick={() => void mutate(project, "execute")}>Запустить проект</button>}
-          {project.status === "executing" && project.progress_periods >= project.duration_periods && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} onClick={() => void mutate(project, "complete")}>Подтвердить завершение</button>}
-          {["draft","submitted","approved"].includes(project.status) && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button className="action-muted" disabled={saving} onClick={() => void mutate(project, "cancel")}>Отменить</button>}
+          {project.status === "approved" && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "execute")}>Запустить проект</button>}
+          {project.status === "executing" && project.progress_periods >= project.duration_periods && ["colony_commander","domain_lead","engineer"].some((role) => roleSet.has(role)) && <button disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "complete")}>Подтвердить завершение</button>}
+          {["draft","submitted","approved"].includes(project.status) && (project.author_player_id === auth.playerId || roleSet.has("colony_commander")) && <button className="action-muted" disabled={saving} title={saving ? "Дождитесь завершения текущего действия." : undefined} onClick={() => void mutate(project, "cancel")}>Отменить</button>}
         </div>
       </article>)}</div>
   </>;
@@ -540,7 +634,7 @@ function People({ players, technologies, auth, onRefresh }: {
       {editingPlayer === player.id && <div className="role-editor">
         <strong>Роли участника</strong><div className="check-grid role-check-grid">{Object.entries(roleLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedRoles.includes(code)} onChange={(event) => toggle(selectedRoles, code, event.target.checked, setSelectedRoles)} />{label}</label>)}</div>
         <strong>Ответственные направления</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={selectedDomains.includes(code)} onChange={(event) => toggle(selectedDomains, code, event.target.checked, setSelectedDomains)} />{label}</label>)}</div>
-        <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
+        <div className="form-foot"><span className="muted">Назначение сохраняется на сервере. В сессии должен оставаться хотя бы один командир.</span><button className="button button-primary" disabled={saving || selectedRoles.length === 0} title={saving ? "Дождитесь завершения сохранения." : selectedRoles.length === 0 ? "Назначьте участнику хотя бы одну роль." : undefined} onClick={() => void saveRoles()}>Сохранить полномочия</button></div>
       </div>}
     </div>)}
   </section><section className="panel"><div className="eyebrow">RESEARCH REGISTER</div><h2>Технологии</h2>{technologies.length === 0 ? <p className="muted">Исследовательские результаты пока не зарегистрированы.</p> : technologies.map((technology) => <div className="technology-row" key={String(technology.id)}><strong>{String(technology.name)}</strong><span>Уровень {String(technology.level)}</span></div>)}</section></div>;

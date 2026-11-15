@@ -19,3 +19,32 @@
 @media(max-width:650px){.assistant-toolbar,.event-generation{align-items:stretch;flex-direction:column}.briefing-columns{grid-template-columns:1fr}.assistant-facts{grid-template-columns:1fr}.assistant-fact-wide{grid-column:auto}.assistant-card{padding:12px}.assistant-card-top{align-items:flex-start}.assistant-actions .button{flex:1}.assistant-panel>.panel-heading{align-items:center}}
 
 .assistant-clarify{border-top:1px solid #2c3a42;margin-top:12px;padding-top:12px}.assistant-clarify label{display:block;font-size:10px;color:#dce3e6}.assistant-clarify textarea{display:block;width:100%;margin:7px 0 9px;border:1px solid #34444e;border-radius:6px;background:#19262e;color:#e9edf0;padding:10px;font:10px/1.6 Inter,ui-sans-serif,sans-serif;resize:vertical}.assistant-clarify textarea:focus{outline:none;border-color:var(--orange)}
+
+
+/* Player onboarding and actionable disabled-state hints */
+.invite-strip{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.invite-values{display:flex;gap:24px;flex-wrap:wrap;min-width:0}
+.invite-values>div{min-width:0;max-width:100%}
+.invite-values span{display:block;color:#91a0a7;font-size:8px;letter-spacing:1.2px;margin-bottom:6px}
+.invite-code{display:block;overflow-wrap:anywhere;word-break:break-all;font:10px/1.5 "DM Mono",monospace;color:#e8b18d;user-select:all}
+.invite-actions{display:flex;gap:7px;flex-wrap:wrap}
+button:disabled[title]{pointer-events:auto;cursor:not-allowed}
+.tutorial-panel{max-width:900px;margin:0 auto;padding:clamp(18px,3vw,30px)}
+.tutorial-panel h2{font-size:22px;margin:8px 0}
+.tutorial-intro,.tutorial-foot{font-size:11px;line-height:1.7;max-width:760px}
+.tutorial-progress{height:6px;background:#2b3941;border-radius:8px;overflow:hidden;margin:24px 0 12px}
+.tutorial-progress span{display:block;height:100%;background:var(--orange);transition:width .2s ease}
+.tutorial-step-count{font:9px "DM Mono",monospace;letter-spacing:1.3px;color:#e5a77e}
+.tutorial-panel h3{font-size:19px;margin:13px 0 8px}
+.tutorial-panel>p:not(.muted){font-size:12px;line-height:1.75;color:#c2cdd1;max-width:760px}
+.tutorial-task{margin:20px 0;padding:16px;border:1px solid #66503e;border-radius:7px;background:#2a2926}
+.tutorial-task strong{font-size:10px;color:#f0b186;text-transform:uppercase;letter-spacing:1px}
+.tutorial-task p{font-size:12px;line-height:1.7;color:#e1e5e6;margin:8px 0 0}
+.tutorial-actions{display:flex;gap:9px;flex-wrap:wrap;margin:20px 0}
+.tutorial-actions button:disabled{opacity:.4}
+.tutorial-foot{border-top:1px solid var(--line);padding-top:14px;margin-top:20px}
+@media(max-width:650px){.invite-strip{align-items:stretch;flex-direction:column}.invite-values{display:grid;grid-template-columns:1fr;gap:12px}.invite-actions{display:grid;grid-template-columns:1fr}.invite-actions button{width:100%}.tutorial-panel{padding:16px}.tutorial-panel h2{font-size:18px}.tutorial-actions{display:grid;grid-template-columns:1fr}.tutorial-actions button{width:100%}}
+
+.approval-history{margin-top:12px;padding-top:10px;border-top:1px solid #2b3b44}
+.approval-history strong{font-size:9px;color:#e4a57d;text-transform:uppercase;letter-spacing:1px}
+.approval-history p{font-size:9px;line-height:1.55;color:#aebbc1;margin:6px 0 0}

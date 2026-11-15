@@ -188,7 +188,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     <section className="panel assistant-panel">
       <div className="panel-heading">
         <div><div className="eyebrow">AI GAME MASTER</div><h2>Оперативная сводка</h2></div>
-        <button className="button button-secondary small-button" disabled={Boolean(busy)} onClick={() => void generateBriefing()}>
+        <button className="button button-secondary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateBriefing()}>
           {busy === "briefing" ? "Анализ…" : "Сформировать сводку"}
         </button>
       </div>
@@ -210,7 +210,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
       <textarea className="assistant-input" value={requestText} onChange={(event) => setRequestText(event.target.value)}
         placeholder="Например: организовать резервную линию производства кислорода, чтобы повысить устойчивость жизнеобеспечения…" rows={4} maxLength={8000} />
       <div className="assistant-toolbar"><span className="muted small">{requestText.length}/8000 · Предложение не меняет состояние игры</span>
-        <button className="button button-primary" disabled={Boolean(busy) || requestText.trim().length < 5}
+        <button className="button button-primary" disabled={Boolean(busy) || requestText.trim().length < 5} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : "Введите описание не короче пяти символов."}
           onClick={() => void generateProposal()}>{busy === "proposal" ? "Формирование…" : "Сформировать предложение"}</button>
       </div>
     </section>
@@ -238,12 +238,12 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
               <textarea value={clarifications[item.id] || ""} onChange={(event) => setClarifications((current) => ({ ...current, [item.id]: event.target.value }))}
                 placeholder="Ответьте на вопросы ИИ или скорректируйте параметры проекта…" rows={2} maxLength={4000} />
             </label>
-            <button className="button button-secondary small-button" disabled={Boolean(busy) || (clarifications[item.id] || "").trim().length < 2}
+            <button className="button button-secondary small-button" disabled={Boolean(busy) || (clarifications[item.id] || "").trim().length < 2} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : "Добавьте уточнение не короче двух символов."}
               onClick={() => void clarifyProposal(item)}>{busy === `${item.id}-clarify` ? "Уточнение…" : `Уточнить предложение · v${item.version}`}</button>
           </div>}
           {item.status === "pending_review" && (item.author_player_id === playerId || isCommander) && <div className="assistant-actions">
-            <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "create-project")}>{busy === `${item.id}-create-project` ? "Создание…" : "Создать черновик проекта"}</button>
-            <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "reject")}>Отклонить</button>
+            <button className="button button-primary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void proposalAction(item, "create-project")}>{busy === `${item.id}-create-project` ? "Создание…" : "Создать черновик проекта"}</button>
+            <button className="button button-quiet small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void proposalAction(item, "reject")}>Отклонить</button>
           </div>}
         </article>)}</div>}
     </section>
@@ -253,7 +253,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
       <p className="muted assistant-help">Сценарные карточки, подготовленные ИИ-ведущим и опубликованные командиром.</p>
       {isCommander && <div className="assistant-toolbar event-generation">
         <input value={eventFocus} onChange={(event) => setEventFocus(event.target.value)} maxLength={1000} placeholder="Фокус события, например: внешняя логистика или пылевая буря" />
-        <button className="button button-primary" disabled={Boolean(busy)} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
+        <button className="button button-primary" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
       </div>}
       {events.length === 0 ? <p className="muted assistant-empty">Событий пока нет.</p> :
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
@@ -266,8 +266,8 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
           <BriefingList title="Варианты действий" items={item.proposal.player_options} />
           <BriefingList title="Возможные последствия" items={item.proposal.consequences} />
           {isCommander && item.status === "pending_review" && <div className="assistant-actions">
-            <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void eventAction(item, "publish")}>Опубликовать в сессии</button>
-            <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void eventAction(item, "reject")}>Отклонить</button>
+            <button className="button button-primary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void eventAction(item, "publish")}>Опубликовать в сессии</button>
+            <button className="button button-quiet small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void eventAction(item, "reject")}>Отклонить</button>
           </div>}
         </article>)}</div>}
     </section>
@@ -280,7 +280,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
         <textarea className="assistant-input" value={entityText} onChange={(event) => setEntityText(event.target.value)}
           placeholder="Опишите новую технологию, оборудование, производственный процесс или процедуру…" rows={3} maxLength={8000} />
         <div className="assistant-toolbar"><span className="muted small">{entityText.length}/8000 · Нужна инженерная проверка</span>
-          <button className="button button-primary" disabled={Boolean(busy) || entityText.trim().length < 5}
+          <button className="button button-primary" disabled={Boolean(busy) || entityText.trim().length < 5} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : "Введите описание не короче пяти символов."}
             onClick={() => void generateEntity()}>{busy === "entity" ? "Формирование…" : "Предложить сущность"}</button>
         </div>
       </>}
@@ -296,8 +296,8 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
           {entity.assumptions.length > 0 && <BriefingList title="Допущения" items={entity.assumptions} />}
           {entity.risks.length > 0 && <BriefingList title="Риски" items={entity.risks} />}
           {isCommander && entity.status === "pending_review" && <div className="assistant-actions">
-            <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void entityAction(entity, "approve")}>Утвердить версию</button>
-            <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void entityAction(entity, "reject")}>Отклонить</button>
+            <button className="button button-primary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void entityAction(entity, "approve")}>Утвердить версию</button>
+            <button className="button button-quiet small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void entityAction(entity, "reject")}>Отклонить</button>
           </div>}
         </article>)}</div>}
     </section>

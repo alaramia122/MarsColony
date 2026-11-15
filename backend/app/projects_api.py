@@ -75,7 +75,9 @@ def serialize_project(project: ProjectRecord, approvals=None) -> dict:
         "expected_result": project.expected_result, "version": project.version,
         "approvals": [{
             "player_id": item.player_id, "decision": item.decision,
-            "comment": item.comment, "created_at": item.created_at,
+            "comment": item.comment,
+            "approval_mode": (item.authority_snapshot or {}).get("approval_mode", "standard"),
+            "created_at": item.created_at,
         } for item in (approvals or [])],
         "created_at": project.created_at, "updated_at": project.updated_at,
     }
@@ -382,7 +384,15 @@ def list_projects(session_id: str,
             projects = db.scalars(select(ProjectRecord).where(
                 ProjectRecord.session_id == session_id
             ).order_by(ProjectRecord.created_at)).all()
-            return {"projects": [serialize_project(item) for item in projects]}
+            return {"projects": [
+                serialize_project(
+                    item,
+                    db.scalars(select(ProjectApprovalRecord).where(
+                        ProjectApprovalRecord.project_id == item.id
+                    )).all(),
+                )
+                for item in projects
+            ]}
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
 
@@ -446,9 +456,23 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
                 raise HTTPException(status_code=409, detail="Project version is stale.")
             if project.status != "submitted":
                 raise HTTPException(status_code=409, detail="Only submitted projects can be approved.")
-            if project.author_player_id == actor.id:
-                raise HTTPException(status_code=403, detail="Project authors cannot approve their own project.")
             actor_policy = policy(actor)
+            is_commander = "colony_commander" in actor_policy["roles"]
+            is_commander_order = (
+                project.author_player_id == actor.id
+                and is_commander
+                and request.decision == "approve"
+            )
+            if project.author_player_id == actor.id and not is_commander_order:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Project authors cannot approve their own project; a commander may issue a documented command order.",
+                )
+            if is_commander_order and len(request.comment.strip()) < 10:
+                raise HTTPException(
+                    status_code=422,
+                    detail="A command order for the commander's own project requires a justification of at least 10 characters.",
+                )
             domain_authority = (
                 "colony_commander" in actor_policy["roles"]
                 or ("domain_lead" in actor_policy["roles"]
@@ -472,6 +496,7 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
                 authority_snapshot={
                     "roles": list(actor.roles or []),
                     "responsibility_domains": list(actor.responsibility_domains or []),
+                    "approval_mode": "commander_order" if is_commander_order else "standard",
                 },
                 comment=request.comment.strip(),
             )
@@ -506,6 +531,7 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
             append_event(db, session_id, "project.approval_recorded", {
                 "project_id": project.id, "player_id": actor.id,
                 "decision": request.decision, "status": project.status,
+                "approval_mode": "commander_order" if is_commander_order else "standard",
                 "version": project.version,
             })
             saved = db.scalars(select(ProjectApprovalRecord).where(
