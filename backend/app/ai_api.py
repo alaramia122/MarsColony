@@ -727,6 +727,10 @@ def create_ai_entity(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
+            if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
+                raise HTTPException(status_code=403, detail="Player has no authority to propose a knowledge entity.")
+            if "colony_commander" not in (actor.roles or []) and not set(entity.domain_codes).intersection(actor.responsibility_domains or []):
+                raise HTTPException(status_code=403, detail="AI entity is outside the player's responsibility domains.")
             if session.current_period != context_period or _latest_event_sequence(db, session_id) != context_sequence:
                 raise HTTPException(status_code=409, detail="Game state changed while the entity was being generated.")
             latest = db.scalar(select(GameEntityRecord).where(
