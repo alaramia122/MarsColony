@@ -21,7 +21,7 @@ from .db import SessionLocal
 from .domain.projects import DOMAIN_CODES, PROJECT_TYPES, can_propose_project
 from .models import (
     AIEventProposalRecord, AIProposalRecord, GameEventRecord, GameSessionRecord,
-    GameEntityRecord, PlayerRecord, ProjectRecord,
+    AIRequestUsageRecord, GameEntityRecord, PlayerRecord, ProjectRecord,
 )
 from .projects_api import authenticate, policy
 
@@ -46,6 +46,36 @@ def _append_event(db, session_id: str, event_type: str, payload: dict) -> int:
     db.flush()
     return next_sequence
 
+
+
+
+def _reserve_ai_request(db, session_id: str, actor: PlayerRecord) -> None:
+    """Enforce a per-player and per-session hourly budget before paid model calls."""
+    now = datetime.now(timezone.utc)
+    window_start = now.replace(minute=0, second=0, microsecond=0)
+    session_total = db.scalar(select(func.coalesce(
+        func.sum(AIRequestUsageRecord.request_count), 0
+    )).where(
+        AIRequestUsageRecord.session_id == session_id,
+        AIRequestUsageRecord.window_start == window_start,
+    ))
+    if int(session_total or 0) >= 40:
+        raise HTTPException(status_code=429, detail="AI request limit for this session has been reached; try again next hour.")
+    usage = db.scalar(select(AIRequestUsageRecord).where(
+        AIRequestUsageRecord.session_id == session_id,
+        AIRequestUsageRecord.player_id == actor.id,
+        AIRequestUsageRecord.window_start == window_start,
+    ).with_for_update())
+    if usage is None:
+        db.add(AIRequestUsageRecord(
+            session_id=session_id, player_id=actor.id,
+            window_start=window_start, request_count=1,
+        ))
+    else:
+        if usage.request_count >= 8:
+            raise HTTPException(status_code=429, detail="AI request limit for this player has been reached; try again next hour.")
+        usage.request_count += 1
+    db.flush()
 
 def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) -> None:
     domains = sorted(set(proposal.domain_codes))
@@ -133,13 +163,16 @@ def create_ai_proposal(
     token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
-        with SessionLocal() as db:
-            session = db.get(GameSessionRecord, session_id)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
             if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose a project.")
+            _reserve_ai_request(db, session_id, actor)
             context = build_provider_context(session, actor)
             context_period = session.current_period
         provider = configured_provider()
@@ -324,11 +357,14 @@ def create_colony_briefing(
     token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
-        with SessionLocal() as db:
-            session = db.get(GameSessionRecord, session_id)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
-            authenticate(db, session_id, token)
+            actor = authenticate(db, session_id, token)
+            _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             period = session.current_period
         provider = configured_provider()
@@ -356,13 +392,16 @@ def create_ai_event_proposal(
     token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
-        with SessionLocal() as db:
-            session = db.get(GameSessionRecord, session_id)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
             if "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the colony commander can request a game event.")
+            _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
         provider = configured_provider()
@@ -511,8 +550,10 @@ def clarify_ai_proposal(
     token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
-        with SessionLocal() as db:
-            session = db.get(GameSessionRecord, session_id)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
@@ -523,6 +564,7 @@ def clarify_ai_proposal(
                 raise HTTPException(status_code=409, detail="Only pending proposals can be clarified.")
             if actor.id != record.author_player_id and "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the proposal author or colony commander can clarify it.")
+            _reserve_ai_request(db, session_id, actor)
             dialogue = list(record.dialogue or [])
             if len(dialogue) >= 20:
                 raise HTTPException(status_code=409, detail="The clarification limit for this proposal has been reached.")
@@ -636,13 +678,16 @@ def create_ai_entity(
     token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
-        with SessionLocal() as db:
-            session = db.get(GameSessionRecord, session_id)
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
             if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose a knowledge entity.")
+            _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
         provider = configured_provider()
