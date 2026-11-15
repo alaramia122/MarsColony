@@ -60,6 +60,23 @@ def append_event(db, session_id: str, event_type: str, payload: dict) -> None:
     db.flush()
 
 
+def _entity_operation_properties(entity: dict) -> dict:
+    operation = dict(entity.get("operation", {}))
+    properties = {
+        "economic_effects": {
+            key: value for key, value in operation.items()
+            if key not in {"process_bindings", "power_generation_binding", "battery_storage_binding"}
+        },
+        "condition_loss_per_period": 0.005,
+    }
+    if "process_bindings" in operation:
+        properties["process_bindings"] = list(operation["process_bindings"])
+    for key in ("power_generation_binding", "battery_storage_binding"):
+        if operation.get(key):
+            properties[key] = True
+    return properties
+
+
 def serialize_project(project: ProjectRecord, approvals=None) -> dict:
     return {
         "id": project.id, "session_id": project.session_id,
@@ -347,7 +364,7 @@ def create_project(session_id: str, request: ProjectCreate,
                             "catalog_entity_id": entity_id,
                             "properties": {
                                 "condition": 1.0,
-                                "economic_effects": entity.get("operation", {}),
+                                **_entity_operation_properties(entity),
                                 "catalog_entity_id": entity_id,
                                 "image_data_url": entity.get("image_data_url"),
                             },
@@ -446,8 +463,13 @@ def create_project(session_id: str, request: ProjectCreate,
                         raise HTTPException(status_code=422, detail="Infrastructure kind does not match the selected catalogue definition.")
                     if set(item_domains) != set(entity.get("domain_codes", [])):
                         raise HTTPException(status_code=422, detail="Infrastructure domains must match the selected catalogue definition.")
-                    if properties.get("economic_effects", {}) != entity.get("operation", {}):
-                        raise HTTPException(status_code=422, detail="Infrastructure economic effects must exactly match the approved catalogue definition.")
+                    expected_properties = _entity_operation_properties(entity)
+                    if any(
+                        properties.get(key) != value
+                        for key, value in expected_properties.items()
+                        if key != "condition_loss_per_period"
+                    ):
+                        raise HTTPException(status_code=422, detail="Infrastructure economic effects and process bindings must exactly match the approved catalogue definition.")
                 elif "economic_effects" in properties:
                     raise HTTPException(status_code=422, detail="Economic effects can only come from an approved infrastructure catalogue definition.")
                 condition = properties.get("condition", 1.0)
