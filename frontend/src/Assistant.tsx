@@ -55,8 +55,9 @@ const domainNames: Record<string, string> = {
   communications: "Связь", external_relations: "Внешние связи"
 };
 
-export default function Assistant({ sessionId, token, playerId, isCommander, canProposeEntity, onRefresh }: {
-  sessionId: string; token: string; playerId: string; isCommander: boolean; canProposeEntity: boolean;
+export default function Assistant({ sessionId, token, playerId, eventWatermark, isCommander, canProposeEntity, onRefresh }: {
+  sessionId: string; token: string; playerId: string; eventWatermark: number;
+  isCommander: boolean; canProposeEntity: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const [requestText, setRequestText] = useState("");
@@ -84,7 +85,7 @@ export default function Assistant({ sessionId, token, playerId, isCommander, can
 
   useEffect(() => {
     void load().catch((reason: Error) => setError(reason.message));
-  }, [load]);
+  }, [load, eventWatermark]);
 
   const run = async (key: string, action: () => Promise<void>) => {
     setBusy(key); setError(""); setNotice("");
@@ -258,7 +259,7 @@ export default function Assistant({ sessionId, token, playerId, isCommander, can
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
             <span className={`status status-${item.status === "published" ? "approved" : item.status === "pending_review" ? "submitted" : "rejected"}`}>{item.status === "published" ? "Опубликовано" : item.status === "pending_review" ? "На проверке" : "Отклонено"}</span>
-            <span className="muted small">Период {item.period_created} · {item.proposal.severity} · вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
+            <span className="muted small">Период {item.period_created} · {item.proposal.severity} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
           </div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.narrative}</p>
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
