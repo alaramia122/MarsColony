@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Assistant from "./Assistant";
 
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
+type StarterAsset = { name: string; kind: string; description: string; quantity?: number };
+type StarterPreset = { id: string; name: string; tagline: string; description: string; strategy: string; tradeoffs: string; domain_packs: Record<string, StarterAsset[]> };
 type SessionData = {
   id: string;
   scenario_id: string;
+  starter_preset?: { id: string; name: string; tagline: string; description: string; strategy: string; tradeoffs: string };
   current_period: number;
   settings?: { period_count: number; starting_resources: Record<string, number>; starting_credits: number };
   available_budget_credits: number;
@@ -166,11 +169,11 @@ export default function App() {
     setView("overview");
   };
 
-  const createSession = async () => {
+  const createSession = async (presetId: string) => {
     setBusy(true); setError("");
     try {
       const result = await request<SessionData & { owner_token: string; owner_player_id: string; join_code: string }>(
-        `${API}/sessions`, undefined, { method: "POST", body: JSON.stringify({ scenario_id: "ares-01" }) }
+        `${API}/sessions`, undefined, { method: "POST", body: JSON.stringify({ scenario_id: "ares-01", starter_preset_id: presetId }) }
       );
       const next: Auth = {
         sessionId: result.id, token: result.owner_token, playerId: result.owner_player_id,
@@ -245,7 +248,7 @@ export default function App() {
         <section className="content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
+              <div className="eyebrow">ARES-01 / {session?.starter_preset?.name || "MARS OPERATIONS"}</div>
               <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : view === "campaign-settings" ? "Параметры игры" : "ИИ-ведущий"}</h1>
               <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : view === "campaign-settings" ? "Продолжительность кампании и исходные запасы колонии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
@@ -482,12 +485,28 @@ function copyInviteValue(value: string) {
 
 function Login({ busy, error, onCreate, onJoin }: {
   busy: boolean; error: string;
-  onCreate: () => void;
+  onCreate: (presetId: string) => void;
   onJoin: (sessionId: string, displayName: string, inviteCode: string) => Promise<void>;
 }) {
   const [sessionId, setSessionId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [presets, setPresets] = useState<StarterPreset[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState("balanced");
+  const [presetError, setPresetError] = useState("");
+  useEffect(() => {
+    let active = true;
+    request<{ presets: StarterPreset[] }>(`${API}/scenarios/ares-01/starter-presets`)
+      .then((result) => { if (active) setPresets(result.presets); })
+      .catch((reason) => { if (active) setPresetError((reason as Error).message); });
+    return () => { active = false; };
+  }, []);
+  const domainLabels: Record<string, string> = {
+    geology: "Добыча", industry: "Промышленность", energy: "Энергетика", life_support: "Жизнеобеспечение",
+    construction: "Строительство", agriculture: "Агрокомплекс", medicine: "Медицина", social: "Социальная сфера",
+    education: "Образование", science: "Наука", planetary: "Планетология", transport: "Транспорт",
+    administration: "Управление", safety: "Безопасность", communications: "Связь", external_relations: "Снабжение"
+  };
   return <div className="login-page">
     <div className="login-aside">
       <div className="brand"><span className="brand-mark">M</span><span>MARS<span className="brand-light">COLONY</span></span></div>
@@ -497,16 +516,32 @@ function Login({ busy, error, onCreate, onJoin }: {
     </div>
     <div className="login-panel">
       <div className="login-form-wrap">
-        <div className="eyebrow">ДОБРО ПОЖАЛОВАТЬ</div><h2>Войти в колонию</h2><p className="muted">Создайте новую игровую сессию или подключитесь к действующей.</p>
-        <button className="button button-primary create-button" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : undefined} onClick={onCreate}>＋ Создать новую сессию</button>
+        <div className="eyebrow">ДОБРО ПОЖАЛОВАТЬ</div><h2>Создание колонии</h2><p className="muted">Выберите стартовую комплектацию инфраструктуры. Каждый профиль включает объекты для всех 16 зон ответственности.</p>
+        <div className="starter-preset-list">
+          {presets.map((preset) => {
+            const assets = Object.values(preset.domain_packs).flat();
+            const objectCount = assets.reduce((sum, asset) => sum + (asset.quantity || 1), 0);
+            const domainCount = Object.keys(preset.domain_packs).length;
+            return <button type="button" key={preset.id} className={selectedPreset === preset.id ? "starter-preset-card selected" : "starter-preset-card"} disabled={busy} onClick={() => setSelectedPreset(preset.id)}>
+              <span className="starter-preset-heading"><strong>{preset.name}</strong><span>{selectedPreset === preset.id ? "ВЫБРАНО" : "ВЫБРАТЬ"}</span></span>
+              <span className="starter-preset-tagline">{preset.tagline}</span>
+              <span className="starter-preset-description">{preset.description}</span>
+              <span className="starter-preset-stats"><b>{objectCount}</b> объектов · <b>{domainCount}</b> направлений</span>
+              <span className="starter-preset-domains">{Object.entries(preset.domain_packs).map(([domain, items]) => <span key={domain}>{domainLabels[domain] || domain}: {items.reduce((sum, item) => sum + (item.quantity || 1), 0)}</span>)}</span>
+              <span className="starter-preset-tradeoff">Особенность: {preset.tradeoffs}</span>
+            </button>;
+          })}
+        </div>
+        {presetError && <div className="alert">Не удалось загрузить стартовые профили: {presetError}</div>}
+        {error && <div className="alert">{error}</div>}
+        <button className="button button-primary create-button" disabled={busy || !presets.some((preset) => preset.id === selectedPreset)} title={busy ? "Дождитесь завершения текущего запроса." : !presets.length ? "Сначала загрузите каталог стартовых профилей." : undefined} onClick={() => onCreate(selectedPreset)}>＋ Создать сессию с выбранной комплектацией</button>
         <div className="form-divider"><span>или присоединиться</span></div>
         <label>ID игровой сессии<input value={sessionId} onChange={(event) => setSessionId(event.target.value)} placeholder="UUID сессии" /></label>
         <label>Ваше имя<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Например, Алексей" /></label>
         <label>Код приглашения<input value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="Код от командира колонии" /></label>
-        {error && <div className="alert">{error}</div>}
         <button className="button button-secondary create-button" disabled={busy || !sessionId.trim() || !displayName.trim() || !inviteCode.trim()} title={busy ? "Дождитесь завершения текущего запроса." : !sessionId.trim() ? "Введите полный ID игровой сессии." : !displayName.trim() ? "Введите имя участника." : "Введите код приглашения."}
           onClick={() => void onJoin(sessionId.trim(), displayName.trim(), inviteCode.trim())}>Подключиться к сессии</button>
-        <div className="login-foot">Локальная игровая сеть · Ares-01 · До 20 участников</div>
+        <div className="login-foot">Локальная игровая сеть · Ares-1 · До 20 участников</div>
       </div>
     </div>
   </div>;
