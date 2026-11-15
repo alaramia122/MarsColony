@@ -49,6 +49,14 @@ def _append_event(db, session_id: str, event_type: str, payload: dict) -> int:
 
 
 
+
+def _latest_event_sequence(db, session_id: str) -> int:
+    sequence = db.scalar(select(func.max(GameEventRecord.sequence)).where(
+        GameEventRecord.session_id == session_id
+    ))
+    return -1 if sequence is None else int(sequence)
+
+
 def _reserve_ai_request(db, session_id: str, actor: PlayerRecord) -> None:
     """Enforce a per-player and per-session hourly budget before paid model calls."""
     now = datetime.now(timezone.utc)
@@ -176,6 +184,7 @@ def create_ai_proposal(
             _reserve_ai_request(db, session_id, actor)
             context = build_provider_context(session, actor)
             context_period = session.current_period
+            context_sequence = _latest_event_sequence(db, session_id)
         proposal = provider.propose_project(request.text.strip(), context)
         with SessionLocal.begin() as db:
             session = db.scalar(select(GameSessionRecord).where(
@@ -184,8 +193,8 @@ def create_ai_proposal(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
-            if session.current_period != context_period:
-                raise HTTPException(status_code=409, detail="Game period changed while the AI proposal was being generated; retry with current context.")
+            if session.current_period != context_period or _latest_event_sequence(db, session_id) != context_sequence:
+                raise HTTPException(status_code=409, detail="Game state changed while the AI proposal was being generated; retry with current context.")
             _validate_proposal(proposal, session, actor)
             record = AIProposalRecord(
                 session_id=session_id,
@@ -405,6 +414,8 @@ def create_ai_event_proposal(
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
+            context_sequence = _latest_event_sequence(db, session_id)
+            context_sequence = _latest_event_sequence(db, session_id)
         raw = provider.generate_json(
             "Ты — сценарный ИИ-ведущий настольной игры MarsColony. Предложи одно правдоподобное "
             "событие для текущего игрового периода, опираясь только на контекст сценария. "
@@ -426,8 +437,8 @@ def create_ai_event_proposal(
             actor = authenticate(db, session_id, token)
             if "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the colony commander can request a game event.")
-            if session.current_period != context_period:
-                raise HTTPException(status_code=409, detail="Game period changed while the event was being generated.")
+            if session.current_period != context_period or _latest_event_sequence(db, session_id) != context_sequence:
+                raise HTTPException(status_code=409, detail="Game state changed while the event was being generated.")
             record = AIEventProposalRecord(
                 session_id=session_id, author_player_id=actor.id,
                 period_created=context_period, proposal=proposal.model_dump(),
@@ -571,6 +582,7 @@ def clarify_ai_proposal(
                 raise HTTPException(status_code=409, detail="The clarification limit for this proposal has been reached.")
             context = build_provider_context(session, actor)
             context_period = session.current_period
+            context_sequence = _latest_event_sequence(db, session_id)
             previous_proposal = dict(record.proposal)
             previous_version = record.version
         raw = provider.generate_json(
@@ -605,8 +617,8 @@ def clarify_ai_proposal(
                 raise HTTPException(status_code=404, detail="AI proposal not found.")
             if record.status != "pending_review":
                 raise HTTPException(status_code=409, detail="Only pending proposals can be clarified.")
-            if session.current_period != context_period:
-                raise HTTPException(status_code=409, detail="Game period changed while the proposal was being clarified.")
+            if session.current_period != context_period or _latest_event_sequence(db, session_id) != context_sequence:
+                raise HTTPException(status_code=409, detail="Game state changed while the proposal was being clarified.")
             if record.version != previous_version:
                 raise HTTPException(status_code=409, detail="Proposal was changed by another participant.")
             if actor.id != record.author_player_id and "colony_commander" not in (actor.roles or []):
@@ -715,8 +727,8 @@ def create_ai_entity(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
-            if session.current_period != context_period:
-                raise HTTPException(status_code=409, detail="Game period changed while the entity was being generated.")
+            if session.current_period != context_period or _latest_event_sequence(db, session_id) != context_sequence:
+                raise HTTPException(status_code=409, detail="Game state changed while the entity was being generated.")
             latest = db.scalar(select(GameEntityRecord).where(
                 GameEntityRecord.session_id == session_id,
                 GameEntityRecord.entity_key == entity.entity_key,
@@ -797,6 +809,10 @@ def approve_ai_entity(
                 GameEntityRecord.entity_key == record.entity_key,
                 GameEntityRecord.status == "active",
             ).with_for_update()).all()
+            latest_active = max(active_records, key=lambda item: item.version, default=None)
+            if latest_active is not None and latest_active.version >= record.version:
+                raise HTTPException(status_code=409, detail="A newer knowledge entity version is already active.")
+            record.supersedes_id = latest_active.id if latest_active else None
             for previous in active_records:
                 previous.status = "superseded"
                 previous.updated_at = datetime.now(timezone.utc)
