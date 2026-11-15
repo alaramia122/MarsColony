@@ -45,6 +45,13 @@ def _finite_nonnegative(value: Any, field: str) -> float:
 def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], scenario_id: str) -> None:
     if not isinstance(entity, dict):
         raise EntityCatalogError("Entity definition must be an object.")
+    allowed_entity_keys = {
+        "id", "entity_type", "name", "description", "domain_codes", "kind",
+        "build", "research", "operation", "effects", "tags", "prerequisites",
+        "capabilities",
+    }
+    if not set(entity).issubset(allowed_entity_keys):
+        raise EntityCatalogError("Entity definition contains unsupported top-level fields.")
     if not isinstance(entity.get("id"), str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", entity["id"]):
         raise EntityCatalogError("Entity ID must be a stable lowercase identifier.")
     if entity.get("entity_type") not in ENTITY_TYPES:
@@ -54,8 +61,20 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
     if not isinstance(entity.get("description"), str) or not entity["description"].strip():
         raise EntityCatalogError("Entity description is required.")
     domains = entity.get("domain_codes")
-    if not isinstance(domains, list) or not domains or not set(domains).issubset(DOMAIN_CODES):
-        raise EntityCatalogError("Entity must belong to one or more valid responsibility domains.")
+    if (
+        not isinstance(domains, list) or not domains
+        or len(domains) != len(set(domains))
+        or not set(domains).issubset(DOMAIN_CODES)
+    ):
+        raise EntityCatalogError("Entity must belong to one or more unique valid responsibility domains.")
+    if entity["entity_type"] in {"infrastructure", "equipment", "vehicle", "process"}:
+        if not isinstance(entity.get("kind"), str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", entity["kind"]):
+            raise EntityCatalogError("Buildable entities require a stable lowercase kind identifier.")
+    if "tags" in entity and (
+        not isinstance(entity["tags"], list)
+        or any(not isinstance(tag, str) or not tag.strip() for tag in entity["tags"])
+    ):
+        raise EntityCatalogError("Entity tags must be a list of non-empty strings.")
     build = entity.get("build", entity.get("research", {}))
     if not isinstance(build, dict) or not set(build).issubset(BUILD_KEYS):
         raise EntityCatalogError("Build/research contract contains unsupported fields.")
