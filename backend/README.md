@@ -37,7 +37,7 @@ The resource and energy modules are scenario-independent domain primitives. The 
 
 ## Persistence and validation
 
-The schema is versioned with Alembic. Scenario snapshots and session state are stored in PostgreSQL; each completed period appends a report event in the same transaction. The CI workflow applies migrations to PostgreSQL 16 before running the integration suite against that database.
+The schema is versioned with Alembic. Scenario snapshots and session state are stored in PostgreSQL; each completed period appends a report event in the same transaction. The CI workflow applies migrations to PostgreSQL 16 before running the integration suite against that database. It also builds and starts the complete Compose stack, creates and advances a session, restarts PostgreSQL and the API containers, and verifies that the persisted session state and event history are still available.
 
 The Compose stack starts PostgreSQL and the API. Database credentials can be overridden with `POSTGRES_PASSWORD`; the default is intended for local development only.
 

@@ -59,3 +59,38 @@ jobs:
         run: python -m json.tool data/scenarios/ares-01.json > /dev/null
       - name: Validate Compose configuration
         run: docker compose config --quiet
+      - name: Start the complete Compose stack
+        run: docker compose up --build -d
+      - name: Verify database and API recovery
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+            sleep 2
+          done
+          SESSION_ID=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
+            -H "Content-Type: application/json" \
+            -d '{"scenario_id":"ares-01"}' | python -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          echo "SESSION_ID=$SESSION_ID" >> "$GITHUB_ENV"
+          curl -fsS -X POST "http://localhost:8000/api/v1/sessions/$SESSION_ID/advance" \
+            -H "Content-Type: application/json" \
+            -d '{"expected_period":0}' > /dev/null
+          docker compose restart db
+          for attempt in $(seq 1 30); do
+            if docker compose exec -T db pg_isready -U marscolony -d marscolony; then break; fi
+            sleep 2
+          done
+          docker compose restart api
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID" | python -c "
+          import json,sys
+          session=json.load(sys.stdin)
+          assert session['current_period'] == 1, session
+          assert len(session['events']) == 2, session
+          assert abs(session['state']['oxygen_kg'] - 1328.57556) < 1e-5, session
+          "
+      - name: Stop the complete Compose stack
+        if: always()
+        run: docker compose down -v
