@@ -126,7 +126,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["version"], 6)
 
-        state = api.get_session(self.session_id)
+        state = api.get_session(self.session_id, self.owner_token)
         self.assertEqual(state["state"]["budget_credits"], 480.0)
         event_types = [event["type"] for event in state["events"]]
         self.assertIn("project.submitted", event_types)
