@@ -4,6 +4,11 @@ import Assistant from "./Assistant";
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
 type StarterAsset = { name: string; kind: string; description: string; quantity?: number };
 type StarterPreset = { id: string; name: string; tagline: string; description: string; strategy: string; tradeoffs: string; domain_packs: Record<string, StarterAsset[]> };
+type CatalogEntity = {
+  id: string; entity_type: string; name: string; description: string; domain_codes: string[];
+  kind?: string; build?: Record<string, unknown>; research?: Record<string, unknown>;
+  operation?: Record<string, unknown>; effects?: Record<string, unknown>;
+};
 type SessionData = {
   id: string;
   scenario_id: string;
@@ -692,10 +697,26 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [customAssetKind, setCustomAssetKind] = useState("");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
+  const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
+  const [catalogError, setCatalogError] = useState("");
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [entityFormOpen, setEntityFormOpen] = useState(false);
+  const [newEntityType, setNewEntityType] = useState("infrastructure");
+  const [newEntityName, setNewEntityName] = useState("");
+  const [newEntityDescription, setNewEntityDescription] = useState("");
+  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+  const [entityProposalError, setEntityProposalError] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const roleSet = new Set(player?.roles || []);
   const canPropose = ["colony_commander", "domain_lead", "engineer"].some((role) => roleSet.has(role));
+  useEffect(() => {
+    let active = true;
+    request<{ entities: CatalogEntity[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token)
+      .then((result) => { if (active) { setCatalogEntities(result.entities); setCatalogError(""); } })
+      .catch((reason: Error) => { if (active) setCatalogError(reason.message); });
+    return () => { active = false; };
+  }, [auth.sessionId, auth.token]);
   const labels: Record<string, string> = { draft: "Черновик", submitted: "На согласовании", approved: "Согласован", executing: "В исполнении", completed: "Завершён", rejected: "Отклонён", cancelled: "Отменён" };
   const domainLabels: Record<string, string> = {
     geology: "Геология", industry: "Промышленность", energy: "Энергетика",
@@ -758,12 +779,14 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           title, description, project_type: projectType, domain_codes: domains,
           budget_credits: Number(budget), duration_periods: Number(duration),
           labor_fte: Number(laborFte), energy_kwh_per_period: Number(energy),
-          resource_requirements: requirements, expected_result: expected
+          resource_requirements: requirements, expected_result: expected,
+          catalog_entity_ids: selectedCatalogIds
         })
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
       setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setCustomAssetKind(""); setAssetX(""); setAssetY("");
+      setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
