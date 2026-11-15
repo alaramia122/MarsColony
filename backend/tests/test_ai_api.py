@@ -144,6 +144,29 @@ class AIProposalAPITests(unittest.TestCase):
         self.assertEqual(statuses[second["id"]], "active")
 
 
+
+    def test_older_pending_entity_version_cannot_replace_newer_active_version(self):
+        first = ai_api.create_ai_entity(
+            self.session_id,
+            ai_api.EntityGenerationRequest(text="Создать фильтр кислородного контура."),
+            token=self.token,
+        )
+        ai_api.approve_ai_entity(self.session_id, first["id"], token=self.token)
+        older_pending = ai_api.create_ai_entity(
+            self.session_id,
+            ai_api.EntityGenerationRequest(text="Уточнить фильтр кислородного контура."),
+            token=self.token,
+        )
+        newer_pending = ai_api.create_ai_entity(
+            self.session_id,
+            ai_api.EntityGenerationRequest(text="Обновить фильтр кислородного контура."),
+            token=self.token,
+        )
+        ai_api.approve_ai_entity(self.session_id, newer_pending["id"], token=self.token)
+        with self.assertRaises(HTTPException) as error:
+            ai_api.approve_ai_entity(self.session_id, older_pending["id"], token=self.token)
+        self.assertEqual(error.exception.status_code, 409)
+
     def test_ai_request_quota_limits_player_to_eight_calls_per_hour(self):
         for _ in range(8):
             ai_api.create_colony_briefing(self.session_id, token=self.token)
