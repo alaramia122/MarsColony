@@ -39,6 +39,16 @@ def _authenticate_player(db, session_id: str, token: str | None) -> PlayerRecord
     return player
 
 
+
+
+def _next_event_sequence(db, session_id: str) -> int:
+    current = db.scalar(
+        select(func.max(GameEventRecord.sequence))
+        .where(GameEventRecord.session_id == session_id)
+    )
+    return 0 if current is None else int(current) + 1
+
+
 def serialize_session(record: GameSessionRecord) -> dict:
     return {
         "id": record.id,
@@ -172,12 +182,7 @@ def advance_game_session(
             record.state = new_state
             db.add(GameEventRecord(
                 session_id=record.id,
-                sequence=(
-                    (db.scalar(
-                        select(func.max(GameEventRecord.sequence))
-                        .where(GameEventRecord.session_id == record.id)
-                    ) or -1) + 1
-                ),
+                sequence=_next_event_sequence(db, record.id),
                 event_type="period.completed",
                 payload=report,
             ))
