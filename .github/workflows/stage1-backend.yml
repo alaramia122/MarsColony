@@ -46,6 +46,42 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Start the application stack
+        run: docker compose up --build -d
+      - name: Wait for API and web client
+        run: |
+          for attempt in $(seq 1 45); do
+            if curl -fsS http://localhost:8000/health/ready > /dev/null && curl -fsS http://localhost:8080/ > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Run two-player browser acceptance tests
+        working-directory: frontend
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+          MARS_COLONY_API_URL: http://127.0.0.1:8000/api/v1
+        run: npm run e2e
+      - name: Stop application stack
+        if: always()
+        run: docker compose down -v
+
   domain-and-api-tests:
     runs-on: ubuntu-latest
     services:
