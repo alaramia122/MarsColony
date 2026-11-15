@@ -323,6 +323,16 @@ def advance_period(
         )
         process_reports[process_id] = process_report
 
+    technology_output_multipliers = {}
+    for technology in state.get("technologies", []):
+        effects = technology.get("effects", {})
+        technology_domains = set(technology.get("domain_codes", []))
+        for resource_id, multiplier in effects.get("resource_output_multiplier", {}).items():
+            if technology_domains.intersection(technology.get("domain_codes", [])):
+                technology_output_multipliers[resource_id] = (
+                    technology_output_multipliers.get(resource_id, 1.0) * float(multiplier)
+                )
+
     asset_operation_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
@@ -347,7 +357,10 @@ def advance_period(
         paid_cost = operating_cost * (operation_fraction / condition) if condition > 1e-9 else 0.0
         state["budget_credits"] = round(max(0.0, available_credits - paid_cost), 6)
         inputs = effects.get("resource_inputs_per_period", {})
-        outputs = effects.get("resource_outputs_per_period", {})
+        outputs = {
+            resource_id: float(quantity) * technology_output_multipliers.get(resource_id, 1.0)
+            for resource_id, quantity in effects.get("resource_outputs_per_period", {}).items()
+        }
         operation_report = {
             "asset_id": asset["id"],
             "name": asset.get("name", asset["id"]),
@@ -386,6 +399,29 @@ def advance_period(
                 "energy_used_kwh": process_report["energy_used_kwh"],
             })
         asset_operation_reports.append(operation_report)
+
+    condition_reports = []
+    for asset in infrastructure:
+        properties = asset.get("properties", {})
+        effects = properties.get("economic_effects", {})
+        if not effects or asset.get("status", properties.get("status", "commissioned")) not in {"commissioned", "operational"}:
+            continue
+        condition_before = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
+        wear = float(properties.get("condition_loss_per_period", 0.005))
+        wear_multiplier = 1.0
+        asset_domains = set(asset.get("domain_codes", []))
+        for technology in state.get("technologies", []):
+            tech_effects = technology.get("effects", {})
+            if asset_domains.intersection(technology.get("domain_codes", [])):
+                wear_multiplier *= float(tech_effects.get("asset_condition_loss_multiplier", 1.0))
+        condition_after = max(0.0, condition_before - wear * wear_multiplier)
+        asset["condition"] = round(condition_after, 6)
+        condition_reports.append({
+            "asset_id": asset["id"],
+            "condition_before": round(condition_before, 6),
+            "condition_after": round(condition_after, 6),
+            "wear": round(condition_before - condition_after, 6),
+        })
 
     commissioned_power_fraction = 1.0
     commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
@@ -535,6 +571,7 @@ def advance_period(
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
         "infrastructure_operations": asset_operation_reports,
+        "infrastructure_condition_changes": condition_reports,
         "project_production_bonuses": production_bonus_report,
         "commissioned_power_fraction": commissioned_power_fraction,
         "power_intervals": interval_reports,
