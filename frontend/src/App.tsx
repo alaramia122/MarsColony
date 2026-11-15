@@ -897,8 +897,24 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (outputs) Object.entries(outputs).forEach(([key, value]) => details.push(`${resourceLabels[key] || key}: +${quantity(value, 2)}/период`));
     if (Number(effect.power_generation_kw_delta) > 0) details.push(`Генерация +${quantity(Number(effect.power_generation_kw_delta), 2)} кВт`);
     if (Number(effect.power_load_kw_delta) > 0) details.push(`Нагрузка +${quantity(Number(effect.power_load_kw_delta), 2)} кВт`);
-    const assets = effect.infrastructure as Array<{ name?: string }> | undefined;
-    if (assets) assets.forEach((asset) => details.push(`Объект: ${asset.name || "без названия"}`));
+    const assets = effect.infrastructure as Array<{ name?: string; properties?: Record<string, unknown> }> | undefined;
+    if (assets) assets.forEach((asset) => {
+      const operation = (asset.properties?.economic_effects || {}) as Record<string, unknown>;
+      const outputs = (operation.resource_outputs_per_period || {}) as Record<string, number>;
+      const outputsText = Object.entries(outputs).map(([key, value]) => `${resourceLabels[key] || key}: +${quantity(Number(value), 2)}/период`);
+      const generation = Number(operation.power_generation_kw) || 0;
+      const load = Number(operation.power_load_kw) || 0;
+      const operationText = [
+        generation > 0 ? `генерация ${quantity(generation, 2)} кВт` : "",
+        load > 0 ? `нагрузка ${quantity(load, 2)} кВт` : "",
+        ...outputsText
+      ].filter(Boolean).join(", ");
+      details.push(`Объект: ${asset.name || "без названия"}${operationText ? ` (${operationText})` : ""}`);
+    });
+    const technologies = effect.technology_unlocks as Array<{ name?: string }> | undefined;
+    if (technologies) technologies.forEach((item) => details.push(`Технология: ${item.name || "без названия"}`));
+    const procedures = effect.procedure_unlocks as Array<{ name?: string }> | undefined;
+    if (procedures) procedures.forEach((item) => details.push(`Процедура: ${item.name || "без названия"}`));
     return details.join(" · ") || "Не задан";
   };
   const selectedAssetKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
