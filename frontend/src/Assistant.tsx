@@ -384,7 +384,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
           </div>
           <h3>{entity.name}</h3><p>{entity.description}</p>
           <p className="assistant-note"><b>Идентификатор:</b> {entity.entity_key}</p>
-          <p className="assistant-note"><b>Направления:</b> {entity.domain_codes.map((code) => domainNames[code] || code).join(", ")}</p>
+          <p className="assistant-note"><b>Направления:</b> {entity.domain_codes.map((code) => domainNames[code] || "Другое направление").join(", ")}</p>
           {entity.assumptions.length > 0 && <BriefingList title="Допущения" items={entity.assumptions} />}
           {entity.risks.length > 0 && <BriefingList title="Риски" items={entity.risks} />}
           {isCommander && entity.status === "pending_review" && <div className="assistant-actions">
