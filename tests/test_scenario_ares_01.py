@@ -18,7 +18,7 @@ class Ares01ScenarioTests(unittest.TestCase):
         result = simulate_period(SCENARIO)
         self.assertAlmostEqual(result["period_hours"], 739.791, places=5)
         self.assertAlmostEqual(result["oxygen_demand_kg"], 621.42444, places=5)
-        self.assertAlmostEqual(result["food_demand_kg"], 1124.48232, places=5)
+        self.assertAlmostEqual(result["food_demand_kg"], 458.67042, places=5)
         self.assertAlmostEqual(result["gross_water_kg"], 21661.08048, places=5)
         self.assertAlmostEqual(result["water_demand_kg"], 533.2216096, places=5)
         self.assertAlmostEqual(result["raw_ice_demand_kg"], 1250.0, places=6)
@@ -33,13 +33,13 @@ class Ares01ScenarioTests(unittest.TestCase):
         stocks = result["ending_stocks"]
         self.assertTrue(result["all_periods_without_unmet_demand"])
         self.assertAlmostEqual(stocks["oxygen_kg"], 364.30224, places=5)
-        self.assertAlmostEqual(stocks["food_rations_kg"], 359.57072, places=5)
+        self.assertAlmostEqual(stocks["food_solids_kg"], 322.81832, places=5)
         self.assertAlmostEqual(stocks["usable_water_kg"], 2867.1135616, places=5)
         self.assertAlmostEqual(stocks["raw_ice_kg"], 2625.0, places=6)
         self.assertAlmostEqual(result["ending_budget_credits"], 500.0, places=6)
         goals = SCENARIO["victory_conditions"]
         self.assertGreaterEqual(stocks["oxygen_kg"], goals["minimum_oxygen_end_kg"])
-        self.assertGreaterEqual(stocks["food_rations_kg"], goals["minimum_food_end_kg"])
+        self.assertGreaterEqual(stocks["food_solids_kg"], goals["minimum_food_end_kg"])
         self.assertGreaterEqual(stocks["usable_water_kg"], goals["minimum_water_end_kg"])
         self.assertGreaterEqual(result["ending_budget_credits"], goals["minimum_budget_credits"])
 
