@@ -2,6 +2,7 @@
 import hashlib
 import math
 import secrets
+from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -63,6 +64,11 @@ def serialize_project(project: ProjectRecord, approvals=None) -> dict:
         "status": project.status, "domain_codes": project.domain_codes,
         "budget_credits": project.budget_credits,
         "duration_periods": project.duration_periods,
+        "labor_fte": project.labor_fte,
+        "energy_kwh_per_period": project.energy_kwh_per_period,
+        "progress_periods": project.progress_periods,
+        "started_period": project.started_period,
+        "completed_period": project.completed_period,
         "resource_requirements": project.resource_requirements,
         "expected_result": project.expected_result, "version": project.version,
         "approvals": [{
@@ -90,6 +96,8 @@ class ProjectCreate(BaseModel):
     domain_codes: list[str] = Field(min_length=1, max_length=16)
     budget_credits: float = Field(default=0.0, ge=0.0, le=1_000_000_000)
     duration_periods: int = Field(ge=1, le=100)
+    labor_fte: float = Field(default=0.0, ge=0.0, le=16.0)
+    energy_kwh_per_period: float = Field(default=0.0, ge=0.0, le=1_000_000.0)
     resource_requirements: dict = Field(default_factory=dict)
     expected_result: dict = Field(default_factory=dict)
 
@@ -223,7 +231,12 @@ def create_project(session_id: str, request: ProjectCreate,
             actor = authenticate(db, session_id, token)
             if not can_propose_project(policy(actor), domains):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose this project.")
-            catalog = (session.scenario_snapshot or {}).get("resource_catalog", {})
+            scenario = session.scenario_snapshot or {}
+            catalog = scenario.get("resource_catalog", {})
+            if request.labor_fte > float(scenario.get("population", {}).get("available_fte", 0)):
+                raise HTTPException(status_code=422, detail="Project labor demand exceeds scenario workforce capacity.")
+            if not math.isfinite(request.energy_kwh_per_period):
+                raise HTTPException(status_code=422, detail="Project energy demand must be finite.")
             for resource_id, quantity in request.resource_requirements.items():
                 if resource_id not in catalog:
                     raise HTTPException(status_code=422, detail=f"Unknown resource requirement: {resource_id}.")
@@ -240,10 +253,47 @@ def create_project(session_id: str, request: ProjectCreate,
                 project_type=request.project_type, status="draft", domain_codes=domains,
                 budget_credits=request.budget_credits, duration_periods=request.duration_periods,
                 resource_requirements=request.resource_requirements,
+                labor_fte=request.labor_fte,
+                energy_kwh_per_period=request.energy_kwh_per_period,
                 expected_result=request.expected_result, version=1,
             )
             if not project.title or not project.description:
                 raise HTTPException(status_code=422, detail="Project title and description are required.")
+            allowed_effects = {
+                "resource_outputs_per_period", "power_generation_kw_delta", "infrastructure"
+            }
+            if not set(request.expected_result).issubset(allowed_effects):
+                raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
+            for resource_id, quantity in request.expected_result.get(
+                "resource_outputs_per_period", {}
+            ).items():
+                if resource_id not in catalog:
+                    raise HTTPException(status_code=422, detail=f"Unknown output resource: {resource_id}.")
+                if (
+                    isinstance(quantity, bool) or not isinstance(quantity, (int, float))
+                    or not math.isfinite(float(quantity)) or quantity <= 0
+                ):
+                    raise HTTPException(status_code=422, detail=f"Invalid output quantity for: {resource_id}.")
+            generation_delta = request.expected_result.get("power_generation_kw_delta", 0.0)
+            if (
+                isinstance(generation_delta, bool)
+                or not isinstance(generation_delta, (int, float))
+                or not math.isfinite(float(generation_delta))
+                or generation_delta < 0
+            ):
+                raise HTTPException(status_code=422, detail="Power generation effect must be finite and non-negative.")
+            infrastructure = request.expected_result.get("infrastructure", [])
+            if not isinstance(infrastructure, list):
+                raise HTTPException(status_code=422, detail="Infrastructure result must be a list.")
+            for item in infrastructure:
+                if (
+                    not isinstance(item, dict)
+                    or not isinstance(item.get("name"), str)
+                    or not item["name"].strip()
+                    or not isinstance(item.get("kind"), str)
+                    or not item["kind"].strip()
+                ):
+                    raise HTTPException(status_code=422, detail="Each infrastructure item requires a name and kind.")
             db.add(project)
             db.flush()
             append_event(db, session_id, "project.created", {
@@ -419,6 +469,29 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                 raise HTTPException(status_code=409, detail="Project requires all approvals before execution.")
             if not can_manage_project(policy(actor), project.domain_codes):
                 raise HTTPException(status_code=403, detail="Player has no authority to execute this project.")
+            scenario = session.scenario_snapshot or {}
+            available_fte = float(scenario.get("population", {}).get("available_fte", 0))
+            active_projects = db.scalars(select(ProjectRecord).where(
+                ProjectRecord.session_id == session_id,
+                ProjectRecord.status == "executing",
+            ).with_for_update()).all()
+            allocated_fte = sum(float(item.labor_fte) for item in active_projects)
+            if allocated_fte + float(project.labor_fte) > available_fte + 1e-9:
+                raise HTTPException(status_code=409, detail="Insufficient unallocated workforce for this project.")
+            catalog = scenario.get("resource_catalog", {})
+            updated_state = dict(session.state)
+            for resource_id, quantity in project.resource_requirements.items():
+                resource = catalog[resource_id]
+                state_key = resource["state_key"]
+                available = float(updated_state[state_key])
+                if available + 1e-9 < float(quantity):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Insufficient resource '{resource_id}' to start the project.",
+                    )
+                updated_state[state_key] = round(
+                    available - float(quantity), int(resource["precision_digits"])
+                )
             if (
                 float(session.reserved_budget_credits) + 1e-9 < project.budget_credits
                 or float(session.state["budget_credits"]) + 1e-9 < project.budget_credits
@@ -431,11 +504,20 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
             session.reserved_budget_credits = max(
                 0.0, float(session.reserved_budget_credits) - project.budget_credits
             )
+            session.state = updated_state
             project.status = "executing"
+            project.progress_periods = 0
+            project.started_period = session.current_period
             project.version += 1
+            append_event(db, session_id, "project.materials_consumed", {
+                "project_id": project.id, "resources": project.resource_requirements,
+            })
             append_event(db, session_id, "project.execution_started", {
                 "project_id": project.id, "budget_spent": project.budget_credits,
                 "budget_remaining": session.state["budget_credits"],
+                "labor_fte": project.labor_fte,
+                "energy_kwh_per_period": project.energy_kwh_per_period,
+                "started_period": project.started_period,
             })
             return serialize_project(project)
     except SQLAlchemyError as error:
@@ -464,10 +546,51 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 raise HTTPException(status_code=409, detail="Only executing projects can be completed.")
             if not can_manage_project(policy(actor), project.domain_codes):
                 raise HTTPException(status_code=403, detail="Player has no authority to complete this project.")
+            if project.progress_periods < project.duration_periods:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Project has not completed its required execution periods.",
+                )
+            state = dict(session.state)
+            expected = project.expected_result or {}
+            bonuses = dict(state.get("production_bonuses_per_period", {}))
+            for resource_id, quantity in expected.get("resource_outputs_per_period", {}).items():
+                bonuses[resource_id] = round(
+                    float(bonuses.get(resource_id, 0.0)) + float(quantity), 6
+                )
+            state["production_bonuses_per_period"] = bonuses
+            state["power_generation_kw_delta"] = round(
+                float(state.get("power_generation_kw_delta", 0.0))
+                + float(expected.get("power_generation_kw_delta", 0.0)), 6
+            )
+            infrastructure = list(state.get("infrastructure", []))
+            commissioned = []
+            for item in expected.get("infrastructure", []):
+                asset = {
+                    "id": str(uuid4()),
+                    "name": item["name"].strip(),
+                    "kind": item["kind"].strip(),
+                    "domain_codes": list(project.domain_codes),
+                    "commissioned_period": session.current_period,
+                    "project_id": project.id,
+                    "properties": item.get("properties", {}),
+                }
+                infrastructure.append(asset)
+                commissioned.append(asset)
+            state["infrastructure"] = infrastructure
+            session.state = state
             project.status = "completed"
+            project.completed_period = session.current_period
             project.version += 1
+            append_event(db, session_id, "project.commissioned", {
+                "project_id": project.id,
+                "resource_outputs_per_period": expected.get("resource_outputs_per_period", {}),
+                "power_generation_kw_delta": expected.get("power_generation_kw_delta", 0.0),
+                "infrastructure": commissioned,
+            })
             append_event(db, session_id, "project.completed", {
                 "project_id": project.id, "completed_by": actor.id,
+                "completed_period": project.completed_period,
             })
             return serialize_project(project)
     except SQLAlchemyError as error:
