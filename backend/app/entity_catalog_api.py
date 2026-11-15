@@ -29,6 +29,10 @@ class EntityProposalRequest(BaseModel):
     source_text: str = Field(default="", max_length=8000)
 
 
+class EntityApprovalRequest(BaseModel):
+    comment: str = Field(default="", max_length=2000)
+
+
 def _append_event(db, session_id: str, event_type: str, payload: dict) -> None:
     last = db.scalar(select(func.max(GameEventRecord.sequence)).where(
         GameEventRecord.session_id == session_id
@@ -189,6 +193,7 @@ def approve_catalog_entity(
     session_id: str,
     entity_id: str,
     token: str | None = Header(default=None, alias="X-Player-Token"),
+    request: EntityApprovalRequest | None = None,
 ) -> dict:
     try:
         with SessionLocal.begin() as db:
@@ -206,10 +211,13 @@ def approve_catalog_entity(
                 raise HTTPException(status_code=404, detail="Entity proposal not found.")
             if record.status != "pending_review":
                 raise HTTPException(status_code=409, detail="Only pending entity proposals can be approved.")
-            if record.author_player_id == actor.id:
-                raise HTTPException(status_code=403, detail="An entity author cannot approve their own definition.")
             roles = set(actor.roles or [])
             is_commander = "colony_commander" in roles
+            is_own_commander_order = record.author_player_id == actor.id and is_commander
+            if record.author_player_id == actor.id and not is_own_commander_order:
+                raise HTTPException(status_code=403, detail="An entity author cannot approve their own definition.")
+            if is_own_commander_order and (request is None or len(request.comment.strip()) < 10):
+                raise HTTPException(status_code=422, detail="A commander's approval of their own entity requires a justification of at least 10 characters.")
             covers_domains = (
                 "domain_lead" in roles
                 and set(record.domain_codes or []).issubset(set(actor.responsibility_domains or []))
@@ -233,6 +241,8 @@ def approve_catalog_entity(
             _append_event(db, session_id, "catalog.entity_approved", {
                 "entity_id": record.id, "entity_key": record.entity_key,
                 "approved_by_player_id": actor.id,
+                "approval_mode": "commander_order" if is_own_commander_order else "standard",
+                "comment": request.comment.strip() if request else "",
             })
             return _serialize_entity(record)
     except EntityCatalogError as error:
