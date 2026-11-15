@@ -105,6 +105,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
         "period": 0,
         "infrastructure": deepcopy(scenario.get("initial_infrastructure", [])),
         "technologies": [],
+        "procedures": [],
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
         "power_load_kw_delta": 0.0,
