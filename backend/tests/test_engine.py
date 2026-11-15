@@ -59,6 +59,7 @@ class PeriodEngineTests(unittest.TestCase):
 
     def test_scheduled_reactor_service_checks_critical_reserve(self):
         state = initial_state(SCENARIO)
+        state, _ = advance_period(SCENARIO, state, 1)
         _, report = advance_period(SCENARIO, state, 2)
         service = report["power_service"]
         self.assertEqual(service["modules_online"], 1)
