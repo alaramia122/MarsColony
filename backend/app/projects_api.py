@@ -1,5 +1,6 @@
 """Player membership, scoped permissions and project workflow endpoints."""
 import hashlib
+import math
 import secrets
 
 from fastapi import APIRouter, Header, HTTPException
@@ -210,7 +211,12 @@ def create_project(session_id: str, request: ProjectCreate,
             for resource_id, quantity in request.resource_requirements.items():
                 if resource_id not in catalog:
                     raise HTTPException(status_code=422, detail=f"Unknown resource requirement: {resource_id}.")
-                if isinstance(quantity, bool) or not isinstance(quantity, (int, float)) or quantity < 0:
+                if (
+                    isinstance(quantity, bool)
+                    or not isinstance(quantity, (int, float))
+                    or not math.isfinite(float(quantity))
+                    or quantity < 0
+                ):
                     raise HTTPException(status_code=422, detail=f"Invalid quantity for resource: {resource_id}.")
             project = ProjectRecord(
                 session_id=session_id, author_player_id=actor.id,
