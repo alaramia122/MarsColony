@@ -38,9 +38,9 @@ def simulate_period(
     oxygen_unmet = max(0.0, oxygen_demand - oxygen_available)
     oxygen_end = max(0.0, oxygen_available - oxygen_demand)
 
-    food_demand = life["food_ration_demand_kg_per_person_day"] * crew_days
+    food_demand = life["food_solids_demand_kg_per_person_day"] * crew_days
     food_output = life["food_growing_output_kg_per_period"] * food_output_multiplier
-    food_available = stocks["food_rations_kg"] + food_output
+    food_available = stocks["food_solids_kg"] + food_output
     food_unmet = max(0.0, food_demand - food_available)
     food_end = max(0.0, food_available - food_demand)
 
@@ -124,7 +124,7 @@ def simulate_campaign(scenario: dict[str, Any], *, apply_scripted_events: bool =
         )
         period_results.append(result)
         current["oxygen_kg"] = result["oxygen_end_kg"]
-        current["food_rations_kg"] = result["food_end_kg"]
+        current["food_solids_kg"] = result["food_end_kg"]
         current["usable_water_kg"] = result["water_end_kg"]
         current["raw_ice_kg"] = result["raw_ice_end_kg"]
 
