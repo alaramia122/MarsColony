@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from .energy import PowerLoad, dispatch_power
+from .resources import ResourceStock, execute_process
+
 
 class DomainError(ValueError):
     """Raised when a requested game transition violates domain rules."""
@@ -32,8 +35,8 @@ def advance_period(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Calculate one period and return (new_state, report).
 
-    Demand shortfalls are reported explicitly. Resource stocks are never
-    allowed to become negative; raw-ice extraction is limited by its stock.
+    Material production is constrained by input stocks and storage capacities.
+    Demand shortfalls are explicit; no material stock is allowed to go negative.
     """
     period_count = int(scenario["time"]["period_count"])
     expected_period = int(state["period"]) + 1
@@ -53,6 +56,7 @@ def advance_period(
     )
     life = scenario["life_support"]
     power = scenario["power"]
+    scenario_stocks = scenario["stocks"]
     event = next(
         (
             item
@@ -65,22 +69,43 @@ def advance_period(
     oxygen_demand = (
         float(life["oxygen_demand_kg_per_person_day"]) * crew_days
     )
-    oxygen_output = (
+    requested_oxygen = (
         float(life["oxygen_isru_output_kg_per_period"])
         * float(event.get("oxygen_output_multiplier", 1.0))
     )
-    oxygen_available = float(state["oxygen_kg"]) + oxygen_output
+    oxygen_stocks, oxygen_process = execute_process(
+        {"oxygen": ResourceStock(
+            float(state["oxygen_kg"]),
+            float(scenario_stocks["oxygen_capacity_kg"]),
+        )},
+        {},
+        {"oxygen": 1.0},
+        requested_oxygen,
+        energy_kwh_per_cycle=float(life["oxygen_isru_specific_energy_kwh_per_kg"]),
+    )
+    oxygen_output = oxygen_process["outputs_produced"].get("oxygen", 0.0)
+    oxygen_available = oxygen_stocks["oxygen"].quantity
     oxygen_unmet = max(0.0, oxygen_demand - oxygen_available)
     oxygen_end = max(0.0, oxygen_available - oxygen_demand)
 
     food_demand = (
         float(life["food_solids_demand_kg_per_person_day"]) * crew_days
     )
-    food_output = (
+    requested_food = (
         float(life["food_growing_output_kg_per_period"])
         * float(event.get("food_output_multiplier", 1.0))
     )
-    food_available = float(state["food_solids_kg"]) + food_output
+    food_stocks, food_process = execute_process(
+        {"food": ResourceStock(
+            float(state["food_solids_kg"]),
+            float(scenario_stocks["food_storage_capacity_kg"]),
+        )},
+        {},
+        {"food": 1.0},
+        requested_food,
+    )
+    food_output = food_process["outputs_produced"].get("food", 0.0)
+    food_available = food_stocks["food"].quantity
     food_unmet = max(0.0, food_demand - food_available)
     food_end = max(0.0, food_available - food_demand)
 
@@ -98,13 +123,29 @@ def advance_period(
         float(life["water_product_output_kg_per_period"])
         * float(event.get("water_output_multiplier", 1.0))
     )
-    requested_ice = requested_water / float(life["ice_to_usable_water_yield"])
-    ice_used = min(requested_ice, float(state["raw_ice_kg"]))
-    water_output = ice_used * float(life["ice_to_usable_water_yield"])
-    water_available = float(state["usable_water_kg"]) + water_output
+    ice_yield = float(life["ice_to_usable_water_yield"])
+    water_stocks, water_process = execute_process(
+        {
+            "raw_ice": ResourceStock(float(state["raw_ice_kg"])),
+            "usable_water": ResourceStock(
+                float(state["usable_water_kg"]),
+                float(scenario_stocks["usable_water_capacity_kg"]),
+            ),
+        },
+        {"raw_ice": 1.0 / ice_yield},
+        {"usable_water": 1.0},
+        requested_water,
+        energy_kwh_per_cycle=float(
+            life["water_system_specific_energy_kwh_per_kg_product"]
+        ),
+    )
+    water_output = water_process["outputs_produced"].get("usable_water", 0.0)
+    ice_used = water_process["inputs_consumed"].get("raw_ice", 0.0)
+    water_available = water_stocks["usable_water"].quantity
     water_unmet = max(0.0, water_demand - water_available)
     water_end = max(0.0, water_available - water_demand)
-    ice_end = max(0.0, float(state["raw_ice_kg"]) - ice_used)
+    ice_end = water_stocks["raw_ice"].quantity
+    requested_ice = requested_water / ice_yield
 
     load_kw = sum(float(value) for value in power["loads_kw"].values())
     generation_kw = (
@@ -133,6 +174,17 @@ def advance_period(
         service_available_kw >= critical_load_kw
         and service_battery_required_kwh <= float(power["battery_capacity_kwh"])
     )
+    power_dispatch = None
+    if service_duration_hours > 0:
+        flexible_load_kw = max(0.0, load_kw - critical_load_kw)
+        power_dispatch = dispatch_power(
+            service_available_kw,
+            [
+                PowerLoad("critical_systems", critical_load_kw, priority=0),
+                PowerLoad("flexible_systems", flexible_load_kw, priority=1),
+            ],
+            duration_hours=service_duration_hours,
+        )
 
     finance = scenario["finance"]
     budget_end = (
@@ -165,6 +217,11 @@ def advance_period(
         "water_unmet_kg": water_unmet,
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": max(0.0, requested_ice - ice_used),
+        "material_processes": {
+            "oxygen_isru": oxygen_process,
+            "food_growing": food_process,
+            "ice_to_usable_water": water_process,
+        },
         "available_generation_kw": generation_kw,
         "average_load_kw": load_kw,
         "generated_kwh": generated_kwh,
@@ -179,6 +236,7 @@ def advance_period(
             "battery_capacity_kwh": float(power["battery_capacity_kwh"]),
             "within_reserve": service_power_ok,
         },
+        "power_dispatch": power_dispatch,
         "budget_cost_credits": float(finance["operating_cost_per_period"]),
         "event_id": event.get("id"),
         "demand_fully_met": (

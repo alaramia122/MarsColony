@@ -51,11 +51,12 @@ def execute_process(
     energy_kwh_per_cycle: float = 0.0,
     energy_available_kwh: float | None = None,
 ) -> tuple[dict[str, ResourceStock], dict]:
-    """Execute as many complete-equivalent process cycles as resources allow.
+    """Execute as many aggregated process cycles as resources allow.
 
-    Fractional cycles are supported for aggregated industrial processes. Inputs,
-    energy and output storage capacity constrain the same deterministic cycle
-    count. The input mapping is never mutated.
+    Fractional cycles support the colony's aggregated production model. Inputs,
+    optional energy allocation and output storage capacity constrain the same
+    deterministic cycle count. Energy use is reported even when no explicit
+    energy allocation is supplied. The input mapping is never mutated.
     """
     if not inputs_per_cycle and not outputs_per_cycle:
         raise ResourceModelError("A process must consume or produce a resource.")
@@ -69,9 +70,7 @@ def execute_process(
         raise ResourceModelError("Requested cycles must be finite and positive.")
     if not isfinite(energy_kwh_per_cycle) or energy_kwh_per_cycle < 0:
         raise ResourceModelError("Energy per cycle must be finite and non-negative.")
-    if energy_kwh_per_cycle > 0:
-        if energy_available_kwh is None:
-            raise ResourceModelError("Available energy is required for this process.")
+    if energy_available_kwh is not None:
         if not isfinite(energy_available_kwh) or energy_available_kwh < 0:
             raise ResourceModelError("Available energy must be finite and non-negative.")
 
@@ -89,8 +88,8 @@ def execute_process(
     limits: list[tuple[str, float]] = [("requested_cycles", requested_cycles)]
     for resource_id, amount in inputs_per_cycle.items():
         limits.append((f"input:{resource_id}", result[resource_id].quantity / amount))
-    if energy_kwh_per_cycle > 0:
-        limits.append(("energy", float(energy_available_kwh) / energy_kwh_per_cycle))
+    if energy_available_kwh is not None and energy_kwh_per_cycle > 0:
+        limits.append(("energy", energy_available_kwh / energy_kwh_per_cycle))
     for resource_id, amount in outputs_per_cycle.items():
         stock = result[resource_id]
         if stock.capacity is not None:

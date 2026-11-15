@@ -47,6 +47,13 @@ class ResourceProcessTests(unittest.TestCase):
         self.assertEqual(report["limiting_constraints"], ["input:filter"])
         self.assertEqual(result["filter"].quantity, 0.0)
 
+    def test_process_reports_energy_without_explicit_dispatch_limit(self):
+        _, report = execute_process(
+            self.stocks, {"ice": 1.0}, {"water": 1.0}, 10.0,
+            energy_kwh_per_cycle=2.5,
+        )
+        self.assertEqual(report["energy_used_kwh"], 25.0)
+
     def test_input_stock_mapping_is_not_mutated(self):
         before = dict(self.stocks)
         execute_process(self.stocks, {"ice": 1.0}, {"water": 1.0}, 10.0)

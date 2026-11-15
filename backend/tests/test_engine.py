@@ -37,6 +37,16 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(state["raw_ice_kg"], 2625.0, places=6)
         self.assertAlmostEqual(state["budget_credits"], 500.0, places=6)
         self.assertTrue(all(item["demand_fully_met"] for item in reports))
+        self.assertAlmostEqual(
+            reports[0]["material_processes"]["oxygen_isru"]["energy_used_kwh"],
+            4500.0,
+            places=6,
+        )
+        self.assertAlmostEqual(
+            reports[0]["material_processes"]["ice_to_usable_water"]["energy_used_kwh"],
+            5000.0,
+            places=6,
+        )
 
     def test_periods_must_be_advanced_sequentially(self):
         with self.assertRaises(DomainError):
@@ -57,7 +67,7 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(report["water_output_kg"], 80.0)
         self.assertGreater(report["raw_ice_shortfall_kg"], 0.0)
 
-    def test_scheduled_reactor_service_checks_critical_reserve(self):
+    def test_scheduled_reactor_service_checks_critical_reserve_and_dispatch(self):
         state = initial_state(SCENARIO)
         state, _ = advance_period(SCENARIO, state, 1)
         _, report = advance_period(SCENARIO, state, 2)
@@ -66,6 +76,11 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(service["available_kw"], 36.0)
         self.assertAlmostEqual(service["battery_required_kwh"], 96.0)
         self.assertTrue(service["within_reserve"])
+        dispatch = report["power_dispatch"]
+        self.assertAlmostEqual(dispatch["allocated_kw"], 36.0)
+        self.assertAlmostEqual(dispatch["loads"][0]["allocated_kw"], 31.0)
+        self.assertAlmostEqual(dispatch["loads"][1]["allocated_kw"], 5.0)
+        self.assertGreater(dispatch["shed_kwh"], 0.0)
 
 
 if __name__ == "__main__":
