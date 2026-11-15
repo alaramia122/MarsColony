@@ -234,6 +234,7 @@ def propose_catalog_entity(
                     entity_id=record.id, media_type=media_type,
                     image_data=image_bytes, size_bytes=len(image_bytes),
                 ))
+                db.flush()
             _append_event(db, session_id, "catalog.entity_proposed", {
                 "entity_id": record.id, "entity_key": entity_key,
                 "entity_type": record.entity_type, "domain_codes": domains,
