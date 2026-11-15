@@ -55,6 +55,26 @@ const entityKindNames: Record<string, string> = {
   autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
 };
 const entityKindLabel = (kind: string) => entityKindNames[kind] || kind.replaceAll("_", " ");
+const projectTypeNames: Record<string, string> = {
+  construction: "Строительство", production: "Производство", repair: "Ремонт",
+  research: "Исследование", exploration: "Разведка", procurement: "Закупка",
+  infrastructure: "Инфраструктура", other: "Прочее"
+};
+const projectStatusNames: Record<string, string> = {
+  draft: "Черновик", submitted: "На согласовании", approved: "Согласован",
+  executing: "В исполнении", completed: "Завершён", rejected: "Отклонён", cancelled: "Отменён"
+};
+const eventTypeNames: Record<string, string> = {
+  "campaign.settings_updated": "Изменены параметры кампании",
+  "period.completed": "Игровой период завершён",
+  "project.created": "Создан проект", "project.submitted": "Проект отправлен на согласование",
+  "project.approved": "Проект согласован", "project.rejected": "Проект отклонён",
+  "project.executing": "Начато исполнение проекта", "project.completed": "Проект завершён",
+  "gm.event_proposed": "Предложено сценарное событие", "gm.event_published": "Сценарное событие опубликовано",
+  "gm.event_rejected": "Сценарное событие отклонено"
+};
+const eventTypeLabel = (value: string) => eventTypeNames[value] || value.replaceAll(".", " · ").replaceAll("_", " ");
+
 
 const quantity = (value: number, digits = 1) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: digits }).format(value);
 const numberAt = (source: Record<string, unknown>, key: string) => {
@@ -296,7 +316,7 @@ export default function App() {
         <section className="content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">ARES-01 / {session?.starter_preset?.name || "MARS OPERATIONS"}</div>
+              <div className="eyebrow">ARES-01 / {session?.starter_preset?.name || "ОПЕРАЦИИ НА МАРСЕ"}</div>
               <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : view === "campaign-settings" ? "Параметры игры" : "ИИ-ведущий"}</h1>
               <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : view === "campaign-settings" ? "Продолжительность кампании и финансовые параметры. Стартовая инфраструктура выбирается при создании сессии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
@@ -404,7 +424,7 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
           <h3>{info.title}</h3><p>{info.purpose}</p>
           <div className="domain-metrics">{info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>)}<div><span>Инфраструктурные объекты направления</span><strong>{infrastructure.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(code)).length} <small>шт.</small></strong></div><div><span>Активные проекты направления</span><strong>{related.filter((project) => ["approved","executing"].includes(project.status)).length} <small>шт.</small></strong></div></div>
           <div className="domain-projects"><strong>Стартовый комплект · {relatedAssets.length} объектов</strong>{relatedAssets.map((asset) => <span key={String(asset.id)}>{String(asset.name || asset.kind || "Инфраструктурный объект")}</span>)}</div>
-          <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {project.status}</span>)}</div>
+          <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</span>)}</div>
         </article>;
       })}
     </section>
@@ -412,7 +432,7 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
       <div className="panel-heading"><div><div className="eyebrow">ОЧЕРЕДЬ ЗАДАЧ</div><h2>Мои задачи и решения</h2></div><button className="button button-secondary small-button" onClick={() => onNavigate("projects")}>Открыть проекты</button></div>
       {pending.length === 0 && active.length === 0 ? <p className="muted">Нет активных задач в закреплённых направлениях.</p> : [...pending,...active].map((project) => <div className="role-task-row" key={project.id}><strong>{project.title}</strong><span>{project.status === "submitted" ? "Ожидает согласования" : "Исполняется"} · {project.domain_codes.map((domain) => DOMAIN_INFO[domain]?.title || domain).join(", ")}</span></div>)}
     </section>
-    <section className="panel"><div className="eyebrow">ПОСЛЕДНИЕ СОБЫТИЯ</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{event.event_type}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
+    <section className="panel"><div className="eyebrow">ПОСЛЕДНИЕ СОБЫТИЯ</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{eventTypeLabel(event.event_type)}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
   </div>;
 }
 
@@ -658,7 +678,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
       <section className="panel side-panel">
         <div className="panel-heading"><div><div className="eyebrow">ПРОЕКТНЫЙ ОФИС</div><h2>Проекты</h2></div><button className="text-button" onClick={onOpenProjects}>Все проекты ↗</button></div>
         {projects.length === 0 ? <div className="empty-state"><span>▤</span><strong>Пока нет проектов</strong><p>Здесь появятся инициативы и ход их исполнения.</p></div> :
-          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{project.status} · {project.domain_codes.join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
+          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{projectStatusNames[project.status] || project.status} · {project.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
       </section>
     </div>
     <section className="panel event-panel">
@@ -1175,7 +1195,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
-        <div className="project-card-top"><span className="eyebrow">{project.project_type.toUpperCase()}</span><span className={`status status-${project.status}`}>{labels[project.status] || project.status}</span></div>
+        <div className="project-card-top"><span className="eyebrow">{projectTypeNames[project.project_type] || project.project_type}</span><span className={`status status-${project.status}`}>{labels[project.status] || project.status}</span></div>
         <h3>{project.title}</h3><p>{project.description}</p>
         <div className="project-meta"><span>{project.domain_codes.map((code) => domainLabels[code] || code).join(" · ")}</span><strong>{money(project.budget_credits)} кр.</strong></div>
         <div className="project-detail-grid">
