@@ -102,6 +102,8 @@ class ProjectWorkflowTests(unittest.TestCase):
             domain_lead["player_token"],
         )
         self.assertEqual(domain_vote["status"], "submitted")
+        # A later role change must not invalidate an already recorded approval.
+        self.assign(domain_lead["player_id"], self.owner_token, ["player"])
         finance_vote = projects_api.approve_project(
             self.session_id, project["id"],
             ApprovalRequest(decision="approve", expected_version=3),
