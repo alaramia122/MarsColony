@@ -176,6 +176,22 @@ def assign_roles(session_id: str, target_id: str, request: RoleAssignment,
             ))
             if target is None:
                 raise HTTPException(status_code=404, detail="Player not found in this session.")
+            if (
+                "colony_commander" in (target.roles or [])
+                and "colony_commander" not in request.roles
+            ):
+                commanders = db.scalars(select(PlayerRecord).where(
+                    PlayerRecord.session_id == session_id
+                )).all()
+                another_commander_exists = any(
+                    item.id != target.id and "colony_commander" in (item.roles or [])
+                    for item in commanders
+                )
+                if not another_commander_exists:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="At least one colony commander must remain in the session.",
+                    )
             target.roles = sorted(set(request.roles))
             target.responsibility_domains = sorted(set(request.responsibility_domains))
             append_event(db, session_id, "player.roles_assigned", {
