@@ -160,6 +160,14 @@ def validate_catalog(catalogue: dict[str, Any], scenario_id: str) -> None:
         or not isinstance(catalogue.get("entities"), list)
     ):
         raise EntityCatalogError("Catalogue scenario_id, fields or entities list are invalid.")
+    service_catalog = catalogue.get("service_catalog", {})
+    if (
+        not isinstance(service_catalog, dict)
+        or set(service_catalog) != SERVICE_CODES
+        or any(not isinstance(item, dict) or not isinstance(item.get("unit"), str) or not item["unit"].strip()
+               for item in service_catalog.values())
+    ):
+        raise EntityCatalogError("Service catalogue must define every supported service and its unit.")
     ids = set()
     # Resource validation is completed by the caller using the scenario resource catalogue.
     for entity in catalogue["entities"]:
