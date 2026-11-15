@@ -8,6 +8,7 @@ on:
       - "data/scenarios/**"
       - "data/starter_presets/**"
       - "data/entity_catalogs/**"
+      - "data/entity_catalogs/**"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
       - "docs/**"
