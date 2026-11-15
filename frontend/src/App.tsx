@@ -800,6 +800,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [selectedProject, setSelectedProject] = useState("");
   const [placementName, setPlacementName] = useState("");
   const [selectedHex, setSelectedHex] = useState({ q: 0, r: 0 });
+  const [footprintRadius, setFootprintRadius] = useState("0");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
@@ -852,9 +853,19 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const pendingPlacements = (mapSnapshot?.placements || []).filter((item) => item.status === "pending_approval");
   const placed = (mapSnapshot?.placements || []).filter((item) => item.status === "placed");
   const worldPoint = (cellQ: number, cellR: number) => ({
-    left: `${1000 + 42 * Math.sqrt(3) * (cellQ + cellR / 2)}px`,
-    top: `${800 + 63 * cellR}px`
+    left: `${1000 + 48 * Math.sqrt(3) * (cellQ + cellR / 2)}px`,
+    top: `${800 + 72 * cellR}px`
   });
+  const footprintCells = (radius: number) => {
+    const cells: Array<[number, number]> = [];
+    for (let dq = -radius; dq <= radius; dq += 1) {
+      for (let dr = -radius; dr <= radius; dr += 1) {
+        if ((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 <= radius) cells.push([dq, dr]);
+      }
+    }
+    return cells;
+  };
+  const selectedFootprint = footprintCells(Number(footprintRadius));
   const hexes: Array<{ q: number; r: number }> = [];
   for (let qCell = -10; qCell <= 10; qCell += 1) {
     for (let rCell = -10; rCell <= 10; rCell += 1) {
@@ -876,7 +887,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         method: "POST",
         body: JSON.stringify({
           project_id: selectedProject, name: placementName.trim(),
-          q: selectedHex.q, r: selectedHex.r,
+          q: selectedHex.q, r: selectedHex.r, footprint: selectedFootprint,
           expected_map_version: mapSnapshot?.map_version ?? 0
         })
       });
@@ -967,10 +978,12 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         {hexes.map((cell) => {
           const occupied = records.some((item) => {
             const qValue = Number(item.q), rValue = Number(item.r);
-            return qValue === cell.q && rValue === cell.r && item.status !== "rejected" && item.status !== "superseded";
+            const footprint = Array.isArray(item.footprint) ? item.footprint as number[][] : [[0, 0]];
+            return item.status !== "rejected" && item.status !== "superseded"
+              && footprint.some((offset) => qValue + Number(offset[0]) === cell.q && rValue + Number(offset[1]) === cell.r);
           });
           const blocked = placed.some((item) => item.object_type === "zone" && (item.footprint as number[][] || [[0,0]]).some((offset) => Number(item.q) + offset[0] === cell.q && Number(item.r) + offset[1] === cell.r) && Boolean((item.metadata as Record<string, unknown>)?.blocked ?? true));
-          const chosen = selectedHex.q === cell.q && selectedHex.r === cell.r;
+          const chosen = selectedFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
           return <button key={`${cell.q}:${cell.r}`} type="button"
             className={`hex-cell${chosen ? " chosen" : ""}${occupied ? " occupied" : ""}${blocked ? " blocked" : ""}`}
             style={worldPoint(cell.q, cell.r)}
@@ -1005,6 +1018,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       <strong>Предложить строительную площадку</strong>
       <p className="field-help">Выбранный гекс используется как опорная ячейка. Площадка станет действующей только после профильного согласования.</p>
       <div className="form-grid">
+        <label>Размер площадки<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
         <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); if (project) setPlacementName(project.title); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
         <label>Название объекта<input value={placementName} onChange={(event) => setPlacementName(event.target.value)} placeholder="Например, жилой модуль № 2" /></label>
       </div>
@@ -1015,6 +1029,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       <strong>Добавить пространственный объект</strong>
       <p className="field-help">Открытия публикуются только по завершённому исследовательскому проекту. Транспорт и экспедиции регистрируются ответственными игроками.</p>
       <div className="form-grid">
+        <label>Размер занимаемой зоны<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
         <label>Тип объекта<select value={featureType} onChange={(event) => setFeatureType(event.target.value)}>
           <option value="discovery">Научное открытие</option><option value="deposit">Месторождение</option>
           <option value="vehicle">Транспорт</option><option value="expedition">Экспедиция</option>
