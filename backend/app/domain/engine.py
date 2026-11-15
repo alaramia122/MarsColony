@@ -166,12 +166,21 @@ def advance_period(
             float(process["requested_cycles_per_period"]) * multiplier
         )
 
+    infrastructure = list(state.get("infrastructure", []))
+    asset_generation_kw = sum(
+        float(asset.get("properties", {}).get("economic_effects", {}).get("power_generation_kw", 0.0))
+        * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+        for asset in infrastructure
+        if asset.get("properties", {}).get("economic_effects")
+        and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+    )
     average_load_kw = sum(float(value) for value in power["loads_kw"].values())
     generation_kw = (
         int(power["module_count"])
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
         + float(state.get("power_generation_kw_delta", 0.0))
+        + asset_generation_kw
     )
     service_duration_hours = float(event.get("duration_hours", 0.0))
     if service_duration_hours < 0 or service_duration_hours > period_hours:
@@ -184,12 +193,26 @@ def advance_period(
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
         + float(state.get("power_generation_kw_delta", 0.0))
+        + asset_generation_kw
     )
     normal_duration_hours = period_hours - service_duration_hours
     battery_spec = _battery_spec(power)
     battery_soc = float(state["battery_soc_kwh"])
     interval_reports = []
     active_loads = list(additional_loads or [])
+    for asset in infrastructure:
+        properties = asset.get("properties", {})
+        effects = properties.get("economic_effects", {})
+        status = asset.get("status", properties.get("status", "commissioned"))
+        condition = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
+        requested_kw = float(effects.get("power_load_kw", 0.0)) * condition
+        if requested_kw > 0 and status in {"commissioned", "operational"}:
+            active_loads.append({
+                "load_id": f"asset:{asset['id']}",
+                "requested_kw": requested_kw,
+                "priority": 4,
+                "minimum_kw": 0.0,
+            })
     commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
     if commissioned_load_kw > 0:
         active_loads.append({
@@ -299,6 +322,70 @@ def advance_period(
             scenario, state, process_id, requested_cycles, energy_budget
         )
         process_reports[process_id] = process_report
+
+    asset_operation_reports = []
+    for asset in infrastructure:
+        properties = asset.get("properties", {})
+        effects = properties.get("economic_effects", {})
+        status = asset.get("status", properties.get("status", "commissioned"))
+        if not effects or status not in {"commissioned", "operational"}:
+            continue
+        condition = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
+        requested_kw = float(effects.get("power_load_kw", 0.0)) * condition
+        requested_energy = requested_kw * period_hours
+        delivered_energy = sum(
+            float(load["allocated_kw"]) * float(interval["duration_hours"])
+            for interval in interval_reports
+            for load in interval["dispatch"]["loads"]
+            if load["load_id"] == f"asset:{asset['id']}"
+        )
+        power_fraction = 1.0 if requested_energy <= 1e-9 else min(1.0, delivered_energy / requested_energy)
+        operating_cost = float(effects.get("operating_cost_credits_per_period", 0.0)) * condition
+        available_credits = float(state["budget_credits"])
+        finance_fraction = 1.0 if operating_cost <= 1e-9 else min(1.0, available_credits / operating_cost)
+        operation_fraction = min(power_fraction, finance_fraction) * condition
+        paid_cost = operating_cost * (operation_fraction / condition) if condition > 1e-9 else 0.0
+        state["budget_credits"] = round(max(0.0, available_credits - paid_cost), 6)
+        inputs = effects.get("resource_inputs_per_period", {})
+        outputs = effects.get("resource_outputs_per_period", {})
+        operation_report = {
+            "asset_id": asset["id"],
+            "name": asset.get("name", asset["id"]),
+            "requested_power_kw": requested_kw,
+            "delivered_energy_kwh": round(delivered_energy, 6),
+            "power_fraction": round(power_fraction, 6),
+            "condition": round(condition, 6),
+            "operating_cost_paid": round(paid_cost, 6),
+            "operation_fraction": round(operation_fraction, 6),
+            "inputs_consumed": {},
+            "outputs_produced": {},
+            "limiting_constraints": [],
+        }
+        if operation_fraction > 1e-9 and (inputs or outputs):
+            resource_ids = set(inputs) | set(outputs)
+            stocks = {}
+            for resource_id in resource_ids:
+                resource = scenario["resource_catalog"][resource_id]
+                stocks[resource_id] = ResourceStock(
+                    quantity=float(state[resource["state_key"]]),
+                    capacity=_storage_capacity(scenario, resource_id),
+                )
+            energy_per_cycle = requested_kw * period_hours
+            updated_stocks, process_report = execute_process(
+                stocks, inputs, outputs, operation_fraction,
+                energy_kwh_per_cycle=energy_per_cycle,
+                energy_available_kwh=delivered_energy,
+            )
+            for resource_id, stock in updated_stocks.items():
+                state_key = scenario["resource_catalog"][resource_id]["state_key"]
+                state[state_key] = _round_resource(stock.quantity, scenario, resource_id)
+            operation_report.update({
+                "inputs_consumed": process_report["inputs_consumed"],
+                "outputs_produced": process_report["outputs_produced"],
+                "limiting_constraints": process_report["limiting_constraints"],
+                "energy_used_kwh": process_report["energy_used_kwh"],
+            })
+        asset_operation_reports.append(operation_report)
 
     commissioned_power_fraction = 1.0
     commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
@@ -447,10 +534,12 @@ def advance_period(
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
+        "infrastructure_operations": asset_operation_reports,
         "project_production_bonuses": production_bonus_report,
         "commissioned_power_fraction": commissioned_power_fraction,
         "power_intervals": interval_reports,
         "available_generation_kw": generation_kw,
+        "starter_and_built_infrastructure_generation_kw": asset_generation_kw,
         "average_load_kw": average_load_kw,
         "generated_kwh": total_generated_kwh,
         "consumed_kwh": total_consumed_kwh,
