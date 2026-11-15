@@ -390,7 +390,7 @@ export default function App() {
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
           {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
-          {view === "map" && <ColonyMap assets={infrastructure} auth={auth} projects={projects} player={commander} onRefresh={refresh} />}
+          {view === "map" && <ColonyMap assets={infrastructure} auth={auth} projects={projects} player={commander} eventWatermark={events[events.length - 1]?.sequence ?? 0} onRefresh={refresh} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
           {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
           {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} hasProjects={projects.length > 0} onRefresh={refresh} />}
@@ -786,11 +786,12 @@ function Metric({ label, value, unit, detail }: { label: string; value: string; 
   return <div className="metric-card"><span>{label}</span><div><strong>{value}</strong><small>{unit}</small></div><p>{detail}</p></div>;
 }
 
-function ColonyMap({ assets, auth, projects, player, onRefresh }: {
+function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }: {
   assets: Array<Record<string, unknown>>;
   auth: Auth;
   projects: Project[];
   player: Player | undefined;
+  eventWatermark: number;
   onRefresh: () => Promise<void>;
 }) {
   const [activeLayer, setActiveLayer] = useState("all");
@@ -820,7 +821,7 @@ function ColonyMap({ assets, auth, projects, player, onRefresh }: {
     ).then((result) => { if (active) setMapSnapshot(result); })
       .catch((reason) => { if (active) setMapError((reason as Error).message); });
     return () => { active = false; };
-  }, [auth.sessionId, auth.token]);
+  }, [auth.sessionId, auth.token, eventWatermark, assets]);
   const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
   const matchesLayer = (asset: Record<string, unknown>) =>
     activeLayer === "all" || String(asset.kind || "other") === activeLayer;
