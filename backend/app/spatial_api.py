@@ -177,6 +177,11 @@ def propose_placement(
                 raise HTTPException(status_code=409, detail="Выбранная площадка пересекается с занятым гексом.")
 
             required = sorted(set(["construction"] + list(project.domain_codes or [])))
+            project_assets = (project.expected_result or {}).get("infrastructure", [])
+            project_asset = next(
+                (item for item in project_assets if item.get("name") == request.name.strip()),
+                project_assets[0] if project_assets else {},
+            )
             record = MapPlacementRecord(
                 id=str(uuid4()), session_id=session_id, project_id=project.id,
                 author_player_id=actor.id, object_type="infrastructure",
@@ -185,17 +190,9 @@ def propose_placement(
                 required_approvals=required, approvals=[], status="pending_approval",
                 map_version=map_version,
                 metadata_json={
-                    "kind": next((
-                        item.get("kind", "infrastructure")
-                        for item in (project.expected_result or {}).get("infrastructure", [])
-                        if item.get("name") == request.name.strip()
-                    ), "infrastructure"),
-                    "properties": next((
-                        dict(item.get("properties", {}))
-                        for item in (project.expected_result or {}).get("infrastructure", [])
-                        if item.get("name") == request.name.strip()
-                    ), {}),
-                    "domain_codes": list(project.domain_codes or []),
+                    "kind": project_asset.get("kind", "infrastructure"),
+                    "properties": dict(project_asset.get("properties", {})),
+                    "domain_codes": list(project_asset.get("domain_codes", project.domain_codes or [])),
                 },
             )
             db.add(record)
