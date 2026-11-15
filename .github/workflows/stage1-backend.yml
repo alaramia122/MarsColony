@@ -1,0 +1,36 @@
+name: Stage 1 backend validation
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "data/scenarios/**"
+      - "docker-compose.yml"
+      - ".github/workflows/stage1-backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "data/scenarios/**"
+      - "docker-compose.yml"
+      - ".github/workflows/stage1-backend.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  domain-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run domain tests
+        run: python -m unittest discover -s backend/tests -v
+      - name: Validate scenario JSON
+        run: python -m json.tool data/scenarios/ares-01.json > /dev/null
