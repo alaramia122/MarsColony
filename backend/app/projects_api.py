@@ -1,5 +1,6 @@
 """Player membership, scoped permissions and project workflow endpoints."""
 import hashlib
+from copy import deepcopy
 import math
 import secrets
 from uuid import uuid4
@@ -609,7 +610,7 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                     status_code=409,
                     detail="Project has not completed its required execution periods.",
                 )
-            state = dict(session.state)
+            state = deepcopy(session.state)
             expected = project.expected_result or {}
             bonuses = dict(state.get("production_bonuses_per_period", {}))
             for resource_id, quantity in expected.get("resource_outputs_per_period", {}).items():
@@ -662,6 +663,7 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                     "condition_before": old_condition,
                     "condition_after": asset["condition"],
                 })
+            state["infrastructure"] = infrastructure
             technologies = list(state.get("technologies", []))
             existing_technology_ids = {item["id"] for item in technologies}
             unlocked_technologies = []
