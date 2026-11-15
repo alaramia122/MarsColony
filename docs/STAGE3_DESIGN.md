@@ -72,4 +72,4 @@ Heartbeat передаётся каждые 15 секунд. Клиент пос
 - Docker Compose config/build/start.
 - Smoke-проверки API и web-клиента, продвижение периода и восстановление после рестарта PostgreSQL/API.
 
-Текущий CI: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724099506), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724099509) — success; 71 backend tests passed.
+Текущий CI: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724427816), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724427805) — success; 72 backend tests passed.
