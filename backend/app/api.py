@@ -325,7 +325,15 @@ def advance_game_session(
                 ProjectRecord.status == "executing",
                 ProjectRecord.progress_periods < ProjectRecord.duration_periods,
             ).with_for_update()).all()
-            allocated_fte = sum(float(item.labor_fte) for item in active_projects)
+            technologies = record.state.get("technologies", [])
+            def effective_project_labor(project):
+                multiplier = 1.0
+                project_domains = set(project.domain_codes or [])
+                for technology in technologies:
+                    if project_domains.intersection(technology.get("domain_codes", [])):
+                        multiplier *= float(technology.get("effects", {}).get("labor_demand_multiplier", 1.0))
+                return float(project.labor_fte) * multiplier
+            allocated_fte = sum(effective_project_labor(item) for item in active_projects)
             available_fte = float(scenario.get("population", {}).get("available_fte", 0))
             if allocated_fte > available_fte + 1e-9:
                 raise DomainError("Active project labor exceeds available workforce.")
