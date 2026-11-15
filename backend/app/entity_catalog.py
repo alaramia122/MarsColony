@@ -14,9 +14,16 @@ ENTITY_TYPES = {"infrastructure", "equipment", "vehicle", "technology", "process
 EFFECT_KEYS = {
     "power_generation_kw", "power_load_kw",
     "resource_inputs_per_period", "resource_outputs_per_period",
-    "operating_cost_credits_per_period", "battery_capacity_kwh",
+    "operating_cost_credits_per_period", "battery_capacity_kwh", "service_outputs_per_period",
 }
 BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements"}
+SERVICE_CODES = {
+    "medical_beds", "isolation_beds", "lab_samples_per_period",
+    "communications_bandwidth_mbps", "cargo_handling_tonnes_per_period",
+    "transport_tonnes_per_period", "repair_work_orders_per_period",
+    "fire_response_capacity", "training_seats", "remote_observations_per_period",
+    "command_staff_capacity", "warehouse_capacity_kg",
+}
 
 
 class EntityCatalogError(ValueError):
@@ -110,6 +117,12 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
                     raise EntityCatalogError(f"Unknown resource '{resource_id}' in {key}.")
                 if _finite_nonnegative(quantity, f"{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{key}.{resource_id} must be positive.")
+        service_outputs = operation.get("service_outputs_per_period", {})
+        if not isinstance(service_outputs, dict) or not set(service_outputs).issubset(SERVICE_CODES):
+            raise EntityCatalogError("Operation contract contains an unsupported service output.")
+        for service_id, quantity in service_outputs.items():
+            if _finite_nonnegative(quantity, f"service_outputs_per_period.{service_id}") <= 0:
+                raise EntityCatalogError(f"service_outputs_per_period.{service_id} must be positive.")
     if entity["entity_type"] == "technology":
         if "operation" in entity:
             raise EntityCatalogError("Technology entities use research and effects, not infrastructure operation contracts.")
@@ -139,7 +152,7 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
 
 
 def validate_catalog(catalogue: dict[str, Any], scenario_id: str) -> None:
-    allowed_catalogue_keys = {"scenario_id", "version", "entities", "starter_kind_overrides"}
+    allowed_catalogue_keys = {"scenario_id", "version", "entities", "starter_kind_overrides", "service_catalog"}
     if (
         not isinstance(catalogue, dict)
         or not set(catalogue).issubset(allowed_catalogue_keys)
@@ -183,6 +196,12 @@ def validate_entity_catalogue_resources(
                     raise EntityCatalogError(f"Starter override '{kind}' references unknown resource '{resource_id}'.")
                 if _finite_nonnegative(quantity, f"{kind}.{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{kind}.{key}.{resource_id} must be positive.")
+        services = effects.get("service_outputs_per_period", {})
+        if not isinstance(services, dict) or not set(services).issubset(SERVICE_CODES):
+            raise EntityCatalogError(f"Starter override '{kind}' references an unsupported service.")
+        for service_id, quantity in services.items():
+            if _finite_nonnegative(quantity, f"{kind}.service_outputs_per_period.{service_id}") <= 0:
+                raise EntityCatalogError(f"{kind}.{service_id} service capacity must be positive.")
         bindings = definition.get("process_bindings", [])
         if (
             not isinstance(bindings, list)
