@@ -96,7 +96,7 @@ class ProjectCreate(BaseModel):
     domain_codes: list[str] = Field(min_length=1, max_length=16)
     budget_credits: float = Field(default=0.0, ge=0.0, le=1_000_000_000)
     duration_periods: int = Field(ge=1, le=100)
-    labor_fte: float = Field(default=0.0, ge=0.0, le=16.0)
+    labor_fte: float = Field(default=0.0, ge=0.0, le=1_000_000.0)
     energy_kwh_per_period: float = Field(default=0.0, ge=0.0, le=1_000_000.0)
     resource_requirements: dict = Field(default_factory=dict)
     expected_result: dict = Field(default_factory=dict)
@@ -305,6 +305,7 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not item["name"].strip()
                     or not isinstance(item.get("kind"), str)
                     or not item["kind"].strip()
+                    or not isinstance(item.get("properties", {}), dict)
                 ):
                     raise HTTPException(status_code=422, detail="Each infrastructure item requires a name and kind.")
             db.add(project)
