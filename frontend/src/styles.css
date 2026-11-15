@@ -156,3 +156,10 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .entity-image-preview .entity-reference-image{width:min(100%,280px);height:180px}
 .catalog-entity-option{align-items:flex-start}
 @media(max-width:650px){.catalog-image{width:76px;height:72px;flex-basis:76px}.map-object-image{max-height:200px}}
+
+.inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}
+.inventory-item{display:grid;gap:7px;padding:12px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:9px;background:rgba(255,255,255,.025)}
+.inventory-item>span{font-size:10px;color:var(--muted,#9aa4b2)}
+.inventory-item>strong{font-size:15px;color:var(--text,#edf1f2)}
+.inventory-item small{font-size:10px;font-weight:400;color:var(--muted,#9aa4b2)}
+.inventory-panel{margin:16px 0}
