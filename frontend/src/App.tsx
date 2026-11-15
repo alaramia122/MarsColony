@@ -150,6 +150,12 @@ export default function App() {
     sessionStorage.removeItem("marscolony.previousAuth");
     setAuth(previousAuth);
     setPreviousAuth(null);
+    setSession(null);
+    setPlayers([]);
+    setProjects([]);
+    setEvents([]);
+    setConnected(false);
+    setReconnecting(false);
     setTutorialStep(0);
     setView("overview");
   };
