@@ -754,6 +754,61 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
   };
+  const selectedCatalogEntities = catalogEntities.filter((entity) => selectedCatalogIds.includes(entity.id));
+  const toggleCatalogEntity = (entity: CatalogEntity, checked: boolean) => {
+    setSelectedCatalogIds((current) => checked
+      ? [...current, entity.id]
+      : current.filter((id) => id !== entity.id));
+    if (checked) {
+      setDomains((current) => Array.from(new Set([...current, ...entity.domain_codes])));
+      const build = entity.build || entity.research || {};
+      setBudget((current) => String(Math.max(Number(current) || 0, Number(build.budget_credits) || 0)));
+      setDuration((current) => String(Math.max(Number(current) || 1, Number(build.duration_periods) || 1)));
+      setLaborFte((current) => String(Math.max(Number(current) || 0, Number(build.labor_fte) || 0)));
+      setEnergy((current) => String(Math.max(Number(current) || 0, Number(build.energy_kwh_per_period) || 0)));
+      const requirements = (build.resource_requirements || {}) as Record<string, number>;
+      setResourceInputs((current) => {
+        const next = { ...current };
+        Object.entries(requirements).forEach(([key, value]) => {
+          next[key] = String(Math.max(Number(next[key]) || 0, Number(value) || 0));
+        });
+        return next;
+      });
+    }
+  };
+  const proposeNewEntity = async () => {
+    setEntityProposalError("");
+    let definition: Record<string, unknown>;
+    try {
+      definition = JSON.parse(newEntityDefinition) as Record<string, unknown>;
+    } catch {
+      setEntityProposalError("Определение сущности должно быть корректным JSON-объектом.");
+      return;
+    }
+    if (domains.length === 0) {
+      setEntityProposalError("Выберите хотя бы одну зону ответственности.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals", auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          entity_type: newEntityType, name: newEntityName,
+          description: newEntityDescription, domain_codes: domains,
+          definition, source_text: "Создано игроком через проектный офис."
+        })
+      });
+      setNewEntityName("");
+      setNewEntityDescription("");
+      setEntityFormOpen(false);
+      setEntityProposalError("Предложение отправлено на согласование. После одобрения оно появится в каталоге.");
+    } catch (reason) {
+      setEntityProposalError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const createProject = async () => {
     const requirements = Object.fromEntries(Object.entries(resourceInputs)
       .filter(([, value]) => value.trim() !== "" && Number(value) > 0)
@@ -823,6 +878,32 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <label>Энергия за период, кВт·ч<input type="number" min="0" max="1000000" step="0.1" value={energy} onChange={(event) => setEnergy(event.target.value)} /><small>Электроэнергия, которую проект должен получить за каждый период выполнения.</small></label>
       </div>
       <div className="form-section"><strong>Направления проекта</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={domains.includes(code)} onChange={(event) => changeDomain(code, event.target.checked)} />{label}</label>)}</div></div>
+      <div className="form-section">
+        <strong>Готовые объекты и технологии из каталога</strong>
+        <p className="field-help">Выберите типовые сущности, которые проект должен построить, установить или исследовать. Сервер автоматически добавит их характеристики и экономические эффекты в результат проекта. Для каждого типа учитываются минимальные бюджет, срок, труд и энергия.</p>
+        {catalogError && <p className="field-help">Каталог недоступен: {catalogError}</p>}
+        <div className="catalog-entity-list">
+          {catalogEntities.map((entity) => {
+            const build = entity.build || entity.research || {};
+            const selected = selectedCatalogIds.includes(entity.id);
+            return <label className="catalog-entity-option" key={entity.id}>
+              <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
+              <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+            </label>;
+          })}
+        </div>
+        {selectedCatalogEntities.length > 0 && <p className="field-help">Выбрано сущностей: {selectedCatalogEntities.length}. Их зоны ответственности добавлены к проекту; параметры проекта должны покрывать суммарные требования.</p>}
+        <button type="button" className="button button-secondary" onClick={() => setEntityFormOpen((value) => !value)}>{entityFormOpen ? "Закрыть создание типа" : "＋ Предложить новый тип сущности"}</button>
+        {entityFormOpen && <div className="entity-proposal-form">
+          <label>Категория<select value={newEntityType} onChange={(event) => setNewEntityType(event.target.value)}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
+          <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
+          <label>Описание<textarea value={newEntityDescription} onChange={(event) => setNewEntityDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Назначение, ограничения и принцип работы" /></label>
+          <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
+          <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
+          {entityProposalError && <p className="field-help">{entityProposalError}</p>}
+          <button type="button" className="button button-primary" disabled={saving || newEntityName.trim().length < 2 || !newEntityDescription.trim()} onClick={() => void proposeNewEntity()}>Отправить тип на согласование</button>
+        </div>}
+      </div>
       <div className="form-section"><strong>Материальные требования на старте проекта</strong><p className="field-help">Количество ресурсов, которое будет списано со складов при запуске проекта. Указывайте значения в единицах, показанных рядом с ресурсом. Пустое поле означает, что ресурс не требуется.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceInputs[code] || ""} onChange={(event) => setResourceInputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
       <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><p className="field-help">Дополнительное количество ресурса, которое проект начнёт производить за каждый игровой период после завершения. Это эффект проекта, а не выпуск во время строительства.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
       <div className="form-grid">
