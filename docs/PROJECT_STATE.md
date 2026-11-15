@@ -4,7 +4,7 @@
 **Основная ветка:** main  
 **Последний интегрированный коммит main:** 0e5fefbf671c9fc892ea88c419f5c5628f2af496  
 **Рабочая ветка этапа 1:** feat/stage1-economic-engine  
-**Последний коммит этапа 1:** 286d91c785ec70da0604672ca5e9472dbc75b860  
+**Последний коммит этапа 1:** c94337e5a5007d8631f22e20673c6057c0e0b881  
 **PR этапа 1:** https://github.com/alaramia122/MarsColony/pull/6
 
 ## Назначение
@@ -58,7 +58,7 @@ MarsColony — многопользовательская настольная �
 
 ### Результат серверного прогона Ares-1
 
-[Отчёт CI Stage 1](https://github.com/alaramia122/MarsColony/actions/runs/43718740977) содержит полный детерминированный прогон. Итоговое состояние после 120 солов:
+[Отчёт CI Stage 1](https://github.com/alaramia122/MarsColony/actions/runs/43719063188) содержит полный детерминированный прогон. Итоговое состояние после 120 солов:
 
 | Показатель | Значение |
 |---|---:|
@@ -85,7 +85,7 @@ MarsColony — многопользовательская настольная �
 - Создание и продвижение игровой сессии.
 - Перезапуск PostgreSQL и API с проверкой восстановления состояния и журнала событий.
 
-<badge color="success">Stage 0 CI — success</badge> [Run #43718740925](https://github.com/alaramia122/MarsColony/actions/runs/43718740925)
+<badge color="success">Stage 0 CI — success</badge> [Run #43719063175](https://github.com/alaramia122/MarsColony/actions/runs/43718740925)
 
 ### Критерии готовности этапа 1
 
