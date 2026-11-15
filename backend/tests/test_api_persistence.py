@@ -43,6 +43,30 @@ class SessionPersistenceTests(unittest.TestCase):
             api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         self.assertEqual(error.exception.status_code, 422)
 
+    def test_session_creation_applies_selected_starter_preset(self):
+        created = api.create_session(
+            CreateSessionRequest(scenario_id="ares-01", starter_preset_id="industrial")
+        )
+        self.assertEqual(created["starter_preset"]["id"], "industrial")
+        assets = created["state"]["infrastructure"]
+        self.assertGreater(len(assets), 0)
+        self.assertEqual(
+            {domain for asset in assets for domain in asset["domain_codes"]},
+            {
+                "geology", "industry", "energy", "life_support", "construction",
+                "agriculture", "medicine", "social", "education", "science",
+                "planetary", "transport", "administration", "safety",
+                "communications", "external_relations",
+            },
+        )
+
+    def test_unknown_starter_preset_is_rejected(self):
+        with self.assertRaises(HTTPException) as error:
+            api.create_session(
+                CreateSessionRequest(scenario_id="ares-01", starter_preset_id="unknown")
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_session_state_and_period_history_are_persisted(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         self.assertEqual(created["current_period"], 0)
