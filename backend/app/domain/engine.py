@@ -679,6 +679,7 @@ def advance_period(
         "power_intervals": interval_reports,
         "available_generation_kw": generation_kw,
         "starter_and_built_infrastructure_generation_kw": asset_generation_kw,
+        "starter_solar_generation_factor": base_generation_factor,
         "average_load_kw": average_load_kw,
         "generated_kwh": total_generated_kwh,
         "consumed_kwh": total_consumed_kwh,
