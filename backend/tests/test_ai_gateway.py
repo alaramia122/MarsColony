@@ -5,7 +5,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from backend.app.ai_gateway import (
-    ProjectProposal, ProviderError, configured_provider,
+    ProjectProposal, ProviderError, YandexAIStudioProvider, configured_provider,
 )
 
 
@@ -46,6 +46,32 @@ class AIGatewayContractTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(ProviderError):
                 configured_provider()
+
+    def test_yandex_provider_configuration_requires_api_key_and_folder(self):
+        with patch.dict(os.environ, {
+            "MARS_AI_PROVIDER": "yandex_ai_studio",
+            "MARS_AI_YANDEX_API_KEY": "test-key",
+        }, clear=True):
+            with self.assertRaises(ProviderError):
+                configured_provider()
+
+    def test_yandex_provider_uses_native_completion_contract(self):
+        import io
+        import json
+        from unittest.mock import patch
+        response = io.BytesIO(json.dumps({
+            "alternatives": [{
+                "status": "ALTERNATIVE_STATUS_FINAL",
+                "message": {"role": "assistant", "text": "{\\"ok\\": true}"}
+            }]
+        }).encode("utf-8"))
+        with patch("backend.app.ai_gateway.urlopen", return_value=response) as send:
+            provider = YandexAIStudioProvider("secret", "folder-1", "yandexgpt/latest", 5)
+            self.assertEqual(provider.generate_json("system", {"task": "test"}), {"ok": True})
+            request = send.call_args.args[0]
+            self.assertEqual(request.full_url, "https://ai.api.cloud.yandex.net/foundationModels/v1/completion")
+            self.assertEqual(request.get_header("Authorization"), "Api-Key secret")
+            self.assertEqual(request.get_header("X-folder-id"), "folder-1")
 
     def test_openai_compatible_provider_requires_all_configuration(self):
         with patch.dict(os.environ, {
