@@ -48,7 +48,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
                 project_type="construction", status="submitted",
                 domain_codes=["life_support"], budget_credits=100,
                 duration_periods=2, labor_fte=1, energy_kwh_per_period=1,
-                resource_requirements={}, expected_result={}, version=1,
+                resource_requirements={}, expected_result={"infrastructure": [{"name": "Жилой модуль", "kind": "habitat"}]}, version=1,
             ))
             self.approver_token = "independent-approver-token"
             db.add(PlayerRecord(
@@ -114,7 +114,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as error:
             propose_placement(
                 self.session_id,
-                PlacementCreateRequest(project_id=self.project_id, name="Модуль B", q=2, r=3),
+                PlacementCreateRequest(project_id=self.project_id, name="Модуль B", q=6000, r=6000),
                 token=self.owner_token,
             )
         self.assertEqual(error.exception.status_code, 409)
