@@ -393,6 +393,18 @@ def create_project(session_id: str, request: ProjectCreate,
                 if procedures:
                     expected_result["procedure_unlocks"] = procedures
 
+            project = ProjectRecord(
+                session_id=session_id, author_player_id=actor.id,
+                title=request.title.strip(), description=request.description.strip(),
+                project_type=request.project_type, status="draft", domain_codes=domains,
+                budget_credits=request.budget_credits, duration_periods=request.duration_periods,
+                resource_requirements=request.resource_requirements,
+                labor_fte=request.labor_fte,
+                energy_kwh_per_period=request.energy_kwh_per_period,
+                expected_result=expected_result, version=1,
+            )
+            if not project.title or not project.description:
+                raise HTTPException(status_code=422, detail="Project title and description are required.")
             if sanitized_asset_image_url:
                 project_assets = expected_result.get("infrastructure", [])
                 if not isinstance(project_assets, list) or len(project_assets) != 1:
@@ -408,18 +420,6 @@ def create_project(session_id: str, request: ProjectCreate,
                     raise HTTPException(status_code=422, detail="Infrastructure properties must be an object.")
                 project_properties["image_data_url"] = sanitized_asset_image_url
 
-            project = ProjectRecord(
-                session_id=session_id, author_player_id=actor.id,
-                title=request.title.strip(), description=request.description.strip(),
-                project_type=request.project_type, status="draft", domain_codes=domains,
-                budget_credits=request.budget_credits, duration_periods=request.duration_periods,
-                resource_requirements=request.resource_requirements,
-                labor_fte=request.labor_fte,
-                energy_kwh_per_period=request.energy_kwh_per_period,
-                expected_result=expected_result, version=1,
-            )
-            if not project.title or not project.description:
-                raise HTTPException(status_code=422, detail="Project title and description are required.")
             allowed_effects = {
                 "resource_outputs_per_period", "power_generation_kw_delta",
                 "power_load_kw_delta", "infrastructure",
