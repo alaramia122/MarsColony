@@ -79,7 +79,10 @@ class WebSocketStreamTests(unittest.TestCase):
                 player_token=self.session["owner_token"],
             )
 
-        websocket = FakeWebSocket(self.session["owner_token"], after_snapshot=commit_period)
+        websocket = FakeWebSocket(
+            self.session["owner_token"], after_snapshot=commit_period,
+            disconnect_after_snapshot=False,
+        )
         asyncio.run(realtime.session_stream(websocket, self.session["id"]))
         self.assertEqual(websocket.sent[1]["type"], "event")
         self.assertEqual(websocket.sent[1]["sequence"], 1)
