@@ -26,7 +26,14 @@
     "oxygen_kg": 1800,
     "usable_water_kg": 1500,
     "raw_ice_kg": 7000,
-    "food_solids_kg": 2000
+    "food_solids_kg": 2000,
+    "raw_regolith_kg": 50000,
+    "regolith_bricks_kg": 0,
+    "steel_kg": 500,
+    "aluminium_kg": 400,
+    "electronics_units": 100,
+    "polymers_kg": 300,
+    "spare_parts_units": 80
   },
   "life_support": {
     "oxygen_demand_kg_per_person_day": 0.84,
@@ -243,6 +250,48 @@
       "unit": "kg",
       "precision_digits": 6,
       "storage_id": "ice_bunker"
+    },
+    "raw_regolith": {
+      "state_key": "raw_regolith_kg",
+      "unit": "кг",
+      "precision_digits": 3,
+      "storage_id": "raw_regolith_store"
+    },
+    "regolith_bricks": {
+      "state_key": "regolith_bricks_kg",
+      "unit": "кг",
+      "precision_digits": 3,
+      "storage_id": "regolith_bricks_store"
+    },
+    "steel": {
+      "state_key": "steel_kg",
+      "unit": "кг",
+      "precision_digits": 3,
+      "storage_id": "steel_store"
+    },
+    "aluminium": {
+      "state_key": "aluminium_kg",
+      "unit": "кг",
+      "precision_digits": 3,
+      "storage_id": "aluminium_store"
+    },
+    "electronics": {
+      "state_key": "electronics_units",
+      "unit": "шт.",
+      "precision_digits": 0,
+      "storage_id": "electronics_store"
+    },
+    "polymers": {
+      "state_key": "polymers_kg",
+      "unit": "кг",
+      "precision_digits": 3,
+      "storage_id": "polymers_store"
+    },
+    "spare_parts": {
+      "state_key": "spare_parts_units",
+      "unit": "шт.",
+      "precision_digits": 0,
+      "storage_id": "spare_parts_store"
     }
   },
   "storage_locations": [
@@ -273,6 +322,55 @@
       "location": "Горнодобывающий комплекс",
       "resource_id": "raw_ice",
       "capacity": null
+    },
+    {
+      "id": "raw_regolith_store",
+      "name": "Склад исходного реголита",
+      "location": "Материально-технический склад",
+      "resource_id": "raw_regolith",
+      "capacity": 100000
+    },
+    {
+      "id": "regolith_bricks_store",
+      "name": "Склад реголитовых строительных блоков",
+      "location": "Материально-технический склад",
+      "resource_id": "regolith_bricks",
+      "capacity": 30000
+    },
+    {
+      "id": "steel_store",
+      "name": "Склад конструкционной стали",
+      "location": "Материально-технический склад",
+      "resource_id": "steel",
+      "capacity": 10000
+    },
+    {
+      "id": "aluminium_store",
+      "name": "Склад алюминиевых сплавов",
+      "location": "Материально-технический склад",
+      "resource_id": "aluminium",
+      "capacity": 8000
+    },
+    {
+      "id": "electronics_store",
+      "name": "Склад электронных компонентов",
+      "location": "Материально-технический склад",
+      "resource_id": "electronics",
+      "capacity": 2000
+    },
+    {
+      "id": "polymers_store",
+      "name": "Склад полимеров и герметиков",
+      "location": "Материально-технический склад",
+      "resource_id": "polymers",
+      "capacity": 5000
+    },
+    {
+      "id": "spare_parts_store",
+      "name": "Склад запасных частей",
+      "location": "Материально-технический склад",
+      "resource_id": "spare_parts",
+      "capacity": 3000
     }
   ],
   "processes": {
