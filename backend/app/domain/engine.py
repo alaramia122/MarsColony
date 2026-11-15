@@ -62,6 +62,11 @@ PROCESS_ASSET_BINDINGS = {
     "food_growing": {"hydroponic_greenhouse", "food_production_greenhouse"},
     "ice_to_usable_water": {"water_recycling", "water_recovery_unit"},
 }
+PROCESS_DOMAINS = {
+    "oxygen_isru": {"life_support"},
+    "food_growing": {"agriculture", "life_support"},
+    "ice_to_usable_water": {"life_support", "industry"},
+}
 
 
 def _asset_economic_effects(asset: dict[str, Any]) -> dict[str, Any]:
@@ -229,8 +234,17 @@ def advance_period(
                 and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
             )
         process_asset_capacity[process_id] = capacity_factor
+        technology_output_factor = 1.0
+        process_domains = PROCESS_DOMAINS.get(process_id, set())
+        output_resources = set(process.get("outputs_per_cycle", {}))
+        for technology in state.get("technologies", []):
+            if process_domains.intersection(technology.get("domain_codes", [])):
+                for resource_id, factor in technology.get("effects", {}).get("resource_output_multiplier", {}).items():
+                    if resource_id in output_resources:
+                        technology_output_factor *= float(factor)
         event_multipliers[process_id] = (
-            float(process["requested_cycles_per_period"]) * multiplier * capacity_factor
+            float(process["requested_cycles_per_period"])
+            * multiplier * capacity_factor * technology_output_factor
         )
 
     infrastructure = list(state.get("infrastructure", []))
