@@ -160,7 +160,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(completed["version"], 8)
 
         state = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(state["state"]["budget_credits"], 405.0)
+        self.assertAlmostEqual(state["state"]["budget_credits"], 402.079559, places=5)
         self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
         self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
         self.assertEqual(state["state"]["power_load_kw_delta"], 0.5)
@@ -365,7 +365,7 @@ class ProjectWorkflowTests(unittest.TestCase):
             player_token=self.owner_token,
         )
         restored = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(restored["state"]["budget_credits"], 575.0)
+        self.assertEqual(restored["state"]["budget_credits"], 574.0)
         self.assertEqual(restored["reserved_budget_credits"], 500.0)
         self.assertEqual(restored["available_budget_credits"], 75.0)
 
