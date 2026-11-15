@@ -1,0 +1,175 @@
+{
+  "scenario_id": "ares-01",
+  "name": "Ares-1: первые 120 солов",
+  "version": "0.1.0",
+  "status": "baseline_for_playtest",
+  "description": "Условная ранняя марсианская база после ввода основных систем в эксплуатацию. Локация вымышленная; наличие доступного подповерхностного льда подтверждено разведкой в рамках сценария.",
+  "time": {
+    "period_sols": 30,
+    "period_count": 4,
+    "total_sols": 120,
+    "hours_per_sol": 24.6597
+  },
+  "population": {
+    "total": 24,
+    "available_fte": 16,
+    "fte_allocation": {
+      "life_support_and_power": 4,
+      "ice_mining_and_water": 3,
+      "agriculture": 2,
+      "maintenance": 3,
+      "science_and_medicine": 2,
+      "administration_logistics_and_comms": 2
+    }
+  },
+  "stocks": {
+    "oxygen_kg": 1800,
+    "usable_water_kg": 1500,
+    "raw_ice_kg": 7000,
+    "water_storage_capacity_kg": 4000,
+    "oxygen_storage_capacity_kg": 2500,
+    "food_storage_capacity_kg": 3000,
+    "food_solids_kg": 2000
+  },
+  "life_support": {
+    "oxygen_demand_kg_per_person_day": 0.84,
+    "food_growing_output_kg_per_period": 45,
+    "gross_water_demand_kg_per_person_day": 29.28,
+    "water_recovery_fraction": 0.98,
+    "greenhouse_net_water_makeup_kg_per_period": 100,
+    "oxygen_isru_output_kg_per_period": 300,
+    "oxygen_isru_specific_energy_kwh_per_kg": 30,
+    "water_product_output_kg_per_period": 1000,
+    "ice_to_usable_water_yield": 0.8,
+    "water_system_specific_energy_kwh_per_kg_product": 5,
+    "food_solids_demand_kg_per_person_day": 0.62,
+    "food_logistics_mass_kg_per_person_day": 1.52
+  },
+  "power": {
+    "module_count": 2,
+    "module_nominal_kw": 40,
+    "availability_factor": 0.9,
+    "battery_capacity_kwh": 1000,
+    "critical_load_kw": 31,
+    "critical_peak_kw": 38,
+    "peak_load_kw": 82,
+    "loads_kw": {
+      "habitat_thermal_and_environment": 15,
+      "life_support_and_atmosphere": 8,
+      "ice_mining_and_water_processing": 6.758665623128694,
+      "oxygen_isru": 12.16559812163165,
+      "agriculture": 5,
+      "medical_and_communications": 3,
+      "industry_and_science": 6
+    }
+  },
+  "finance": {
+    "starting_credits": 600,
+    "operating_cost_per_period": 25,
+    "cargo_windows_sols": [
+      60,
+      120
+    ],
+    "cargo_capacity_kg_per_window": 1500,
+    "cargo_window_fee_credits": 30,
+    "prices_credits_per_kg": {
+      "spare_parts": 0.35,
+      "medicine": 0.8,
+      "electronics": 1.2,
+      "food_solids": 0.1
+    }
+  },
+  "projects": [
+    {
+      "id": "PRJ-O2-REDUNDANCY",
+      "name": "Резервная линия получения кислорода",
+      "cost_credits": 180,
+      "duration_periods": 2,
+      "labor_fte": 2,
+      "additional_output_oxygen_kg_per_period": 150,
+      "additional_power_kw": 6,
+      "purpose": "Сократить зависимость от единственной линии ISRU и увеличить резерв кислорода."
+    },
+    {
+      "id": "PRJ-GREENHOUSE-EXPANSION",
+      "name": "Расширение тепличного комплекса",
+      "cost_credits": 140,
+      "duration_periods": 2,
+      "labor_fte": 2,
+      "additional_power_kw": 2,
+      "purpose": "Снизить расход привозных рационов; не обеспечивает полного продовольственного самообеспечения.",
+      "additional_food_solids_kg_per_period": 100
+    },
+    {
+      "id": "PRJ-WATER-REDUNDANCY",
+      "name": "Вторая линия добычи и очистки воды",
+      "cost_credits": 160,
+      "duration_periods": 2,
+      "labor_fte": 2,
+      "additional_water_kg_per_period": 500,
+      "additional_power_kw": 3,
+      "purpose": "Повысить устойчивость водоснабжения и снизить последствия отказа основной линии."
+    },
+    {
+      "id": "PRJ-ICE-SURVEY",
+      "name": "Детальная разведка ледяного горизонта",
+      "cost_credits": 80,
+      "duration_periods": 1,
+      "labor_fte": 2,
+      "purpose": "Уточнить запасы и снизить неопределённость будущей производительности добычи."
+    }
+  ],
+  "scripted_events": [
+    {
+      "id": "EVT-O2-ISRU-DEGRADATION",
+      "period": 1,
+      "oxygen_output_multiplier": 0.5,
+      "description": "Загрязнение входного тракта снижает выпуск кислорода установкой ISRU на 50% в течение периода."
+    },
+    {
+      "id": "EVT-REACTOR-SERVICE",
+      "period": 2,
+      "duration_hours": 48,
+      "modules_online": 1,
+      "description": "Плановое обслуживание одного энергетического модуля. Необходимо перераспределить нагрузку и временно ограничить гибкие потребители."
+    },
+    {
+      "id": "EVT-ICE-DUST",
+      "period": 3,
+      "water_output_multiplier": 0.5,
+      "description": "Пылевое загрязнение оборудования снижает выпуск очищенной воды на 50% в течение периода."
+    },
+    {
+      "id": "EVT-CROP-DISEASE",
+      "period": 4,
+      "food_output_multiplier": 0.5,
+      "description": "Заболевание части культур сокращает урожай тепличного комплекса на 50%."
+    }
+  ],
+  "victory_conditions": {
+    "minimum_oxygen_end_kg": 200,
+    "minimum_food_end_kg": 250,
+    "minimum_water_end_kg": 1000,
+    "minimum_budget_credits": 100,
+    "required": "Сохранить непрерывность критического жизнеобеспечения и завершить 120 солов без отрицательных запасов. Дополнительные цели выбираются игроками из каталога проектов и научных задач."
+  },
+  "model_boundaries": {
+    "included": [
+      "кислородный баланс",
+      "баланс упакованных рационов с вкладом тепличного комплекса",
+      "водный цикл с коэффициентом возврата",
+      "добыча и очистка подповерхностного льда",
+      "электрическая энергия и критическая нагрузка",
+      "доступный труд в FTE",
+      "бюджет и ограниченные грузовые окна"
+    ],
+    "excluded_or_aggregated": [
+      "индивидуальная физиология и медицинские модели",
+      "полная химия атмосферного контура",
+      "детальная калорийность и микроэлементный состав рациона",
+      "полная металлургическая цепочка",
+      "орбитальная механика и точный межпланетный график",
+      "радиационная дозиметрия и детальная климатическая модель"
+    ]
+  }
+}
