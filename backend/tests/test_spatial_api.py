@@ -6,10 +6,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from backend.app import api, spatial_api
+from backend.app import api, spatial_api, projects_api
 from backend.app.api import CreateSessionRequest
 from backend.app.db import Base
 from backend.app.models import GameSessionRecord, MapPlacementRecord, PlayerRecord, ProjectRecord
+from backend.app.projects_api import VersionRequest
 from backend.app.spatial_api import (
     PlacementCreateRequest, PlacementDecisionRequest, decide_placement,
     get_map, propose_placement,
@@ -29,8 +30,10 @@ class SpatialPlacementApiTests(unittest.TestCase):
         )
         self.original_api_factory = api.SessionLocal
         self.original_spatial_factory = spatial_api.SessionLocal
+        self.original_projects_factory = projects_api.SessionLocal
         api.SessionLocal = self.session_factory
         spatial_api.SessionLocal = self.session_factory
+        projects_api.SessionLocal = self.session_factory
 
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         self.session_id = created["id"]
@@ -58,6 +61,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
     def tearDown(self):
         api.SessionLocal = self.original_api_factory
         spatial_api.SessionLocal = self.original_spatial_factory
+        projects_api.SessionLocal = self.original_projects_factory
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
 
@@ -114,6 +118,19 @@ class SpatialPlacementApiTests(unittest.TestCase):
                 token=self.owner_token,
             )
         self.assertEqual(error.exception.status_code, 409)
+
+
+    def test_construction_project_cannot_execute_without_placed_site(self):
+        with self.session_factory.begin() as db:
+            project = db.get(ProjectRecord, self.project_id)
+            project.status = "approved"
+        with self.assertRaises(HTTPException) as error:
+            projects_api.execute_project(
+                self.session_id, self.project_id, VersionRequest(expected_version=1),
+                token=self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
+        self.assertIn("согласовать", error.exception.detail)
 
     def test_map_exposes_axial_registry_and_legacy_assets(self):
         with self.session_factory.begin() as db:
