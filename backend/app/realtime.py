@@ -39,6 +39,10 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
 
         digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
         with SessionLocal() as db:
+            session = db.get(GameSessionRecord, session_id)
+            if session is None:
+                await websocket.close(code=4404, reason="Session not found")
+                return
             player = db.scalar(select(PlayerRecord).where(
                 PlayerRecord.session_id == session_id,
                 PlayerRecord.token_hash == digest,
@@ -56,10 +60,6 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
                 )
             )
             last_sequence = -1 if last_sequence is None else int(last_sequence)
-            session = db.get(GameSessionRecord, session_id)
-            if session is None:
-                await websocket.close(code=4404, reason="Session not found")
-                return
             snapshot = serialize_session(session)
             player_payload = {
                 "id": player.id,
