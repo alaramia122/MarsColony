@@ -95,7 +95,7 @@ CI на текущем кодовом head: [Stage 0](https://github.com/alarami
 
 PR #12 (открыт, не объединён); ветка `feat/stage4-ai-gateway-game-master`.
 
-- AI Gateway: OpenAI-compatible и нативный Yandex AI Studio adapters; конфигурация через окружение; AI выключен по умолчанию.
+- AI Gateway: реестр нескольких OpenAI-compatible и нативных Yandex AI Studio профилей; маршрутизация по типам задач; последовательный fallback; JSON capability profiles; секреты через переменные окружения; AI выключен по умолчанию.
 - Проектные предложения из естественного языка; backend validation; явное создание обычного draft; уточняющий диалог и revision history.
 - ИИ-сводка по состоянию сессии.
 - Сценарные события: генерация, проверка командиром, публикация в event journal и WebSocket, отклонение; публикация не меняет экономику автоматически.
