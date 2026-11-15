@@ -774,7 +774,10 @@
           "regolith_bricks": 40
         }
       },
-      "operation": {},
+      "operation": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      },
       "tags": [
         "starter_catalogue",
         "ares_01",
@@ -1139,7 +1142,10 @@
           "regolith_bricks": 10
         }
       },
-      "operation": {},
+      "operation": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.3
+      },
       "tags": [
         "starter_catalogue",
         "ares_01",
@@ -3085,6 +3091,18 @@
     },
     "battery_storage": {
       "battery_storage_binding": true
+    },
+    "habitat_module": {
+      "economic_effects": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "emergency_shelter": {
+      "economic_effects": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.3
+      }
     }
   },
   "service_catalog": {
