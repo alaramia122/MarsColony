@@ -504,13 +504,13 @@
     "backup_power_unit": {
       "economic_effects": {
         "power_generation_kw": 8,
-        "operating_cost_credits_per_period": 1.5
+        "operating_cost_credits_per_period": 0
       }
     },
     "emergency_power_pack": {
       "economic_effects": {
         "power_generation_kw": 2,
-        "operating_cost_credits_per_period": 0.5
+        "operating_cost_credits_per_period": 0
       }
     },
     "large_battery_bank": {
