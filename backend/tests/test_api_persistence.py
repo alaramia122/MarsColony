@@ -95,7 +95,7 @@ class SessionPersistenceTests(unittest.TestCase):
         with self.session_factory.begin() as db:
             db.add(GameEventRecord(
                 session_id=session_id,
-                sequence=1,
+                sequence=2,
                 event_type="test.conflict",
                 payload={"purpose": "force unique sequence conflict"},
             ))
@@ -113,7 +113,7 @@ class SessionPersistenceTests(unittest.TestCase):
         self.assertEqual(restored["state"], original_state)
         self.assertEqual(
             [event["sequence"] for event in restored["events"]],
-            [0, 1],
+            [0, 2],
         )
 
     def test_session_reaches_scenario_end_and_rejects_extra_period(self):
