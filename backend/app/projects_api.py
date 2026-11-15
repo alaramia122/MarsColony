@@ -487,6 +487,7 @@ def create_project(session_id: str, request: ProjectCreate,
                         or entity is None
                         or entity.get("entity_type") != "technology"
                         or technology.get("id") != catalog_entity_id
+                        or set(technology.get("domain_codes", [])) != set(entity.get("domain_codes", []))
                         or technology_effects != entity.get("effects", {})
                     ):
                         raise HTTPException(status_code=422, detail="Technology effects must match an explicitly selected approved catalogue definition.")
@@ -515,6 +516,7 @@ def create_project(session_id: str, request: ProjectCreate,
                     or entity is None
                     or entity.get("entity_type") != "procedure"
                     or procedure.get("id") != catalog_entity_id
+                    or set(procedure.get("domain_codes", [])) != set(entity.get("domain_codes", []))
                 ):
                     raise HTTPException(status_code=422, detail="Procedure unlocks must reference an explicitly selected approved catalogue procedure.")
             db.add(project)
