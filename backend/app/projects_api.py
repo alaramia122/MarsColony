@@ -21,6 +21,7 @@ from .models import (
 )
 
 router = APIRouter(prefix="/api/v1")
+MAX_SESSION_PLAYERS = 20
 
 
 def token_hash(token: str) -> str:
@@ -129,6 +130,14 @@ def join_session(session_id: str, request: JoinRequest) -> dict:
             name = request.display_name.strip()
             if not name:
                 raise HTTPException(status_code=422, detail="Display name cannot be empty.")
+            player_count = db.scalar(select(func.count(PlayerRecord.id)).where(
+                PlayerRecord.session_id == session_id
+            ))
+            if int(player_count or 0) >= MAX_SESSION_PLAYERS:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Session already has the maximum of {MAX_SESSION_PLAYERS} players.",
+                )
             player = PlayerRecord(
                 session_id=session_id, display_name=name, token_hash=token_hash(token),
                 roles=["player"], responsibility_domains=[],
