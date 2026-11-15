@@ -8,6 +8,7 @@ type SessionData = {
   available_budget_credits: number;
   reserved_budget_credits: number;
   state: Record<string, unknown>;
+  events?: Array<{ sequence: number; type: string; payload: Record<string, unknown>; created_at?: string | null }>;
 };
 type Player = { id: string; display_name: string; roles: string[]; responsibility_domains: string[] };
 type Project = {
@@ -17,7 +18,7 @@ type Project = {
   resource_requirements: Record<string, number>; expected_result: Record<string, unknown>;
   approvals?: Array<{ decision: string }>;
 };
-type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown> };
+type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
 type View = "overview" | "map" | "projects" | "people";
 
 const API = "/api/v1";
@@ -64,6 +65,7 @@ export default function App() {
       request<{ projects: Project[] }>(`${API}/sessions/${auth.sessionId}/projects`, auth.token)
     ]);
     setSession(nextSession);
+    setEvents((nextSession.events || []).slice(-12).map((event) => ({ sequence: event.sequence, event_type: event.type, payload: event.payload, created_at: event.created_at })));
     setPlayers(nextPlayers.players);
     setProjects(nextProjects.projects);
   }, [auth]);
@@ -85,7 +87,7 @@ export default function App() {
           void refresh().catch((reason: Error) => setError(reason.message));
         } else if (data.type === "event" && typeof data.sequence === "number") {
           setEvents((previous) => [...previous, {
-            sequence: data.sequence!, event_type: data.event_type || "session.updated", payload: data.payload || {}
+            sequence: data.sequence!, event_type: data.event_type || "session.updated", payload: data.payload || {}, created_at: data.created_at
           }].slice(-12));
           void refresh().catch((reason: Error) => setError(reason.message));
         }
@@ -280,7 +282,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     <section className="panel event-panel">
       <div className="panel-heading"><div><div className="eyebrow">EVENT STREAM</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · PostgreSQL event log</span></div>
       {events.length === 0 ? <p className="muted">Ожидание событий игровой сессии.</p> : events.slice().reverse().map((event) =>
-        <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{event.event_type}</strong><span>{new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</span></div>)}
+        <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{event.event_type}</strong><span>{event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—"}</span></div>)}
     </section>
   </>;
 }
