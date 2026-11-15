@@ -488,6 +488,18 @@ def advance_period(
             })
         asset_operation_reports.append(operation_report)
 
+    asset_operating_cost_requested = sum(
+        float(_asset_economic_effects(asset).get("operating_cost_credits_per_period", 0.0))
+        * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+        for asset in infrastructure
+        if _asset_economic_effects(asset)
+        and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+    )
+    asset_operating_cost_paid = sum(
+        float(item.get("operating_cost_paid", 0.0)) for item in asset_operation_reports
+    )
+    asset_operating_cost_unmet = max(0.0, asset_operating_cost_requested - asset_operating_cost_paid)
+
     condition_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
@@ -706,8 +718,11 @@ def advance_period(
             "dispatch": service_dispatch,
         },
         "power_dispatch": service_dispatch,
-        "budget_cost_credits": operating_cost,
-        "budget_unmet_credits": budget_unmet,
+        "budget_cost_credits": operating_cost + asset_operating_cost_paid,
+        "asset_operating_cost_requested": asset_operating_cost_requested,
+        "asset_operating_cost_paid": asset_operating_cost_paid,
+        "asset_operating_cost_unmet": asset_operating_cost_unmet,
+        "budget_unmet_credits": budget_unmet + asset_operating_cost_unmet,
         "event_id": event.get("id"),
         "shed_kwh": total_shed_kwh,
         "all_electrical_loads_served": all_electrical_loads_served,
