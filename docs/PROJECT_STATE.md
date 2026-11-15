@@ -91,9 +91,9 @@ CI на текущем кодовом head: [Stage 0](https://github.com/alarami
 - Issue #9 — открыта.
 - Issue #3 — открыта; плейтест после готовности платформы.
 
-## Этап 4 — полный функциональный срез в рабочей ветке
+## Этап 4 — полный функциональный срез реализован, CI успешно пройден
 
-PR #12; ветка `feat/stage4-ai-gateway-game-master`.
+PR #12 (открыт, не объединён); ветка `feat/stage4-ai-gateway-game-master`.
 
 - AI Gateway: OpenAI-compatible и нативный Yandex AI Studio adapters; конфигурация через окружение; AI выключен по умолчанию.
 - Проектные предложения из естественного языка; backend validation; явное создание обычного draft; уточняющий диалог и revision history.
@@ -102,7 +102,7 @@ PR #12; ветка `feat/stage4-ai-gateway-game-master`.
 - Реестр знаний: технологии, инфраструктура, процессы, ресурсы и процедуры; версии, утверждение и сохранение предыдущей версии.
 - React UI: сводка, проекты, диалог уточнения, сценарные события, реестр сущностей.
 - Миграции 0005–0008; тесты API и провайдеров; .env.example; docs/STAGE4_DESIGN.md; ADR-007/008.
-- CI и проверка сборки для последнего head ещё ожидаются. Реальный Yandex API не вызывался: необходимы пользовательские API key и folder ID.
+- CI на head 9cd03c49037c084f5e6f124615d3c85f160e130a: 91 backend-тест, PostgreSQL migrations, Compose build/start, API/web smoke, recovery и frontend typecheck/build — success ([backend/web CI](https://github.com/alaramia122/MarsColony/actions/runs/43730511165), [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43730511111)). Реальный Yandex API не вызывался: необходимы пользовательские API key и folder ID.
 - Утверждение записи реестра не включает сущность в расчётную модель автоматически.
 
 ## Следующие этапы
