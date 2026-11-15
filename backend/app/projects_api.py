@@ -167,8 +167,12 @@ def assign_roles(session_id: str, target_id: str, request: RoleAssignment,
         raise HTTPException(status_code=422, detail="Unknown role code.")
     if not set(request.responsibility_domains).issubset(DOMAIN_CODES):
         raise HTTPException(status_code=422, detail="Unknown responsibility domain.")
-    if ("domain_lead" in request.roles) != bool(request.responsibility_domains):
-        raise HTTPException(status_code=422, detail="Only domain leads may have responsibility domains.")
+    scoped_roles = {"domain_lead", "engineer"}.intersection(request.roles)
+    if bool(scoped_roles) != bool(request.responsibility_domains):
+        raise HTTPException(
+            status_code=422,
+            detail="Domain leads and engineers must have responsibility domains; other roles cannot own domains.",
+        )
     try:
         with SessionLocal.begin() as db:
             session = db.scalar(select(GameSessionRecord).where(
