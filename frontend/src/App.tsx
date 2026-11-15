@@ -52,6 +52,7 @@ export default function App() {
   const [events, setEvents] = useState<EventMessage[]>([]);
   const [view, setView] = useState<View>("overview");
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -79,11 +80,11 @@ export default function App() {
       if (!active) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}${API}/sessions/${auth.sessionId}/stream`);
-      socket.onopen = () => socket?.send(JSON.stringify({ type: "authenticate", player_token: auth.token }));
+      socket.onopen = () => { setReconnecting(false); socket?.send(JSON.stringify({ type: "authenticate", player_token: auth.token })); };
       socket.onmessage = (message) => {
         const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown>; created_at?: string | null };
         if (data.type === "snapshot") {
-          setConnected(true);
+          setConnected(true); setReconnecting(false);
           void refresh().catch((reason: Error) => setError(reason.message));
         } else if (data.type === "event" && typeof data.sequence === "number") {
           setEvents((previous) => [...previous, {
@@ -93,10 +94,10 @@ export default function App() {
         }
       };
       socket.onclose = () => {
-        setConnected(false);
+        setConnected(false); setReconnecting(true);
         if (active) reconnectTimer = window.setTimeout(() => setRetry((value) => value + 1), 1500);
       };
-      socket.onerror = () => setConnected(false);
+      socket.onerror = () => { setConnected(false); setReconnecting(true); };
     };
     void refresh().catch((reason: Error) => setError(reason.message));
     connect();
@@ -123,7 +124,7 @@ export default function App() {
     sessionStorage.removeItem("marscolony.auth");
     setAuth(null);
     setSession(null);
-    setConnected(false);
+    setConnected(false); setReconnecting(false);
     setEvents([]);
   };
 
@@ -171,7 +172,7 @@ export default function App() {
           <span className="brand-mark">M</span><span>MARS<span className="brand-light">COLONY</span></span>
         </a>
         <div className="topbar-right">
-          <span className={connected ? "connection online" : "connection"}><i />{connected ? "Синхронизация активна" : "Подключение…"}</span>
+          <span className={connected ? "connection online" : "connection"}><i />{connected ? "Синхронизация активна" : reconnecting ? "Связь потеряна · переподключение" : "Подключение…"}</span>
           {!screenMode && <button className="button button-quiet" onClick={leave}>Выйти</button>}
         </div>
       </header>
