@@ -62,7 +62,7 @@ class AIGatewayContractTests(unittest.TestCase):
         response = io.BytesIO(json.dumps({
             "alternatives": [{
                 "status": "ALTERNATIVE_STATUS_FINAL",
-                "message": {"role": "assistant", "text": "{\\"ok\\": true}"}
+                "message": {"role": "assistant", "text": json.dumps({"ok": True})}
             }]
         }).encode("utf-8"))
         with patch("backend.app.ai_gateway.urlopen", return_value=response) as send:
