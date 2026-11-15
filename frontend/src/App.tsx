@@ -225,7 +225,7 @@ export default function App() {
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
-          {view === "tutorial" && <Tutorial onNavigate={setView} />}
+          {view === "tutorial" && <Tutorial onNavigate={setView} onCreateTrainingSession={createSession} busy={busy} />}
 
           {auth.joinCode && <div className="invite-strip">
             <div className="invite-values">
@@ -320,7 +320,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
   </>;
 }
 
-function Tutorial({ onNavigate }: { onNavigate: (view: View) => void }) {
+function Tutorial({ onNavigate, onCreateTrainingSession, busy }: { onNavigate: (view: View) => void; onCreateTrainingSession: () => void; busy: boolean }) {
   const [step, setStep] = useState(0);
   const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
     { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
@@ -336,7 +336,8 @@ function Tutorial({ onNavigate }: { onNavigate: (view: View) => void }) {
   return <section className="panel tutorial-panel">
     <div className="eyebrow">ARES-01 / TRAINING MISSION</div>
     <h2>Учебная миссия «Первая смена»</h2>
-    <p className="muted tutorial-intro">Пройдите один короткий цикл управления колонией. Учебный проект не требует бюджета, материалов или энергии и нужен для освоения интерфейса. Миссия не меняет правила основной кампании.</p>
+    <p className="muted tutorial-intro">Учебная миссия выполняется в отдельной сессии, чтобы не менять состояние вашей основной кампании. Сначала сохраните ID и код текущей сессии, затем создайте отдельную учебную сессию кнопкой ниже. Проект не требует бюджета, материалов или энергии.</p>
+    <button className="button button-secondary" disabled={busy} title={busy ? "Дождитесь завершения текущего запроса." : "Создаст новую сессию Ares-1 для обучения; текущая сессия останется сохранённой на сервере."} onClick={onCreateTrainingSession}>Создать отдельную учебную сессию</button>
     <div className="tutorial-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
     <div className="tutorial-step-count">ШАГ {step + 1} ИЗ {steps.length}</div>
     <h3>{current.title}</h3><p>{current.explanation}</p>
