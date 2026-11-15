@@ -68,7 +68,7 @@ class OpenAICompatibleProvider:
             "required_fields": {
                 "title": "string",
                 "description": "string",
-                "project_type": "one of infrastructure, research, production, repair, logistics",
+                "project_type": "one of construction, production, repair, research, exploration, procurement, infrastructure, other",
                 "domain_codes": "array of known domain codes",
                 "budget_credits": "non-negative number",
                 "duration_periods": "integer 1..100",
