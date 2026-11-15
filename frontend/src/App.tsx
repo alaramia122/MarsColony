@@ -971,7 +971,17 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         {selectedCatalogEntities.length > 0 && <p className="field-help">Выбрано сущностей: {selectedCatalogEntities.length}. Их зоны ответственности добавлены к проекту; параметры проекта должны покрывать суммарные требования.</p>}
         <button type="button" className="button button-secondary" onClick={() => setEntityFormOpen((value) => !value)}>{entityFormOpen ? "Закрыть создание типа" : "＋ Предложить новый тип сущности"}</button>
         {entityFormOpen && <div className="entity-proposal-form">
-          <label>Категория<select value={newEntityType} onChange={(event) => setNewEntityType(event.target.value)}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
+          <label>Категория<select value={newEntityType} onChange={(event) => {
+            const nextType = event.target.value;
+            setNewEntityType(nextType);
+            if (nextType === "technology") {
+              setNewEntityDefinition('{"research":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":2,"resource_requirements":{}},"effects":{}}');
+            } else if (nextType === "procedure") {
+              setNewEntityDefinition('{"research":{"budget_credits":20,"duration_periods":1,"labor_fte":0.2,"energy_kwh_per_period":0,"resource_requirements":{}}}');
+            } else {
+              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+            }
+          }}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
           <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
           <label>Описание<textarea value={newEntityDescription} onChange={(event) => setNewEntityDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Назначение, ограничения и принцип работы" /></label>
           <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
