@@ -216,3 +216,23 @@ class GameEntityRecord(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class AIRequestUsageRecord(Base):
+    __tablename__ = "ai_request_usage"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "player_id", "window_start",
+            name="uq_ai_request_usage_session_player_window",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
