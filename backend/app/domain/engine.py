@@ -74,6 +74,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
         "infrastructure": deepcopy(scenario.get("initial_infrastructure", [])),
         "technologies": [],
         "procedures": [],
+        "service_capacity_per_period": {},
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
         "power_load_kw_delta": 0.0,
@@ -409,6 +410,7 @@ def advance_period(
         process_reports[process_id] = process_report
 
     asset_operation_reports = []
+    service_capacity = {}
     for asset in infrastructure:
         properties = asset.get("properties", {})
         effects = _asset_economic_effects(asset)
@@ -481,8 +483,16 @@ def advance_period(
                 "limiting_constraints": process_report["limiting_constraints"],
                 "energy_used_kwh": process_report["energy_used_kwh"],
             })
+        for service_id, capacity in effects.get("service_outputs_per_period", {}).items():
+            service_capacity[service_id] = service_capacity.get(service_id, 0.0) + (
+                float(capacity) * operation_fraction
+            )
         asset_operation_reports.append(operation_report)
 
+    state["service_capacity_per_period"] = {
+        service_id: round(capacity, 6)
+        for service_id, capacity in service_capacity.items()
+    }
     asset_operating_cost_requested = sum(
         float(_asset_economic_effects(asset).get("operating_cost_credits_per_period", 0.0))
         * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
@@ -673,6 +683,7 @@ def advance_period(
         "material_processes": process_reports,
         "infrastructure_process_capacity": process_asset_capacity,
         "infrastructure_operations": asset_operation_reports,
+        "service_capacity_per_period": state["service_capacity_per_period"],
         "infrastructure_condition_changes": condition_reports,
         "project_production_bonuses": production_bonus_report,
         "commissioned_power_fraction": commissioned_power_fraction,
