@@ -298,6 +298,20 @@ def advance_period(
         )
         process_reports[process_id] = process_report
 
+    commissioned_power_fraction = 1.0
+    commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
+    if commissioned_load_kw > 0:
+        requested_commissioned_kwh = commissioned_load_kw * period_hours
+        delivered_commissioned_kwh = sum(
+            float(load["allocated_kw"]) * float(interval["duration_hours"])
+            for interval in interval_reports
+            for load in interval["dispatch"]["loads"]
+            if load["load_id"] == "commissioned_infrastructure"
+        )
+        commissioned_power_fraction = min(
+            1.0, delivered_commissioned_kwh / requested_commissioned_kwh
+        )
+
     production_bonus_report = {}
     for resource_id, quantity in state.get("production_bonuses_per_period", {}).items():
         if resource_id not in scenario["resource_catalog"]:
@@ -307,7 +321,8 @@ def advance_period(
         current = float(state[state_key])
         capacity = _storage_capacity(scenario, resource_id)
         requested_quantity = float(quantity)
-        produced_quantity = requested_quantity
+        powered_quantity = requested_quantity * commissioned_power_fraction
+        produced_quantity = powered_quantity
         if capacity is not None:
             produced_quantity = min(requested_quantity, max(0.0, capacity - current))
         state[state_key] = _round_resource(
@@ -315,8 +330,9 @@ def advance_period(
         )
         production_bonus_report[resource_id] = {
             "requested": requested_quantity,
+            "power_limited": requested_quantity - powered_quantity,
             "produced": produced_quantity,
-            "curtailed": requested_quantity - produced_quantity,
+            "curtailed": powered_quantity - produced_quantity,
         }
 
     allocated_process_energy_kwh = sum(process_energy_budgets.values())
@@ -430,6 +446,7 @@ def advance_period(
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
         "project_production_bonuses": production_bonus_report,
+        "commissioned_power_fraction": commissioned_power_fraction,
         "power_intervals": interval_reports,
         "available_generation_kw": generation_kw,
         "average_load_kw": average_load_kw,
