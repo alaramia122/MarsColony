@@ -224,7 +224,7 @@ export default function App() {
           {view === "map" && <ColonyMap assets={infrastructure} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
-          {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
+          {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
 
           {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
         </section>
