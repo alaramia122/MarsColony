@@ -24,6 +24,7 @@
 - [Сценарий Ares-1](docs/SCENARIO_ARES_01.md)
 - [План разработки](docs/DEVELOPMENT_PLAN.md)
 - [Карта, технологии и творчество игроков](docs/MAP_TECHNOLOGY_CREATION.md)
+- [Гексагональная карта и согласование размещения](docs/HEX_MAP_PLACEMENT_WORKFLOW.md)
 - [Проектирование этапа 3](docs/STAGE3_DESIGN.md)
 - [Проектирование этапа 4](docs/STAGE4_DESIGN.md)
 
