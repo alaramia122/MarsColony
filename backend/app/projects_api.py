@@ -831,6 +831,28 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 unlocked_technologies.append(unlocked)
                 existing_technology_ids.add(technology["id"])
             state["technologies"] = technologies
+            procedures = list(state.get("procedures", []))
+            existing_procedure_ids = {item["id"] for item in procedures}
+            unlocked_procedures = []
+            for procedure in expected.get("procedure_unlocks", []):
+                if procedure["id"] in existing_procedure_ids:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Procedure '{procedure['id']}' is already unlocked.",
+                    )
+                unlocked = {
+                    "id": procedure["id"],
+                    "name": procedure["name"].strip(),
+                    "description": procedure.get("description", "").strip(),
+                    "domain_codes": list(procedure.get("domain_codes", project.domain_codes)),
+                    "catalog_entity_id": procedure.get("catalog_entity_id"),
+                    "unlocked_period": session.current_period,
+                    "project_id": project.id,
+                }
+                procedures.append(unlocked)
+                unlocked_procedures.append(unlocked)
+                existing_procedure_ids.add(procedure["id"])
+            state["procedures"] = procedures
             session.state = state
             project.status = "completed"
             project.completed_period = session.current_period
@@ -843,11 +865,16 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 "infrastructure": commissioned,
                 "infrastructure_repairs": repaired_assets,
                 "technology_unlocks": unlocked_technologies,
+                "procedure_unlocks": unlocked_procedures,
             }
             append_event(db, session_id, "project.result_applied", result_payload)
             if commissioned:
                 append_event(db, session_id, "project.infrastructure_commissioned", {
                     "project_id": project.id, "assets": commissioned,
+                })
+            if unlocked_procedures:
+                append_event(db, session_id, "project.procedures_unlocked", {
+                    "project_id": project.id, "procedures": unlocked_procedures,
                 })
             append_event(db, session_id, "project.completed", {
                 "project_id": project.id, "completed_by": actor.id,
