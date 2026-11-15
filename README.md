@@ -1,47 +1,46 @@
 # MarsColony
 
-Настольная многопользовательская стратегическая НРИ о развитии марсианской колонии с цифровым сопровождением.
+Многопользовательская стратегическая игра-симулятор о развитии марсианской колонии.
 
-## Начало работы
+## Состояние
 
-Перед продолжением разработки прочитайте [инструкции для ИИ-агентов](AGENTS.md) и [текущее состояние проекта](docs/PROJECT_STATE.md).
+Этапы 0–4 интегрированы в `main`: игровое ядро и экономика, участники и роли, проекты, браузерные клиенты, схематическая карта, каталог инфраструктуры, пользовательские изображения и AI Gateway.
 
-## Цель MVP
+**Автоматическая сборка не означает завершённую приёмку.** Остаются:
+- LAN-приёмка на двух независимых устройствах ([Issue #9](https://github.com/alaramia122/MarsColony/issues/9));
+- реальный запрос к внешнему AI provider с пользовательскими credentials;
+- браузерные E2E-сценарии;
+- плейтест Ares-1 ([Issue #3](https://github.com/alaramia122/MarsColony/issues/3)).
 
-Локальная игровая сессия до трёх часов. Домашний компьютер выполняет роль сервера, игроки подключаются браузерами по Wi-Fi. Общий экран и персональные кабинеты синхронизируются через WebSocket. Голосовое управление планируется через Яндекс Алису.
-
-## Текущий статус
-
-Этапы 0–4 интегрированы в `main`. Этап 4 включает универсальный AI Gateway, нативный адаптер Yandex AI Studio, OpenAI-compatible провайдеры, маршрутизацию задач, резервные провайдеры и функции ИИ-ведущего. Автоматический CI этапов 0–4 пройден.
-
-Остаются ручная LAN-приёмка этапа 3 (Issue #9), проверка реальных внешних AI API с пользовательскими ключами и плейтест Ares-1 после готовности локальной платформы (Issue #3).
+Карта пока схематическая. Полный научно-технический цикл и расширенные конструкторы объектов/процессов — следующие этапы, а не готовые функции.
 
 ## Документация
 
-- [GDD](docs/GDD.md) — игровой мир, направления ответственности и цикл партии.
-- [Руководство игрока](docs/PLAYER_GUIDE.md) — правила, согласование проектов и подключение участников.
-- [Техническое задание](docs/TECHNICAL_SPEC.md) — архитектура, API и критерии приёмки.
-- [Экономическая модель](docs/ECONOMY_MODEL.md) — ресурсы, производство, население и инфраструктура.
-- [Сценарий Ares-1](docs/SCENARIO_ARES_01.md) — исходная база, параметры и события.
-- [План разработки](docs/DEVELOPMENT_PLAN.md) — этапы MVP и проверки.
-- [Проектирование этапа 3](docs/STAGE3_DESIGN.md) — WebSocket, клиенты и карта.
-- [Проектирование этапа 4](docs/STAGE4_DESIGN.md) — AI Gateway и ИИ-ведущий.
+- [Текущее состояние](docs/PROJECT_STATE.md)
+- [GDD](docs/GDD.md)
+- [Руководство игрока](docs/PLAYER_GUIDE.md)
+- [Техническое задание](docs/TECHNICAL_SPEC.md)
+- [Экономическая модель](docs/ECONOMY_MODEL.md)
+- [Сценарий Ares-1](docs/SCENARIO_ARES_01.md)
+- [План разработки](docs/DEVELOPMENT_PLAN.md)
+- [Карта, технологии и творчество игроков](docs/MAP_TECHNOLOGY_CREATION.md)
+- [Проектирование этапа 3](docs/STAGE3_DESIGN.md)
+- [Проектирование этапа 4](docs/STAGE4_DESIGN.md)
 
-## Структура
+## Стек
 
-- `backend/` — FastAPI, доменное ядро и PostgreSQL persistence.
-- `frontend/` — React/TypeScript/Vite приложение.
-- `data/scenarios/` — версионируемые игровые сценарии.
-- `docs/` — требования, модель, план и ADR.
-- `tools/`, `tests/` — контрольные расчёты и сценарные проверки.
-- `.github/workflows/` — CI.
+- Backend: Python, FastAPI, PostgreSQL.
+- Frontend: React, TypeScript, Vite.
+- Синхронизация: HTTP API и WebSocket.
+- Развёртывание: Docker Compose, Nginx.
+- ИИ: Yandex AI Studio и OpenAI-compatible API через AI Gateway.
 
 ## Локальный запуск
 
-Требуется Docker Desktop с Docker Compose v2.
+Требуется запущенный Docker Desktop с Docker Compose v2.
 
 1. Скопируйте `.env.example` в `.env`.
-2. Задайте уникальный локальный `POSTGRES_PASSWORD`.
+2. Установите локальный пароль PostgreSQL в `.env`.
 3. Запустите из корня репозитория:
 
 ```bash
@@ -49,11 +48,22 @@ docker compose up --build -d
 docker compose ps
 ```
 
-После сборки:
+Адреса:
 - Web UI: http://localhost:8080
 - Backend API: http://localhost:8000
 - OpenAPI: http://localhost:8000/docs
 
-Логи: `docker compose logs -f api web db`. Остановка: `docker compose down`. Данные PostgreSQL сохраняются в Docker volume; `docker compose down -v` удаляет этот volume вместе с данными.
+Логи: `docker compose logs -f api web db`. Остановка: `docker compose down`. Данные PostgreSQL хранятся в Docker volume. Команда `docker compose down -v` удаляет этот volume и все данные БД.
 
-Первый пользователь создаёт игровую сессию и передаёт ID сессии и код приглашения остальным участникам. Токен игрока хранится в рамках вкладки браузера.
+Docker Hub login обычно не требуется для публичных базовых образов. Важно, чтобы Docker Desktop/Engine был запущен и команда `docker compose` могла обращаться к нему.
+
+## Структура
+
+- `backend/` — FastAPI, доменная логика и PostgreSQL persistence.
+- `frontend/` — React/TypeScript/Vite.
+- `data/` — сценарии, стартовые профили и каталоги сущностей.
+- `docs/` — GDD, требования, экономика, план и ADR.
+- `tests/` — сценарные проверки.
+- `.github/workflows/` — CI.
+
+Секреты API и пароли не коммитить в Git. API-кредиты оплачиваются отдельно от подписки ChatGPT.
