@@ -696,7 +696,6 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [loadDelta, setLoadDelta] = useState("0");
   const [assetName, setAssetName] = useState("");
   const [assetKind, setAssetKind] = useState("infrastructure");
-  const [customAssetKind, setCustomAssetKind] = useState("");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
@@ -889,7 +888,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setCustomAssetKind(""); setAssetX(""); setAssetY("");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY("");
       setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
