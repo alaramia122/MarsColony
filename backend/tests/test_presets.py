@@ -58,10 +58,9 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
         for kind, entity in buildable.items():
             self.assertGreaterEqual(entity["build"]["budget_credits"], 0)
             self.assertGreaterEqual(entity["build"]["duration_periods"], 1)
+            self.assertTrue(entity["domain_codes"])
             self.assertTrue(entity["build"]["resource_requirements"])
-            self.assertEqual(entity["operation"], {
-                **entity["operation"]
-            })
+            self.assertTrue(set(entity["build"]["resource_requirements"]).issubset(load_scenario("ares-01")["resource_catalog"]))
 
     def test_catalogue_contracts_are_attached_to_matching_starter_assets(self):
         scenario = apply_starter_preset(load_scenario("ares-01"), "balanced")
