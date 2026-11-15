@@ -80,6 +80,7 @@ class ProjectWorkflowTests(unittest.TestCase):
                 expected_result={
                     "resource_outputs_per_period": {"oxygen": 10},
                     "power_generation_kw_delta": 2,
+                    "power_load_kw_delta": 0.5,
                     "infrastructure": [
                         {"name": "Резервная энергетическая линия", "kind": "power_unit"}
                     ],
@@ -157,6 +158,7 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(state["state"]["budget_credits"], 430.0)
         self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
         self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
+        self.assertEqual(state["state"]["power_load_kw_delta"], 0.5)
         self.assertEqual(state["state"]["infrastructure"][0]["name"], "Резервная энергетическая линия")
         self.assertEqual(state["state"]["infrastructure"][0]["commissioned_period"], 2)
         event_types = [event["type"] for event in state["events"]]
