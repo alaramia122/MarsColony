@@ -690,13 +690,13 @@ def advance_period(
             - total_consumed_kwh - total_battery_charge_input_kwh
         ),
         "battery": {
-            "capacity_kwh": float(battery_config["capacity_kwh"]),
+            "capacity_kwh": battery_spec.capacity_kwh,
             "state_of_charge_start_kwh": battery_soc_start,
             "state_of_charge_end_kwh": battery_soc,
             "minimum_charge_kwh": float(battery_config["minimum_charge_kwh"]),
             "within_operating_limits": (
                 battery_soc >= float(battery_config["minimum_charge_kwh"]) - 1e-9
-                and battery_soc <= float(battery_config["capacity_kwh"]) + 1e-9
+                and battery_soc <= battery_spec.capacity_kwh + 1e-9
             ),
         },
         "power_service": {
