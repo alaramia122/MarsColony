@@ -68,10 +68,12 @@ def build_initial_infrastructure(preset: dict[str, Any]) -> list[dict[str, Any]]
     result = []
     for domain, assets in preset["domain_packs"].items():
         base_x, base_y = DOMAIN_POSITIONS[domain]
+        domain_asset_index = 0
         for asset in assets:
             for index in range(asset.get("quantity", 1)):
                 object_index = len(result) + 1
-                offset = index * 3
+                offset = domain_asset_index * 5
+                domain_asset_index += 1
                 result.append({
                     "id": f"START-{preset['id'].upper()}-{object_index:03d}",
                     "name": asset["name"] if asset.get("quantity", 1) == 1 else f"{asset['name']} №{index + 1}",
@@ -79,7 +81,8 @@ def build_initial_infrastructure(preset: dict[str, Any]) -> list[dict[str, Any]]
                     "domain_codes": [domain],
                     "properties": {
                         "condition": 1.0,
-                        "status": "operational",
+                        "status": "commissioned",
+                        "simulation_effects": "not_modeled",
                         "description": asset["description"],
                         "starter_asset": True,
                         "starter_preset_id": preset["id"],
