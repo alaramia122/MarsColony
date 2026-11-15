@@ -184,7 +184,19 @@ def propose_placement(
                 footprint=footprint, domain_codes=list(project.domain_codes or []),
                 required_approvals=required, approvals=[], status="pending_approval",
                 map_version=map_version,
-                metadata_json=dict(request.metadata or {}),
+                metadata_json={
+                    "kind": next((
+                        item.get("kind", "infrastructure")
+                        for item in (project.expected_result or {}).get("infrastructure", [])
+                        if item.get("name") == request.name.strip()
+                    ), "infrastructure"),
+                    "properties": next((
+                        dict(item.get("properties", {}))
+                        for item in (project.expected_result or {}).get("infrastructure", [])
+                        if item.get("name") == request.name.strip()
+                    ), {}),
+                    "domain_codes": list(project.domain_codes or []),
+                },
             )
             db.add(record)
             append_event(db, session_id, "map.placement_proposed", {
