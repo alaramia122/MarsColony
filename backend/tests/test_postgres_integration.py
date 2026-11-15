@@ -52,6 +52,7 @@ class PostgreSQLSessionTests(unittest.TestCase):
     def test_session_survives_database_round_trip_and_full_campaign(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
         try:
             self.assertEqual(created["current_period"], 0)
             for expected_period in range(1, 5):
@@ -62,7 +63,7 @@ class PostgreSQLSessionTests(unittest.TestCase):
                 )
                 self.assertEqual(advanced["current_period"], expected_period)
 
-            restored = api.get_session(session_id)
+            restored = api.get_session(session_id, owner_token)
             self.assertEqual(restored["current_period"], 4)
             self.assertEqual(len(restored["events"]), 5)
             self.assertEqual(restored["events"][0]["type"], "session.created")
