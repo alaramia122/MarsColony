@@ -384,7 +384,15 @@ def list_projects(session_id: str,
             projects = db.scalars(select(ProjectRecord).where(
                 ProjectRecord.session_id == session_id
             ).order_by(ProjectRecord.created_at)).all()
-            return {"projects": [serialize_project(item) for item in projects]}
+            return {"projects": [
+                serialize_project(
+                    item,
+                    db.scalars(select(ProjectApprovalRecord).where(
+                        ProjectApprovalRecord.project_id == item.id
+                    )).all(),
+                )
+                for item in projects
+            ]}
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
 
