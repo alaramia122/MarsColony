@@ -835,6 +835,32 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(asset["kind"], "power_unit")
         self.assertEqual(asset["properties"]["economic_effects"]["power_generation_kw"], 18)
 
+    def test_project_cannot_inject_unapproved_infrastructure_economic_effects(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Несогласованный генератор",
+                    description="Попытка обойти каталог экономических характеристик.",
+                    project_type="infrastructure",
+                    domain_codes=["energy"],
+                    budget_credits=0,
+                    duration_periods=1,
+                    expected_result={
+                        "infrastructure": [{
+                            "name": "Генератор",
+                            "kind": "power_unit",
+                            "properties": {
+                                "condition": 1.0,
+                                "economic_effects": {"power_generation_kw": 9999},
+                            },
+                        }]
+                    },
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_project_can_unlock_a_catalogue_procedure(self):
         project = projects_api.create_project(
             self.session_id,
