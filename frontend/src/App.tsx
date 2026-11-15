@@ -395,6 +395,16 @@ function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
   };
   const validNumber = (value: string, maximum = 1000000) =>
     value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= maximum;
+  const describeEffects = (effect: Record<string, unknown>) => {
+    const details: string[] = [];
+    const outputs = effect.resource_outputs_per_period as Record<string, number> | undefined;
+    if (outputs) Object.entries(outputs).forEach(([key, value]) => details.push(`${resourceLabels[key] || key}: +${quantity(value, 2)}/период`));
+    if (Number(effect.power_generation_kw_delta) > 0) details.push(`Генерация +${quantity(Number(effect.power_generation_kw_delta), 2)} кВт`);
+    if (Number(effect.power_load_kw_delta) > 0) details.push(`Нагрузка +${quantity(Number(effect.power_load_kw_delta), 2)} кВт`);
+    const assets = effect.infrastructure as Array<{ name?: string }> | undefined;
+    if (assets) assets.forEach((asset) => details.push(`Объект: ${asset.name || "без названия"}`));
+    return details.join(" · ") || "Не задан";
+  };
   const invalidAsset = Boolean(assetName.trim()) && !assetKind.trim();
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
@@ -433,8 +443,8 @@ function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
         <div className="project-detail-grid">
           <span>Труд: <b>{quantity(project.labor_fte || 0, 2)} FTE</b></span>
           <span>Энергия: <b>{quantity(project.energy_kwh_per_period || 0, 1)} кВт·ч/период</b></span>
-          <span>Материалы: <b>{Object.keys(project.resource_requirements || {}).length}</b></span>
-          <span>Эффекты: <b>{Object.keys(project.expected_result || {}).length}</b></span>
+          <span className="project-data-line">Материалы при запуске: <b>{Object.entries(project.resource_requirements || {}).map(([key, value]) => `${resourceLabels[key] || key}: ${quantity(value, 2)}`).join(" · ") || "Не заданы"}</b></span>
+          <span className="project-data-line">Результат после завершения: <b>{describeEffects(project.expected_result || {})}</b></span>
         </div>
         <div className="progress-track"><i style={{ width: `${Math.min(100, project.progress_periods / Math.max(1, project.duration_periods) * 100)}%` }} /></div>
         <div className="progress-caption"><span>Ход исполнения</span><b>{project.progress_periods} / {project.duration_periods} периодов</b></div>
