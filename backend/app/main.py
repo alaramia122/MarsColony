@@ -5,16 +5,18 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .api import router
 from .projects_api import router as projects_router
+from .realtime import router as realtime_router
 from .db import SessionLocal
 
 
 app = FastAPI(
     title="MarsColony API",
-    version="0.2.0",
-    description="Authoritative game-state API for MarsColony.",
+    version="0.3.0",
+    description="Authoritative game-state API and realtime event stream for MarsColony.",
 )
 app.include_router(router)
 app.include_router(projects_router)
+app.include_router(realtime_router)
 
 
 @app.get("/health")
