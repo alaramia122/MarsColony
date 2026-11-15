@@ -55,6 +55,14 @@ const entityKindNames: Record<string, string> = {
   autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
 };
 const entityKindLabel = (kind: string) => entityKindNames[kind] || "Другие объекты";
+const responsibilityDomainNames: Record<string, string> = {
+  geology: "Геологоразведка и добыча", industry: "Промышленность и производство",
+  energy: "Энергетика", life_support: "Жизнеобеспечение", construction: "Строительство и инфраструктура",
+  agriculture: "Сельское хозяйство", medicine: "Медицина", social: "Социальное развитие",
+  education: "Образование", science: "Наука и технологии", planetary: "Планетология",
+  transport: "Транспорт и логистика", administration: "Администрация и экономика",
+  safety: "Безопасность", communications: "Связь", external_relations: "Внешнее снабжение"
+};
 const projectTypeNames: Record<string, string> = {
   construction: "Строительство", production: "Производство", repair: "Ремонт",
   research: "Исследование", exploration: "Разведка", procurement: "Закупка",
@@ -733,13 +741,13 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
       <section className="panel side-panel">
         <div className="panel-heading"><div><div className="eyebrow">ПРОЕКТНЫЙ ОФИС</div><h2>Проекты</h2></div><button className="text-button" onClick={onOpenProjects}>Все проекты ↗</button></div>
         {projects.length === 0 ? <div className="empty-state"><span>▤</span><strong>Пока нет проектов</strong><p>Здесь появятся инициативы и ход их исполнения.</p></div> :
-          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{projectStatusNames[project.status] || project.status} · {project.domain_codes.map((code) => domainLabels[code] || "Другое направление").join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
+          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{projectStatusNames[project.status] || "Неизвестный статус"} · {project.domain_codes.map((code) => responsibilityDomainNames[code] || "Другое направление").join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
       </section>
     </div>
     <section className="panel event-panel">
       <div className="panel-heading"><div><div className="eyebrow">ЛЕНТА СОБЫТИЙ</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · журнал событий PostgreSQL</span></div>
       {events.length === 0 ? <p className="muted">Ожидание событий игровой сессии.</p> : events.slice().reverse().map((event) =>
-        <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{event.event_type}</strong><span>{event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—"}</span></div>)}
+        <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{eventTypeLabel(event.event_type)}</strong><span>{event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—"}</span></div>)}
     </section>
   </>;
 }
