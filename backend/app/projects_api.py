@@ -467,9 +467,8 @@ def create_project(session_id: str, request: ProjectCreate,
                     if any(
                         properties.get(key) != value
                         for key, value in expected_properties.items()
-                        if key != "condition_loss_per_period"
-                    ):
-                        raise HTTPException(status_code=422, detail="Infrastructure economic effects and process bindings must exactly match the approved catalogue definition.")
+                    ) or properties.get("image_data_url") != entity.get("image_data_url"):
+                        raise HTTPException(status_code=422, detail="Infrastructure economic effects, image and process bindings must exactly match the approved catalogue definition.")
                 elif "economic_effects" in properties:
                     raise HTTPException(status_code=422, detail="Economic effects can only come from an approved infrastructure catalogue definition.")
                 condition = properties.get("condition", 1.0)
