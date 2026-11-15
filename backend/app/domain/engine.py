@@ -238,9 +238,14 @@ def advance_period(
             battery_soc = battery_charge_report["state_of_charge_end_kwh"]
         for allocation in dispatch["loads"]:
             group = next(
-                item for item in power["dispatch_groups"]
-                if item["id"] == allocation["load_id"]
+                (
+                    item for item in power["dispatch_groups"]
+                    if item["id"] == allocation["load_id"]
+                ),
+                None,
             )
+            if group is None:
+                continue
             process_id = group.get("process_id")
             if process_id:
                 process_energy_budgets[process_id] += (
