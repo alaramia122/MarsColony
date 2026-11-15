@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
