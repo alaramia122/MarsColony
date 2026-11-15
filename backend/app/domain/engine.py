@@ -76,7 +76,7 @@ def advance_period(
     oxygen_stocks, oxygen_process = execute_process(
         {"oxygen": ResourceStock(
             float(state["oxygen_kg"]),
-            float(scenario_stocks["oxygen_capacity_kg"]),
+            float(scenario_stocks["oxygen_storage_capacity_kg"]),
         )},
         {},
         {"oxygen": 1.0},
@@ -129,7 +129,7 @@ def advance_period(
             "raw_ice": ResourceStock(float(state["raw_ice_kg"])),
             "usable_water": ResourceStock(
                 float(state["usable_water_kg"]),
-                float(scenario_stocks["usable_water_capacity_kg"]),
+                float(scenario_stocks["water_storage_capacity_kg"]),
             ),
         },
         {"raw_ice": 1.0 / ice_yield},
