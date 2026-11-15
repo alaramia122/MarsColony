@@ -243,3 +243,37 @@ def create_project_from_ai_proposal(
             }
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/proposals/{proposal_id}/reject")
+def reject_ai_proposal(
+    session_id: str,
+    proposal_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            record = db.scalar(select(AIProposalRecord).where(
+                AIProposalRecord.id == proposal_id,
+                AIProposalRecord.session_id == session_id,
+            ).with_for_update())
+            if record is None:
+                raise HTTPException(status_code=404, detail="AI proposal not found.")
+            if record.status != "pending_review":
+                raise HTTPException(status_code=409, detail="AI proposal has already been processed.")
+            if actor.id != record.author_player_id and "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the proposal author or colony commander can reject it.")
+            record.status = "rejected"
+            record.updated_at = datetime.now(timezone.utc)
+            _append_event(db, session_id, "ai.proposal_rejected", {
+                "proposal_id": record.id, "rejected_by": actor.id,
+            })
+            return _serialize(record)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
