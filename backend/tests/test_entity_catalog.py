@@ -156,7 +156,11 @@ class InfrastructureEconomyTests(unittest.TestCase):
         self.assertAlmostEqual(mining["outputs_produced"]["raw_ice"], 120.0, places=5)
         self.assertGreater(mining["energy_used_kwh"], 0.0)
         self.assertGreater(mining["operating_cost_paid"], 0.0)
-        self.assertAlmostEqual(updated["raw_ice_kg"], state["raw_ice_kg"] + 120.0, places=5)
+        self.assertAlmostEqual(
+            updated["raw_ice_kg"],
+            state["raw_ice_kg"] + 120.0 - report["raw_ice_used_kg"],
+            places=5,
+        )
 
 
 if __name__ == "__main__":
