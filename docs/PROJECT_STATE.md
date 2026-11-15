@@ -65,6 +65,8 @@ Issue #9; PR #10; ветка `feat/stage3-web-clients-map`.
 - Командир назначает роли и зоны ответственности участникам через UI; ограничения назначения повторно проверяются backend.
 - Карта поддерживает фильтры по реально присутствующим типам инфраструктурных объектов.
 - История последних событий загружается из API и показывает серверные временные метки.
+- WebSocket-индикатор различает подключение и переподключение; при отозванном/неверном токене автоматические попытки прекращаются и отображается ошибка.
+- Сервер возвращает отдельный код закрытия для неизвестной сессии и недействительных учётных данных.
 - Командир продвигает игровой период из обзора с передачей `expected_period`.
 - Схематическая карта показывает объекты только с заданными координатами; остальные выводятся отдельно.
 - Docker Compose web service на порту 8080; Nginx проксирует HTTP и WebSocket к API.
@@ -72,7 +74,7 @@ Issue #9; PR #10; ветка `feat/stage3-web-clients-map`.
 
 WebSocket опрашивает PostgreSQL каждые 750 мс. Клиент воспринимает события как уведомления и перечитывает авторитетный HTTP snapshot. При reconnect сервер отправляет новый snapshot.
 
-CI на текущем кодовом head: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724427816), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724427805) — success. Подтверждены 72 backend tests, frontend typecheck/build, PostgreSQL migrations, Compose config/build/start, доступность web/API, продвижение периода и восстановление состояния после перезапуска PostgreSQL/API.
+CI на текущем кодовом head: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43724427816), [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43724427805) — success. Подтверждены 73 backend tests, frontend typecheck/build, PostgreSQL migrations, Compose config/build/start, доступность web/API, продвижение периода и восстановление состояния после перезапуска PostgreSQL/API.
 
 ## Остаточные проверки этапа 3
 
