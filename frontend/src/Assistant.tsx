@@ -16,7 +16,7 @@ type AIProposal = {
 type AIEvent = {
   id: string; status: string; period_created: number;
   proposal: {
-    title: string; category: string; severity: string; trigger: string;
+    title: string; category: string; severity: string; likelihood: number; trigger: string;
     narrative: string; player_options: string[]; consequences: string[];
     assumptions: string[];
   };
@@ -258,7 +258,7 @@ export default function Assistant({ sessionId, token, playerId, isCommander, can
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
             <span className={`status status-${item.status === "published" ? "approved" : item.status === "pending_review" ? "submitted" : "rejected"}`}>{item.status === "published" ? "Опубликовано" : item.status === "pending_review" ? "На проверке" : "Отклонено"}</span>
-            <span className="muted small">Период {item.period_created} · {item.proposal.severity}</span>
+            <span className="muted small">Период {item.period_created} · {item.proposal.severity} · вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
           </div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.narrative}</p>
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
