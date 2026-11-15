@@ -371,7 +371,15 @@ function AISettings() {
     ? "MARS_AI_PROVIDER=yandex_ai_studio\nMARS_AI_YANDEX_API_KEY=" + (apiKey || "<вставьте_ключ>") + "\nMARS_AI_YANDEX_FOLDER_ID=" + (folderId || "<идентификатор_каталога>") + "\nMARS_AI_YANDEX_MODEL=" + (model || "yandexgpt/latest")
     : "MARS_AI_PROVIDER=openai_compatible\nMARS_AI_BASE_URL=" + (baseUrl || "https://api.example.com/v1") + "\nMARS_AI_API_KEY=" + (apiKey || "<вставьте_ключ>") + "\nMARS_AI_MODEL=" + (model || "<название_модели>");
   const copyConfig = () => {
-    void navigator.clipboard.writeText(config).then(() => setNotice("Конфигурация скопирована. Вставьте её в .env рядом с docker-compose.yml и перезапустите API.")).catch(() => setNotice("Не удалось автоматически скопировать. Скопируйте конфигурацию из блока ниже вручную."));
+    if (!navigator.clipboard?.writeText) {
+      window.prompt("Скопируйте конфигурацию для .env:", config);
+      setNotice("Скопируйте конфигурацию в .env рядом с docker-compose.yml и перезапустите API.");
+      return;
+    }
+    void navigator.clipboard.writeText(config).then(() => setNotice("Конфигурация скопирована. Вставьте её в .env рядом с docker-compose.yml и перезапустите API.")).catch(() => {
+      window.prompt("Скопируйте конфигурацию для .env:", config);
+      setNotice("Скопируйте конфигурацию в .env рядом с docker-compose.yml и перезапустите API.");
+    });
   };
   return <div className="ai-settings-layout">
     <section className="panel">
