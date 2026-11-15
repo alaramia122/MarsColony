@@ -43,6 +43,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
     state = {
         "period": 0,
         "infrastructure": [],
+        "technologies": [],
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
         "power_load_kw_delta": 0.0,
@@ -193,7 +194,7 @@ def advance_period(
         active_loads.append({
             "load_id": "commissioned_infrastructure",
             "requested_kw": commissioned_load_kw,
-            "priority": 3,
+            "priority": 4,
             "minimum_kw": 0.0,
         })
     process_energy_budgets = {
