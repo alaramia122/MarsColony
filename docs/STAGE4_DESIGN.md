@@ -51,6 +51,7 @@
 - `POST /api/v1/sessions/{session_id}/ai/proposals` — преобразовать текст в предложение.
 - `GET /api/v1/sessions/{session_id}/ai/proposals` — список предложений сессии.
 - `POST /api/v1/sessions/{session_id}/ai/proposals/{proposal_id}/create-project` — явное создание проектного черновика.
+- `POST /api/v1/sessions/{session_id}/ai/proposals/{proposal_id}/reject` — явное отклонение предложения.
 
 Все endpoints требуют сессионный `X-Player-Token`. Полномочия повторно проверяются сервером. Повторное создание проекта из одного предложения блокируется.
 
