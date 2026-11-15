@@ -9,6 +9,7 @@ type CatalogEntity = {
   kind?: string; build?: Record<string, unknown>; research?: Record<string, unknown>;
   operation?: Record<string, unknown>; effects?: Record<string, unknown>;
 };
+type EntityProposal = { id: string; name: string; description: string; domain_codes: string[]; author_player_id: string; status: string };
 type SessionData = {
   id: string;
   scenario_id: string;
@@ -698,6 +699,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
+  const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
   const [catalogError, setCatalogError] = useState("");
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [entityFormOpen, setEntityFormOpen] = useState(false);
@@ -712,8 +714,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const canPropose = ["colony_commander", "domain_lead", "engineer"].some((role) => roleSet.has(role));
   useEffect(() => {
     let active = true;
-    request<{ entities: CatalogEntity[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token)
-      .then((result) => { if (active) { setCatalogEntities(result.entities); setCatalogError(""); } })
+    request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token)
+      .then((result) => { if (active) { setCatalogEntities(result.entities); setPendingEntityProposals(result.pending_proposals || []); setCatalogError(""); } })
       .catch((reason: Error) => { if (active) setCatalogError(reason.message); });
     return () => { active = false; };
   }, [auth.sessionId, auth.token]);
@@ -809,6 +811,20 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       setSaving(false);
     }
   };
+  const approveEntityProposal = async (proposal: EntityProposal) => {
+    setSaving(true);
+    try {
+      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals/" + proposal.id + "/approve", auth.token, { method: "POST" });
+      const result = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
+      setCatalogEntities(result.entities);
+      setPendingEntityProposals(result.pending_proposals || []);
+      setEntityProposalError("Новая сущность добавлена в общий каталог.");
+    } catch (reason) {
+      setEntityProposalError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const createProject = async () => {
     const requirements = Object.fromEntries(Object.entries(resourceInputs)
       .filter(([, value]) => value.trim() !== "" && Number(value) > 0)
@@ -867,6 +883,17 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       {canPropose && <button className="button button-primary" onClick={() => setFormOpen((value) => !value)}>{formOpen ? "Закрыть форму" : "＋ Новый проект"}</button>}
     </div>
     {actionError && <div className="alert">{actionError}<button onClick={() => setActionError("")}>×</button></div>}
+    {pendingEntityProposals.length > 0 && <section className="panel project-form">
+      <div className="eyebrow">ENTITY CATALOG REVIEW</div><h2>Новые типы на согласовании</h2>
+      {pendingEntityProposals.map((proposal) => {
+        const canReview = roleSet.has("colony_commander") || (roleSet.has("domain_lead") && proposal.domain_codes.every((domain) => (player?.responsibility_domains || []).includes(domain)));
+        return <div className="approval-history" key={proposal.id}>
+          <strong>{proposal.name}</strong><p>{proposal.description}</p>
+          <small>{proposal.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small>
+          <button className="button button-secondary" disabled={saving || !canReview || proposal.author_player_id === auth.playerId} title={!canReview ? "Нужны полномочия по всем затронутым направлениям." : proposal.author_player_id === auth.playerId ? "Автор не может согласовать собственную сущность." : undefined} onClick={() => void approveEntityProposal(proposal)}>Одобрить тип</button>
+        </div>;
+      })}
+    </section>}
     {formOpen && <section className="panel project-form">
       <div className="eyebrow">NEW PROJECT PROPOSAL</div><h2>Новая инициатива</h2>
       <div className="form-grid">
