@@ -1,12 +1,12 @@
 """HTTP API for creating and advancing authoritative game sessions."""
-from fastapi import APIRouter, HTTPException
+import hashlib\nimport secrets\n\nfrom fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import SessionLocal
 from .domain.engine import DomainError, advance_period, initial_state
-from .models import GameEventRecord, GameSessionRecord
+from .models import GameEventRecord, GameSessionRecord, PlayerRecord
 from .scenarios import ScenarioValidationError, load_scenario
 
 
@@ -41,24 +41,46 @@ def create_session(request: CreateSessionRequest) -> dict:
     except ScenarioValidationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
+    join_code = secrets.token_urlsafe(24)
+    owner_token = secrets.token_urlsafe(32)
+    token_hash = lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest()
     record = GameSessionRecord(
         scenario_id=scenario["scenario_id"],
         scenario_version=scenario["version"],
         scenario_snapshot=scenario,
+        invite_code_hash=token_hash(join_code),
         current_period=0,
         state=initial_state(scenario),
+        reserved_budget_credits=0.0,
+    )
+    owner = PlayerRecord(
+        session_id="", display_name="Командир колонии",
+        token_hash=token_hash(owner_token),
+        roles=["colony_commander"],
+        responsibility_domains=[
+            "geology", "industry", "energy", "life_support", "construction",
+            "agriculture", "medicine", "social", "education", "science",
+            "planetary", "transport", "administration", "safety",
+            "communications", "external_relations",
+        ],
     )
     try:
         with SessionLocal.begin() as db:
             db.add(record)
             db.flush()
+            owner.session_id = record.id
+            db.add(owner)
             db.add(GameEventRecord(
                 session_id=record.id,
                 sequence=0,
                 event_type="session.created",
                 payload={"scenario_id": scenario["scenario_id"], "version": scenario["version"]},
             ))
-        return serialize_session(record)
+        result = serialize_session(record)
+        result["owner_player_id"] = owner.id
+        result["owner_token"] = owner_token
+        result["join_code"] = join_code
+        return result
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
 
@@ -123,7 +145,12 @@ def advance_game_session(
             record.state = new_state
             db.add(GameEventRecord(
                 session_id=record.id,
-                sequence=next_period,
+                sequence=(
+                    (db.scalar(
+                        select(func.max(GameEventRecord.sequence))
+                        .where(GameEventRecord.session_id == record.id)
+                    ) or -1) + 1
+                ),
                 event_type="period.completed",
                 payload=report,
             ))
