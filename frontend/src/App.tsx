@@ -17,7 +17,7 @@ type Project = {
   domain_codes: string[]; budget_credits: number; progress_periods: number;
   duration_periods: number; labor_fte: number; energy_kwh_per_period: number;
   resource_requirements: Record<string, number>; expected_result: Record<string, unknown>;
-  approvals?: Array<{ decision: string }>;
+  approvals?: Array<{ player_id: string; decision: string; comment: string; approval_mode: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
 type View = "overview" | "map" | "projects" | "people" | "assistant" | "tutorial";
@@ -527,7 +527,13 @@ function ProjectList({ projects, auth, player, onRefresh }: {
           <span>Энергия: <b>{quantity(project.energy_kwh_per_period || 0, 1)} кВт·ч/период</b></span>
           <span className="project-data-line">Материалы при запуске: <b>{Object.entries(project.resource_requirements || {}).map(([key, value]) => `${resourceLabels[key] || key}: ${quantity(value, 2)}`).join(" · ") || "Не заданы"}</b></span>
           <span className="project-data-line">Результат после завершения: <b>{describeEffects(project.expected_result || {})}</b></span>
-        </div>
+        </div>        {project.approvals && project.approvals.length > 0 && <div className="approval-history">
+          <strong>История решений</strong>
+          {project.approvals.map((approval, index) => <p key={index}>
+            {approval.approval_mode === "commander_order" ? "Командирское распоряжение" : "Согласование"} · {approval.decision === "approve" ? "одобрено" : "отклонено"}
+            {approval.comment ? ` — ${approval.comment}` : ""}
+          </p>)}
+        </div>}
         <div className="progress-track"><i style={{ width: `${Math.min(100, project.progress_periods / Math.max(1, project.duration_periods) * 100)}%` }} /></div>
         <div className="progress-caption"><span>Ход исполнения</span><b>{project.progress_periods} / {project.duration_periods} периодов</b></div>
         <div className="project-actions">
