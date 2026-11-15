@@ -530,6 +530,10 @@ function Login({ busy, error, onCreate, onJoin }: {
               <span className="starter-preset-description">{preset.description}</span>
               <span className="starter-preset-stats"><b>{objectCount}</b> объектов · <b>{domainCount}</b> направлений</span>
               <span className="starter-preset-domains">{Object.entries(preset.domain_packs).map(([domain, items]) => <span key={domain}>{domainLabels[domain] || domain}: {items.reduce((sum, item) => sum + (item.quantity || 1), 0)}</span>)}</span>
+              <details className="starter-preset-details">
+                <summary>Состав комплекта по направлениям</summary>
+                {Object.entries(preset.domain_packs).map(([domain, items]) => <div key={domain}><strong>{domainLabels[domain] || domain}</strong><span>{items.map((item) => item.quantity && item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name).join(", ")}</span></div>)}
+              </details>
               <span className="starter-preset-tradeoff">Особенность: {preset.tradeoffs}</span>
             </button>;
           })}
