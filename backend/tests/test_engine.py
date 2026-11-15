@@ -57,6 +57,15 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(report["water_output_kg"], 80.0)
         self.assertGreater(report["raw_ice_shortfall_kg"], 0.0)
 
+    def test_scheduled_reactor_service_checks_critical_reserve(self):
+        state = initial_state(SCENARIO)
+        _, report = advance_period(SCENARIO, state, 2)
+        service = report["power_service"]
+        self.assertEqual(service["modules_online"], 1)
+        self.assertAlmostEqual(service["available_kw"], 36.0)
+        self.assertAlmostEqual(service["battery_required_kwh"], 96.0)
+        self.assertTrue(service["within_reserve"])
+
 
 if __name__ == "__main__":
     unittest.main()
