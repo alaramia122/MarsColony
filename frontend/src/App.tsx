@@ -7,9 +7,9 @@ type StarterPreset = { id: string; name: string; tagline: string; description: s
 type CatalogEntity = {
   id: string; entity_type: string; name: string; description: string; domain_codes: string[];
   kind?: string; build?: Record<string, unknown>; research?: Record<string, unknown>;
-  operation?: Record<string, unknown>; effects?: Record<string, unknown>;
+  operation?: Record<string, unknown>; effects?: Record<string, unknown>; image_data_url?: string | null;
 };
-type EntityProposal = { id: string; name: string; description: string; domain_codes: string[]; author_player_id: string; status: string };
+type EntityProposal = { id: string; name: string; description: string; domain_codes: string[]; author_player_id: string; status: string; image_data_url?: string | null };
 type SessionData = {
   id: string;
   scenario_id: string;
@@ -670,7 +670,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
-    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3><p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
+    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
     {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {String(asset.kind || "other")}</span>)}</div>}
     {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
@@ -707,6 +707,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [newEntityDomains, setNewEntityDomains] = useState<string[]>(player?.responsibility_domains?.length ? player.responsibility_domains : ["life_support"]);
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityDescription, setNewEntityDescription] = useState("");
+  const [newEntityImage, setNewEntityImage] = useState<string>("");
   const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
   const [entityProposalError, setEntityProposalError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -815,11 +816,13 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         body: JSON.stringify({
           entity_type: newEntityType, name: newEntityName,
           description: newEntityDescription, domain_codes: newEntityDomains,
-          definition, source_text: "Создано игроком через проектный офис."
+          definition, source_text: "Создано игроком через проектный офис.",
+          image_data_url: newEntityImage || null
         })
       });
       setNewEntityName("");
       setNewEntityDescription("");
+      setNewEntityImage("");
       setEntityFormOpen(false);
       const latestCatalog = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
       setCatalogEntities(latestCatalog.entities);
@@ -937,6 +940,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       {pendingEntityProposals.map((proposal) => {
         const canReview = roleSet.has("colony_commander") || (roleSet.has("domain_lead") && proposal.domain_codes.every((domain) => (player?.responsibility_domains || []).includes(domain)));
         return <div className="approval-history" key={proposal.id}>
+          {proposal.image_data_url && <img className="entity-reference-image approval-image" src={proposal.image_data_url} alt={`Внешний вид: ${proposal.name}`} />}
           <strong>{proposal.name}</strong><p>{proposal.description}</p>
           <small>{proposal.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small>
           <button className="button button-secondary" disabled={saving || !canReview || (proposal.author_player_id === auth.playerId && !roleSet.has("colony_commander"))} title={!canReview ? "Нужны полномочия по всем затронутым направлениям." : proposal.author_player_id === auth.playerId ? "Командирское распоряжение потребует письменного обоснования." : undefined} onClick={() => void approveEntityProposal(proposal)}>Одобрить тип</button>
@@ -964,6 +968,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
             const selected = selectedCatalogIds.includes(entity.id);
             return <label className="catalog-entity-option" key={entity.id}>
               <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
+              {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
               <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : entity.entity_type === "procedure" ? "Процедура" : entity.entity_type === "process" ? "Процесс" : entity.entity_type === "equipment" ? "Оборудование" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
             </label>;
           })}
@@ -984,6 +989,33 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           }}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
           <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
           <label>Описание<textarea value={newEntityDescription} onChange={(event) => setNewEntityDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Назначение, ограничения и принцип работы" /></label>
+          <label>Фотография или изображение объекта
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+                setEntityProposalError("Поддерживаются изображения JPEG, PNG и WebP.");
+                event.target.value = "";
+                return;
+              }
+              if (file.size > 4 * 1024 * 1024) {
+                setEntityProposalError("Размер исходного изображения не должен превышать 4 МиБ.");
+                event.target.value = "";
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === "string") {
+                  setNewEntityImage(reader.result);
+                  setEntityProposalError("");
+                }
+              };
+              reader.onerror = () => setEntityProposalError("Не удалось прочитать выбранное изображение.");
+              reader.readAsDataURL(file);
+            }} />
+            <small>JPEG, PNG или WebP, до 4 МиБ. Сервер удалит метаданные и сохранит оптимизированную копию.</small>
+          </label>
+          {newEntityImage && <div className="entity-image-preview"><img className="entity-reference-image" src={newEntityImage} alt="Предпросмотр внешнего вида новой сущности" /><button type="button" className="button button-quiet small-button" onClick={() => setNewEntityImage("")}>Убрать изображение</button></div>}
           <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
           <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
           <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
