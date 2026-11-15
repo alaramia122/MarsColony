@@ -813,6 +813,15 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     `${entity.name} ${entity.entity_type} ${entity.description} ${entity.domain_codes.join(" ")}`
       .toLocaleLowerCase("ru-RU").includes(catalogSearch.trim().toLocaleLowerCase("ru-RU"))
   );
+  const catalogGroups = [
+    { id: "infrastructure", title: "Инфраструктура и оборудование", types: ["infrastructure", "equipment"] },
+    { id: "vehicles", title: "Транспорт и техника", types: ["vehicle"] },
+    { id: "technology", title: "Технологии и научные разработки", types: ["technology"] },
+    { id: "processes", title: "Процессы и процедуры", types: ["process", "procedure"] }
+  ].map((group) => ({
+    ...group,
+    items: filteredCatalogEntities.filter((entity) => group.types.includes(entity.entity_type))
+  })).filter((group) => group.items.length > 0);
   const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
@@ -1039,16 +1048,23 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           <input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Название, тип или назначение" />
         </label>
         <p className="field-help">Показано {filteredCatalogEntities.length} из {catalogEntities.length} типов.</p>
-        <div className="catalog-entity-list">
-          {filteredCatalogEntities.map((entity) => {
-            const build = entity.build || entity.research || {};
-            const selected = selectedCatalogIds.includes(entity.id);
-            return <label className="catalog-entity-option" key={entity.id}>
-              <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
-              {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
-              <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : entity.entity_type === "procedure" ? "Процедура" : entity.entity_type === "process" ? "Процесс" : entity.entity_type === "equipment" ? "Оборудование" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
-            </label>;
-          })}
+        <div className="catalog-groups">
+          {catalogGroups.map((group) => <details className="catalog-group" key={group.id} open>
+            <summary><strong>{group.title}</strong><span>{group.items.length} позиций</span></summary>
+            <div className="catalog-entity-list">
+              {group.items.map((entity) => {
+                const build = entity.build || entity.research || {};
+                const selected = selectedCatalogIds.includes(entity.id);
+                const typeLabel = entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : entity.entity_type === "procedure" ? "Процедура" : entity.entity_type === "process" ? "Процесс" : entity.entity_type === "equipment" ? "Оборудование" : "Инфраструктура";
+                return <label className="catalog-entity-option" key={entity.id}>
+                  <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
+                  {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
+                  <span><strong>{entity.name}</strong><small>{typeLabel} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+                </label>;
+              })}
+            </div>
+          </details>)}
+          {catalogGroups.length === 0 && <p className="field-help">По заданному запросу ничего не найдено.</p>}
         </div>
         {selectedCatalogEntities.length > 0 && <p className="field-help">Выбрано сущностей: {selectedCatalogEntities.length}. Их зоны ответственности добавлены к проекту; параметры проекта должны покрывать суммарные требования.</p>}
         <button type="button" className="button button-secondary" onClick={() => setEntityFormOpen((value) => !value)}>{entityFormOpen ? "Закрыть создание типа" : "＋ Предложить новый тип сущности"}</button>
