@@ -575,10 +575,10 @@ def clarify_ai_proposal(
             if actor.id != record.author_player_id and "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the proposal author or colony commander can clarify it.")
             provider = configured_provider()
-            _reserve_ai_request(db, session_id, actor)
             dialogue = list(record.dialogue or [])
             if len(dialogue) >= 20:
                 raise HTTPException(status_code=409, detail="The clarification limit for this proposal has been reached.")
+            _reserve_ai_request(db, session_id, actor)
             context = build_provider_context(session, actor)
             context_period = session.current_period
             context_sequence = _latest_event_sequence(db, session_id)
