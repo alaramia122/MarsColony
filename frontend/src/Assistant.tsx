@@ -246,13 +246,13 @@ export default function Assistant({ sessionId, token, isCommander, canProposeEnt
         </article>)}</div>}
     </section>
 
-    {isCommander && <section className="panel assistant-panel">
+    <section className="panel assistant-panel">
       <div className="panel-heading"><div><div className="eyebrow">SCENARIO DIRECTOR</div><h2>Сценарные события</h2></div><span className="count-chip">{events.length}</span></div>
-      <p className="muted assistant-help">ИИ предлагает событие на основе текущего состояния колонии. Командир решает, включать ли его в игру.</p>
-      <div className="assistant-toolbar event-generation">
+      <p className="muted assistant-help">Сценарные карточки, подготовленные ИИ-ведущим и опубликованные командиром.</p>
+      {isCommander && <div className="assistant-toolbar event-generation">
         <input value={eventFocus} onChange={(event) => setEventFocus(event.target.value)} maxLength={1000} placeholder="Фокус события, например: внешняя логистика или пылевая буря" />
         <button className="button button-primary" disabled={Boolean(busy)} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
-      </div>
+      </div>}
       {events.length === 0 ? <p className="muted assistant-empty">Событий пока нет.</p> :
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
@@ -263,12 +263,12 @@ export default function Assistant({ sessionId, token, isCommander, canProposeEnt
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
           <BriefingList title="Варианты действий" items={item.proposal.player_options} />
           <BriefingList title="Возможные последствия" items={item.proposal.consequences} />
-          {item.status === "pending_review" && <div className="assistant-actions">
+          {isCommander && item.status === "pending_review" && <div className="assistant-actions">
             <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void eventAction(item, "publish")}>Опубликовать в сессии</button>
             <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void eventAction(item, "reject")}>Отклонить</button>
           </div>}
         </article>)}</div>}
-    </section>}
+    </section>
 
 
     <section className="panel assistant-panel">
