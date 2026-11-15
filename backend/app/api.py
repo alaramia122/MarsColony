@@ -2,7 +2,7 @@
 import hashlib
 import secrets
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,6 +22,21 @@ class CreateSessionRequest(BaseModel):
 
 class AdvancePeriodRequest(BaseModel):
     expected_period: int | None = Field(default=None, ge=0)
+
+
+
+
+def _authenticate_player(db, session_id: str, token: str | None) -> PlayerRecord:
+    if not token:
+        raise HTTPException(status_code=401, detail="Player token is required.")
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    player = db.scalar(select(PlayerRecord).where(
+        PlayerRecord.session_id == session_id,
+        PlayerRecord.token_hash == digest,
+    ))
+    if player is None:
+        raise HTTPException(status_code=401, detail="Invalid player token for this session.")
+    return player
 
 
 def serialize_session(record: GameSessionRecord) -> dict:
@@ -90,9 +105,13 @@ def create_session(request: CreateSessionRequest) -> dict:
 
 
 @router.get("/sessions/{session_id}")
-def get_session(session_id: str) -> dict:
+def get_session(
+    session_id: str,
+    player_token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
     try:
         with SessionLocal() as db:
+            player = _authenticate_player(db, session_id, player_token)
             record = db.get(GameSessionRecord, session_id)
             if record is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
@@ -120,9 +139,13 @@ def get_session(session_id: str) -> dict:
 def advance_game_session(
     session_id: str,
     request: AdvancePeriodRequest | None = None,
+    player_token: str | None = Header(default=None, alias="X-Player-Token"),
 ) -> dict:
     try:
         with SessionLocal.begin() as db:
+            player = _authenticate_player(db, session_id, player_token)
+            if "colony_commander" not in (player.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can advance the period.")
             record = db.scalar(
                 select(GameSessionRecord)
                 .where(GameSessionRecord.id == session_id)
