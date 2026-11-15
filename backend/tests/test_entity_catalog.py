@@ -77,6 +77,41 @@ class InfrastructureEconomyTests(unittest.TestCase):
         self.assertAlmostEqual(updated["infrastructure"][0]["condition"], 0.495)
         self.assertAlmostEqual(state["infrastructure"][0]["properties"]["condition"], 0.5)
 
+    def test_starter_solar_and_battery_assets_control_installed_energy_capacity(self):
+        scenario = deepcopy(SCENARIO)
+        scenario["initial_infrastructure"] = [
+            {
+                "id": "SOLAR-1",
+                "name": "Солнечная ферма",
+                "kind": "solar_array",
+                "domain_codes": ["energy"],
+                "properties": {"condition": 0.5, "status": "commissioned", "power_generation_binding": True},
+            },
+            {
+                "id": "BATTERY-1",
+                "name": "Аккумуляторный блок",
+                "kind": "battery_storage",
+                "domain_codes": ["energy"],
+                "properties": {"condition": 1.0, "status": "commissioned", "battery_storage_binding": True},
+            },
+            {
+                "id": "BATTERY-2",
+                "name": "Дополнительный аккумулятор",
+                "kind": "large_battery_bank",
+                "domain_codes": ["energy"],
+                "properties": {
+                    "condition": 1.0,
+                    "status": "commissioned",
+                    "economic_effects": {"battery_capacity_kwh": 500.0},
+                },
+            },
+        ]
+        state = initial_state(scenario)
+        _, report = advance_period(scenario, state, 1)
+        self.assertAlmostEqual(report["starter_solar_generation_factor"], 0.5)
+        self.assertAlmostEqual(report["available_generation_kw"], 36.0)
+        self.assertAlmostEqual(report["battery"]["capacity_kwh"], 1500.0)
+
     def test_research_technology_increases_matching_asset_process_output(self):
         scenario = deepcopy(SCENARIO)
         scenario["initial_infrastructure"] = [{
