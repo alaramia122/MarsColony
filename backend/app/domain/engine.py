@@ -503,6 +503,13 @@ def advance_period(
     condition_reports = []
     for asset in infrastructure:
         properties = asset.get("properties", {})
+        effects = _asset_economic_effects(asset)
+        if (
+            not effects
+            and not properties.get("starter_asset")
+            and "condition_loss_per_period" not in properties
+        ):
+            continue
         if asset.get("status", properties.get("status", "commissioned")) not in {"commissioned", "operational"}:
             continue
         condition_before = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
