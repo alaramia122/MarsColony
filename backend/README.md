@@ -21,12 +21,26 @@ uvicorn backend.app.main:app --reload
 - `GET /health` — process health.
 - `POST /api/v1/sessions` — create a session from a versioned scenario. Body: `{"scenario_id":"ares-01"}`.
 - `GET /api/v1/sessions/{session_id}` — read the current state and append-only event history.
-- `POST /api/v1/sessions/{session_id}/advance` — calculate and persist the next period.
+- `POST /api/v1/sessions/{session_id}/advance` — calculate and persist the next period. Optional body: `{"expected_period":0}`. Supplying the period observed by the client prevents a stale or repeated command from advancing a newer state.
 
 The backend is the authoritative state owner. Clients submit domain commands; they do not send replacement game-state snapshots. Period advancement is performed in a database transaction and locks the session row while calculating the next state.
 
+Each session stores the exact scenario definition used at creation. Later edits to the scenario file therefore affect new sessions while existing sessions continue with their original parameters.
+
+## Domain calculation modules
+
+- `backend/app/domain/engine.py` — Ares-1 campaign calculation and compatibility layer.
+- `backend/app/domain/resources.py` — deterministic material-process execution, input constraints, energy use and storage capacity.
+- `backend/app/domain/energy.py` — priority-based electrical load dispatch with minimum stable loads.
+
+The resource and energy modules are scenario-independent domain primitives. Scenario-specific recipes and dispatch tables can be added without changing their calculation rules.
+
+## Persistence and validation
+
+The schema is versioned with Alembic. Scenario snapshots and session state are stored in PostgreSQL; each completed period appends a report event in the same transaction. The CI workflow applies migrations to PostgreSQL 16 before running the integration suite against that database.
+
+The Compose stack starts PostgreSQL and the API. Database credentials can be overridden with `POSTGRES_PASSWORD`; the default is intended for local development only.
+
 ## Current development boundary
 
-The first vertical slice implements the Ares-1 oxygen, food, water, raw-ice, energy-summary and operating-budget balances. Role permissions, player authentication, project execution, detailed energy dispatch, and WebSocket synchronization are subsequent work packages. The initial API is intended for a trusted development LAN; authentication and authorization are required before exposing it beyond that environment.
-
-The schema is versioned with Alembic. Scenario JSON remains the versioned source for initial conditions and scripted events.
+This stage establishes reusable material and electrical calculation primitives and a persistent Ares-1 campaign. Detailed scenario production recipes, battery state-of-charge and charge/discharge efficiencies, projects, player permissions, authentication, WebSocket synchronization and frontend remain subsequent work. The initial API is intended for a trusted development LAN; authentication and authorization are required before exposing it beyond that environment.
