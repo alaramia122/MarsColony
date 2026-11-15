@@ -47,14 +47,15 @@ class SessionPersistenceTests(unittest.TestCase):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         self.assertEqual(created["current_period"], 0)
         session_id = created["id"]
+        owner_token = created["owner_token"]
 
         first_period = api.advance_game_session(
-            session_id, AdvancePeriodRequest(expected_period=0)
+            session_id, AdvancePeriodRequest(expected_period=0), player_token=owner_token
         )
         self.assertEqual(first_period["current_period"], 1)
         self.assertEqual(first_period["report"]["event_id"], "EVT-O2-ISRU-DEGRADATION")
 
-        restored = api.get_session(session_id)
+        restored = api.get_session(session_id, owner_token)
         self.assertEqual(restored["current_period"], 1)
         self.assertEqual(len(restored["events"]), 2)
         self.assertEqual(restored["events"][0]["type"], "session.created")
@@ -63,30 +64,33 @@ class SessionPersistenceTests(unittest.TestCase):
     def test_session_snapshot_is_used_after_scenario_file_changes(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
 
         def scenario_is_unavailable(_scenario_id):
             raise FileNotFoundError("Scenario file has changed or moved.")
 
         api.load_scenario = scenario_is_unavailable
-        advanced = api.advance_game_session(session_id)
+        advanced = api.advance_game_session(session_id, player_token=owner_token)
         self.assertEqual(advanced["current_period"], 1)
 
     def test_stale_expected_period_is_rejected_without_mutating_session(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
-        api.advance_game_session(session_id, AdvancePeriodRequest(expected_period=0))
+        owner_token = created["owner_token"]
+        api.advance_game_session(session_id, AdvancePeriodRequest(expected_period=0), player_token=owner_token)
 
         with self.assertRaises(HTTPException) as error:
-            api.advance_game_session(session_id, AdvancePeriodRequest(expected_period=0))
+            api.advance_game_session(session_id, AdvancePeriodRequest(expected_period=0), player_token=owner_token)
         self.assertEqual(error.exception.status_code, 409)
 
-        restored = api.get_session(session_id)
+        restored = api.get_session(session_id, owner_token)
         self.assertEqual(restored["current_period"], 1)
         self.assertEqual(len(restored["events"]), 2)
 
     def test_failed_event_insert_rolls_back_period_state(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
         original_state = dict(created["state"])
         with self.session_factory.begin() as db:
             db.add(GameEventRecord(
@@ -103,7 +107,7 @@ class SessionPersistenceTests(unittest.TestCase):
             )
         self.assertEqual(error.exception.status_code, 503)
 
-        restored = api.get_session(session_id)
+        restored = api.get_session(session_id, owner_token)
         self.assertEqual(restored["current_period"], 0)
         self.assertEqual(restored["state"], original_state)
         self.assertEqual(
@@ -114,14 +118,15 @@ class SessionPersistenceTests(unittest.TestCase):
     def test_session_reaches_scenario_end_and_rejects_extra_period(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
         for expected_period in range(1, 5):
             result = api.advance_game_session(
-                session_id, AdvancePeriodRequest(expected_period=expected_period - 1)
+                session_id, AdvancePeriodRequest(expected_period=expected_period - 1), player_token=owner_token
             )
             self.assertEqual(result["current_period"], expected_period)
 
         with self.assertRaises(HTTPException) as error:
-            api.advance_game_session(session_id)
+            api.advance_game_session(session_id, player_token=owner_token)
         self.assertEqual(error.exception.status_code, 409)
 
 
