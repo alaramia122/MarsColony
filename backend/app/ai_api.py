@@ -68,8 +68,11 @@ def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) 
     }
     if not isinstance(effects, dict) or not set(effects).issubset(allowed):
         raise HTTPException(status_code=422, detail="AI proposal contains unsupported project effects.")
-    for resource_id, quantity in effects.get("resource_outputs_per_period", {}).items():
-        if resource_id not in catalog or not math.isfinite(float(quantity)) or quantity <= 0:
+    outputs = effects.get("resource_outputs_per_period", {})
+    if not isinstance(outputs, dict):
+        raise HTTPException(status_code=422, detail="AI proposal resource outputs must be an object.")
+    for resource_id, quantity in outputs.items():
+        if resource_id not in catalog or isinstance(quantity, bool) or not isinstance(quantity, (int, float)) or not math.isfinite(float(quantity)) or quantity <= 0:
             raise HTTPException(status_code=422, detail=f"AI proposal has an invalid output resource: {resource_id}.")
     for key in ("power_generation_kw_delta", "power_load_kw_delta"):
         value = effects.get(key, 0.0)
@@ -81,6 +84,9 @@ def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) 
     for item in infrastructure:
         if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip() or not isinstance(item.get("kind"), str) or not item["kind"].strip() or not isinstance(item.get("properties", {}), dict):
             raise HTTPException(status_code=422, detail="AI proposal infrastructure entries require name, kind and properties.")
+        condition = item.get("properties", {}).get("condition", 1.0)
+        if isinstance(condition, bool) or not isinstance(condition, (int, float)) or not math.isfinite(float(condition)) or not 0 <= float(condition) <= 1:
+            raise HTTPException(status_code=422, detail="AI proposal infrastructure condition must be between zero and one.")
     repairs = effects.get("infrastructure_repairs", [])
     if not isinstance(repairs, list):
         raise HTTPException(status_code=422, detail="AI proposal repairs must be a list.")
@@ -93,7 +99,7 @@ def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) 
         raise HTTPException(status_code=422, detail="AI proposal technology unlocks must be a list.")
     seen = set()
     for item in technologies:
-        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip() or not isinstance(item.get("name"), str) or not item["name"].strip() or isinstance(item.get("level", 1), bool) or not isinstance(item.get("level", 1), int) or item.get("level", 1) < 1 or item.get("id") in seen:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip() or not isinstance(item.get("name"), str) or not item["name"].strip() or isinstance(item.get("level", 1), bool) or not isinstance(item.get("level", 1), int) or item.get("level", 1) < 1 or not isinstance(item.get("description", ""), str) or item.get("id") in seen:
             raise HTTPException(status_code=422, detail="AI proposal contains an invalid technology unlock.")
         seen.add(item["id"])
 
