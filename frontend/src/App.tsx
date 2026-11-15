@@ -136,6 +136,8 @@ export default function App() {
 
   const leave = () => {
     sessionStorage.removeItem("marscolony.auth");
+    sessionStorage.removeItem("marscolony.previousAuth");
+    setPreviousAuth(null);
     setAuth(null);
     setSession(null);
     setConnected(false); setReconnecting(false);
