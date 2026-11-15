@@ -35,6 +35,27 @@ type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistan
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
+const entityKindNames: Record<string, string> = {
+  power_unit: "Энергетическая установка", battery_storage: "Накопитель энергии",
+  mining_unit: "Добывающая установка", water_recycler: "Установка переработки воды",
+  oxygen_plant: "Кислородная установка", greenhouse: "Теплица", habitat: "Жилой модуль",
+  medical_unit: "Медицинский блок", rover: "Марсоход", workshop: "Мастерская",
+  communications: "Средства связи", industrial_unit: "Промышленная установка",
+  drilling_rig: "Буровая установка", survey_rover: "Разведывательный марсоход",
+  maintenance_workshop: "Ремонтная мастерская", solar_array: "Солнечная батарея",
+  atmosphere_control: "Система контроля атмосферы", water_recycling: "Система водооборота",
+  habitat_module: "Жилой модуль", research_lab: "Исследовательская лаборатория",
+  weather_station: "Метеостанция", command_center: "Командный центр",
+  logistics_store: "Логистический склад", emergency_shelter: "Аварийное укрытие",
+  fire_suppression: "Система пожаротушения", communications_mast: "Мачта связи",
+  cargo_landing_zone: "Грузовая посадочная площадка", ice_mining_rig: "Комплекс добычи льда",
+  regolith_processing_plant: "Завод переработки реголита",
+  additive_manufacturing_cell: "Установка аддитивного производства",
+  cargo_hauler: "Грузовой транспорт", cargo_handling_crane: "Грузовой кран",
+  autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
+};
+const entityKindLabel = (kind: string) => entityKindNames[kind] || kind.replaceAll("_", " ");
+
 const quantity = (value: number, digits = 1) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: digits }).format(value);
 const numberAt = (source: Record<string, unknown>, key: string) => {
   const value = source[key];
@@ -699,7 +720,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
     <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
-      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
+      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)} >{entityKindLabel(kind)}</button>)}
     </div>
     <div className="map-canvas">
       <div className="map-grid" /><div className="map-horizon" />
@@ -733,7 +754,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
     {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
-    {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {String(asset.kind || "other")}</span>)}</div>}
+    {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {entityKindLabel(String(asset.kind || "other"))}</span>)}</div>}
     {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
 }
