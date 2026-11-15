@@ -2,6 +2,7 @@ import unittest
 
 from backend.app.domain.engine import initial_state
 from backend.app.presets import apply_starter_preset, load_starter_presets
+from backend.app.entity_catalog import load_entity_catalog
 from backend.app.scenarios import load_scenario
 
 
@@ -26,8 +27,18 @@ class StarterInfrastructurePresetTests(unittest.TestCase):
                 expected_domains,
             )
             self.assertTrue(all(asset["properties"]["starter_asset"] for asset in assets))
-            self.assertTrue(any(asset["properties"]["simulation_effects"] == "modeled" for asset in assets))
-            self.assertTrue(any(asset["properties"]["simulation_effects"] == "not_modeled" for asset in assets))
+            self.assertTrue(all(asset["properties"]["simulation_effects"] == "modeled" for asset in assets))
+
+    def test_every_starter_kind_has_an_economic_or_process_contract(self):
+        starter = load_starter_presets("ares-01")
+        entity_catalogue = load_entity_catalog("ares-01")
+        starter_kinds = {
+            asset["kind"]
+            for preset in starter["presets"]
+            for assets in preset["domain_packs"].values()
+            for asset in assets
+        }
+        self.assertEqual(starter_kinds, set(entity_catalogue["starter_kind_overrides"]))
 
     def test_catalogue_contracts_are_attached_to_matching_starter_assets(self):
         scenario = apply_starter_preset(load_scenario("ares-01"), "balanced")
