@@ -265,7 +265,8 @@ def create_project(session_id: str, request: ProjectCreate,
                 raise HTTPException(status_code=422, detail="Project title and description are required.")
             allowed_effects = {
                 "resource_outputs_per_period", "power_generation_kw_delta",
-                "power_load_kw_delta", "infrastructure"
+                "power_load_kw_delta", "infrastructure",
+                "infrastructure_repairs", "technology_unlocks"
             }
             if not set(request.expected_result).issubset(allowed_effects):
                 raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
@@ -309,6 +310,48 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not isinstance(item.get("properties", {}), dict)
                 ):
                     raise HTTPException(status_code=422, detail="Each infrastructure item requires a name and kind.")
+                condition = item.get("properties", {}).get("condition", 1.0)
+                if (
+                    isinstance(condition, bool)
+                    or not isinstance(condition, (int, float))
+                    or not math.isfinite(float(condition))
+                    or not 0.0 <= float(condition) <= 1.0
+                ):
+                    raise HTTPException(status_code=422, detail="Infrastructure condition must be between zero and one.")
+            repairs = request.expected_result.get("infrastructure_repairs", [])
+            if not isinstance(repairs, list):
+                raise HTTPException(status_code=422, detail="Infrastructure repairs must be a list.")
+            for repair in repairs:
+                delta = repair.get("condition_delta") if isinstance(repair, dict) else None
+                if (
+                    not isinstance(repair, dict)
+                    or not isinstance(repair.get("infrastructure_id"), str)
+                    or not repair["infrastructure_id"]
+                    or isinstance(delta, bool)
+                    or not isinstance(delta, (int, float))
+                    or not math.isfinite(float(delta))
+                    or not 0 < float(delta) <= 1
+                ):
+                    raise HTTPException(status_code=422, detail="Each repair requires an infrastructure ID and a condition delta in (0, 1].")
+            technology_unlocks = request.expected_result.get("technology_unlocks", [])
+            if not isinstance(technology_unlocks, list):
+                raise HTTPException(status_code=422, detail="Technology unlocks must be a list.")
+            technology_ids = set()
+            for technology in technology_unlocks:
+                if (
+                    not isinstance(technology, dict)
+                    or not isinstance(technology.get("id"), str)
+                    or not technology["id"].strip()
+                    or not isinstance(technology.get("name"), str)
+                    or not technology["name"].strip()
+                    or isinstance(technology.get("level", 1), bool)
+                    or not isinstance(technology.get("level", 1), int)
+                    or technology.get("level", 1) < 1
+                    or not isinstance(technology.get("description", ""), str)
+                    or technology.get("id") in technology_ids
+                ):
+                    raise HTTPException(status_code=422, detail="Each technology unlock requires a unique ID, name and positive integer level.")
+                technology_ids.add(technology["id"])
             db.add(project)
             db.flush()
             append_event(db, session_id, "project.created", {
@@ -593,10 +636,53 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                     "commissioned_period": session.current_period,
                     "project_id": project.id,
                     "properties": item.get("properties", {}),
+                    "condition": float(item.get("properties", {}).get("condition", 1.0)),
                 }
                 infrastructure.append(asset)
                 commissioned.append(asset)
             state["infrastructure"] = infrastructure
+            repaired_assets = []
+            for repair in expected.get("infrastructure_repairs", []):
+                asset = next(
+                    (item for item in infrastructure
+                     if item["id"] == repair["infrastructure_id"]),
+                    None,
+                )
+                if asset is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Infrastructure asset '{repair['infrastructure_id']}' no longer exists.",
+                    )
+                old_condition = float(asset.get("condition", 1.0))
+                asset["condition"] = min(
+                    1.0, old_condition + float(repair["condition_delta"])
+                )
+                repaired_assets.append({
+                    "infrastructure_id": asset["id"],
+                    "condition_before": old_condition,
+                    "condition_after": asset["condition"],
+                })
+            technologies = list(state.get("technologies", []))
+            existing_technology_ids = {item["id"] for item in technologies}
+            unlocked_technologies = []
+            for technology in expected.get("technology_unlocks", []):
+                if technology["id"] in existing_technology_ids:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Technology '{technology['id']}' is already unlocked.",
+                    )
+                unlocked = {
+                    "id": technology["id"],
+                    "name": technology["name"].strip(),
+                    "description": technology.get("description", "").strip(),
+                    "level": technology.get("level", 1),
+                    "unlocked_period": session.current_period,
+                    "project_id": project.id,
+                }
+                technologies.append(unlocked)
+                unlocked_technologies.append(unlocked)
+                existing_technology_ids.add(technology["id"])
+            state["technologies"] = technologies
             session.state = state
             project.status = "completed"
             project.completed_period = session.current_period
@@ -607,6 +693,8 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 "power_generation_kw_delta": expected.get("power_generation_kw_delta", 0.0),
                 "power_load_kw_delta": expected.get("power_load_kw_delta", 0.0),
                 "infrastructure": commissioned,
+                "infrastructure_repairs": repaired_assets,
+                "technology_unlocks": unlocked_technologies,
             })
             append_event(db, session_id, "project.completed", {
                 "project_id": project.id, "completed_by": actor.id,
