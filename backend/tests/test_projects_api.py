@@ -152,7 +152,7 @@ class ProjectWorkflowTests(unittest.TestCase):
             self.owner_token,
         )
         self.assertEqual(completed["status"], "completed")
-        self.assertEqual(completed["version"], 6)
+        self.assertEqual(completed["version"], 8)
 
         state = api.get_session(self.session_id, self.owner_token)
         self.assertEqual(state["state"]["budget_credits"], 405.0)
