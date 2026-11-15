@@ -1,14 +1,41 @@
+import asyncio
 import unittest
 
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.websockets import WebSocketDisconnect
 
 from backend.app import api, realtime
 from backend.app.db import Base
-from backend.app.main import app
 from backend.app.api import CreateSessionRequest
+
+
+class FakeWebSocket:
+    def __init__(self, token, after_snapshot=None):
+        self.message = {"type": "authenticate", "player_token": token}
+        self.after_snapshot = after_snapshot
+        self.sent = []
+        self.close_code = None
+
+    async def accept(self):
+        return None
+
+    async def receive_json(self):
+        return self.message
+
+    async def send_json(self, payload):
+        self.sent.append(payload)
+        if payload["type"] == "snapshot":
+            if self.after_snapshot:
+                self.after_snapshot()
+            else:
+                raise WebSocketDisconnect(code=1000)
+        elif payload["type"] == "event":
+            raise WebSocketDisconnect(code=1000)
+
+    async def close(self, code, reason):
+        self.close_code = code
 
 
 class WebSocketStreamTests(unittest.TestCase):
@@ -26,7 +53,6 @@ class WebSocketStreamTests(unittest.TestCase):
         self.old_stream_factory = realtime.SessionLocal
         api.SessionLocal = self.factory
         realtime.SessionLocal = self.factory
-        self.client = TestClient(app)
         self.session = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
 
     def tearDown(self):
@@ -36,50 +62,33 @@ class WebSocketStreamTests(unittest.TestCase):
         self.engine.dispose()
 
     def test_stream_authenticates_and_sends_authoritative_snapshot(self):
-        with self.client.websocket_connect(
-            f"/api/v1/sessions/{self.session['id']}/stream"
-        ) as websocket:
-            websocket.send_json({
-                "type": "authenticate",
-                "player_token": self.session["owner_token"],
-            })
-            message = websocket.receive_json()
-            self.assertEqual(message["type"], "snapshot")
-            self.assertEqual(message["session"]["id"], self.session["id"])
-            self.assertEqual(message["session"]["current_period"], 0)
-            self.assertEqual(message["player"]["id"], self.session["owner_player_id"])
-            self.assertEqual(message["last_sequence"], 0)
+        websocket = FakeWebSocket(self.session["owner_token"])
+        asyncio.run(realtime.session_stream(websocket, self.session["id"]))
+        self.assertEqual(websocket.sent[0]["type"], "snapshot")
+        self.assertEqual(websocket.sent[0]["session"]["id"], self.session["id"])
+        self.assertEqual(websocket.sent[0]["session"]["current_period"], 0)
+        self.assertEqual(websocket.sent[0]["player"]["id"], self.session["owner_player_id"])
+        self.assertEqual(websocket.sent[0]["last_sequence"], 0)
 
     def test_stream_delivers_event_after_database_commit(self):
-        with self.client.websocket_connect(
-            f"/api/v1/sessions/{self.session['id']}/stream"
-        ) as websocket:
-            websocket.send_json({
-                "type": "authenticate",
-                "player_token": self.session["owner_token"],
-            })
-            snapshot = websocket.receive_json()
-            self.assertEqual(snapshot["type"], "snapshot")
+        def commit_period():
             api.advance_game_session(
                 self.session["id"],
                 api.AdvancePeriodRequest(expected_period=0),
                 player_token=self.session["owner_token"],
             )
-            event = websocket.receive_json()
-            self.assertEqual(event["type"], "event")
-            self.assertEqual(event["sequence"], 1)
-            self.assertEqual(event["event_type"], "period.completed")
+
+        websocket = FakeWebSocket(self.session["owner_token"], after_snapshot=commit_period)
+        asyncio.run(realtime.session_stream(websocket, self.session["id"]))
+        self.assertEqual(websocket.sent[1]["type"], "event")
+        self.assertEqual(websocket.sent[1]["sequence"], 1)
+        self.assertEqual(websocket.sent[1]["event_type"], "period.completed")
 
     def test_stream_rejects_invalid_session_token(self):
-        with self.client.websocket_connect(
-            f"/api/v1/sessions/{self.session['id']}/stream"
-        ) as websocket:
-            websocket.send_json({
-                "type": "authenticate",
-                "player_token": "not-a-valid-token",
-            })
-            with self.assertRaises(Exception):
-                websocket.receive_json()
+        websocket = FakeWebSocket("not-a-valid-token")
+        asyncio.run(realtime.session_stream(websocket, self.session["id"]))
+        self.assertEqual(websocket.close_code, 4401)
+        self.assertEqual(websocket.sent, [])
 
 
 if __name__ == "__main__":
