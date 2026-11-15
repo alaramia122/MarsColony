@@ -1,0 +1,44 @@
+import unittest
+
+from backend.app.domain.engine import initial_state
+from backend.app.presets import apply_starter_preset, load_starter_presets
+from backend.app.scenarios import load_scenario
+
+
+class StarterInfrastructurePresetTests(unittest.TestCase):
+    def test_each_preset_provides_a_kit_for_all_responsibility_domains(self):
+        catalogue = load_starter_presets("ares-01")
+        self.assertEqual(len(catalogue["presets"]), 4)
+        expected_domains = set(catalogue["domain_names"])
+        for preset in catalogue["presets"]:
+            self.assertEqual(set(preset["domain_packs"]), expected_domains)
+            self.assertTrue(all(preset["domain_packs"][domain] for domain in expected_domains))
+
+    def test_presets_create_individual_objects_for_all_domains(self):
+        for preset_id in ("balanced", "science", "industrial", "autonomous"):
+            scenario = apply_starter_preset(load_scenario("ares-01"), preset_id)
+            state = initial_state(scenario)
+            assets = state["infrastructure"]
+            self.assertGreater(len(assets), 0)
+            self.assertEqual(
+                {domain for asset in assets for domain in asset["domain_codes"]},
+                set(scenario["starter_preset"] and load_starter_presets("ares-01")["domain_names"]),
+            )
+            self.assertTrue(all(asset["properties"]["starter_asset"] for asset in assets))
+            self.assertTrue(all(asset["properties"]["simulation_effects"] == "not_modeled" for asset in assets))
+
+    def test_presets_have_distinct_infrastructure_compositions(self):
+        catalogue = load_starter_presets("ares-01")
+        compositions = {
+            preset["id"]: sum(
+                int(asset.get("quantity", 1))
+                for assets in preset["domain_packs"].values()
+                for asset in assets
+            )
+            for preset in catalogue["presets"]
+        }
+        self.assertEqual(len(set(compositions.values())), len(compositions))
+
+
+if __name__ == "__main__":
+    unittest.main()
