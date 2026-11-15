@@ -27,6 +27,7 @@ def serialize_session(record: GameSessionRecord) -> dict:
         "scenario_id": record.scenario_id,
         "scenario_version": record.scenario_version,
         "current_period": record.current_period,
+        "reserved_budget_credits": record.reserved_budget_credits,
         "state": record.state,
         "created_at": record.created_at,
     }
