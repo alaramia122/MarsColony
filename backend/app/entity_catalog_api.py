@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import SessionLocal
-from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity
+from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity, validate_entity_catalogue_resources
 from .domain.projects import DOMAIN_CODES
 from .models import GameEntityRecord, GameEventRecord, GameSessionRecord
 from .projects_api import authenticate
@@ -77,6 +77,7 @@ def get_entity_catalog(
                 raise HTTPException(status_code=404, detail="Game session not found.")
             catalogue = load_entity_catalog(session.scenario_id)
             resource_catalog = (session.scenario_snapshot or {}).get("resource_catalog", {})
+            validate_entity_catalogue_resources(catalogue, resource_catalog)
             for entity in catalogue["entities"]:
                 validate_entity(entity, resource_catalog, session.scenario_id)
             custom = db.scalars(select(GameEntityRecord).where(
