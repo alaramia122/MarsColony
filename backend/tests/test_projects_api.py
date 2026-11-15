@@ -286,6 +286,32 @@ class ProjectWorkflowTests(unittest.TestCase):
             session = db.get(GameSessionRecord, self.session_id)
             self.assertEqual(session.reserved_budget_credits, 0.0)
 
+    def test_period_operating_cost_does_not_consume_reserved_project_budget(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Резерв на инфраструктуру",
+                description="Проверка защиты резерва от операционных расходов.",
+                project_type="infrastructure",
+                domain_codes=["energy"],
+                budget_credits=500,
+                duration_periods=1,
+            ),
+            self.owner_token,
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            self.owner_token,
+        )
+        api.advance_game_session(
+            self.session_id,
+            api.AdvancePeriodRequest(expected_period=0),
+            player_token=self.owner_token,
+        )
+        restored = api.get_session(self.session_id, self.owner_token)
+        self.assertEqual(restored["state"]["budget_credits"], 575.0)
+        self.assertEqual(restored["reserved_budget_credits"], 500.0)
+
 
 if __name__ == "__main__":
     unittest.main()
