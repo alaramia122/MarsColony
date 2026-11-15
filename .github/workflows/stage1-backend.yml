@@ -8,12 +8,13 @@ on:
       - "data/scenarios/**"
       - "data/starter_presets/**"
       - "data/entity_catalogs/**"
+      - ".github/workflows/stage1-backend.yml"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
       - "docs/**"
       - "README.md"
   push:
-    branches: [main]
+    branches: [main, feat/economy-entity-catalog]
     paths:
       - "backend/**"
       - "frontend/**"
