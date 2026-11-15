@@ -83,5 +83,56 @@ class AIGatewayContractTests(unittest.TestCase):
                 configured_provider()
 
 
+    def test_provider_registry_supports_multiple_openai_compatible_endpoints(self):
+        import json
+        config = {
+            "local": {"type": "openai_compatible", "base_url": "http://ollama:11434/v1",
+                      "model": "qwen2.5:7b", "requires_api_key": False,
+                      "capabilities": {"json_object": False}},
+            "cloud": {"type": "openai_compatible", "base_url": "https://api.example.test/v1",
+                      "model": "reasoning-model", "api_key_env": "CLOUD_TEST_KEY"},
+        }
+        with patch.dict(os.environ, {
+            "MARS_AI_PROVIDERS": json.dumps(config),
+            "MARS_AI_TASK_ROUTING": json.dumps({"briefing": ["local", "cloud"]}),
+            "CLOUD_TEST_KEY": "test-secret",
+        }, clear=True):
+            provider = configured_provider("briefing")
+            self.assertEqual(len(provider.providers), 2)
+            self.assertEqual(provider.providers[0].model, "qwen2.5:7b")
+            self.assertFalse(provider.providers[0].json_mode)
+
+    def test_provider_registry_rejects_unknown_routed_provider(self):
+        import json
+        with patch.dict(os.environ, {
+            "MARS_AI_PROVIDERS": json.dumps({"local": {
+                "type": "openai_compatible", "base_url": "http://localhost:11434/v1",
+                "model": "model", "requires_api_key": False}}),
+            "MARS_AI_TASK_ROUTING": json.dumps({"briefing": "missing"}),
+        }, clear=True):
+            with self.assertRaises(ProviderError):
+                configured_provider("briefing")
+
+    def test_provider_chain_uses_next_provider_after_failure(self):
+        from backend.app.ai_gateway import ProviderChain
+        class BrokenProvider:
+            def generate_json(self, system_prompt, payload):
+                raise ProviderError("offline")
+        class WorkingProvider:
+            def generate_json(self, system_prompt, payload):
+                return {"ok": True}
+        chain = ProviderChain([BrokenProvider(), WorkingProvider()])
+        self.assertEqual(chain.generate_json("system", {}), {"ok": True})
+
+    def test_provider_profile_requires_http_url_and_model(self):
+        import json
+        with patch.dict(os.environ, {
+            "MARS_AI_PROVIDERS": json.dumps({"bad": {
+                "type": "openai_compatible", "base_url": "file:///tmp",
+                "model": "model", "requires_api_key": False}})
+        }, clear=True):
+            with self.assertRaises(ProviderError):
+                configured_provider()
+
 if __name__ == "__main__":
     unittest.main()
