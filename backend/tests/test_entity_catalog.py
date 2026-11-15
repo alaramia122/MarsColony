@@ -53,14 +53,14 @@ class InfrastructureEconomyTests(unittest.TestCase):
                 "name": "Атмосферный модуль",
                 "kind": "atmosphere_control",
                 "domain_codes": ["life_support"],
-                "properties": {"condition": 0.5, "status": "commissioned"},
+                "properties": {"condition": 0.5, "status": "commissioned", "starter_asset": True},
             },
             {
                 "id": "WATER-1",
                 "name": "Водный контур",
                 "kind": "water_recycling",
                 "domain_codes": ["life_support"],
-                "properties": {"condition": 1.0, "status": "commissioned"},
+                "properties": {"condition": 1.0, "status": "commissioned", "starter_asset": True},
             },
             {
                 "id": "GREEN-1",
