@@ -849,6 +849,25 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(asset["kind"], "power_unit")
         self.assertEqual(asset["properties"]["economic_effects"]["power_generation_kw"], 18)
 
+    def test_project_cannot_create_construction_materials_as_a_free_bonus(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Бесплатная сталь",
+                    description="Попытка обойти материальный баланс.",
+                    project_type="production",
+                    domain_codes=["industry"],
+                    budget_credits=0,
+                    duration_periods=1,
+                    labor_fte=0,
+                    energy_kwh_per_period=0,
+                    expected_result={"resource_outputs_per_period": {"steel": 1000}},
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_project_cannot_inject_unapproved_infrastructure_economic_effects(self):
         with self.assertRaises(HTTPException) as error:
             projects_api.create_project(
