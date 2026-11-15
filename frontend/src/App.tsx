@@ -683,15 +683,15 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
         const rawImage = properties?.image_data_url || asset.image_data_url;
         const image = typeof rawImage === "string" && rawImage.startsWith("data:image/")
           ? rawImage : null;
-        const name = String(asset.name || \`Объект \${index + 1}\`);
+        const name = String(asset.name || `Объект ${index + 1}`);
         return <button
           type="button"
           className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"}
           key={String(asset.id)}
-          style={{ left: \`\${properties.x}%\`, top: \`\${properties.y}%\` }}
+          style={{ left: `${properties.x}%`, top: `${properties.y}%` }}
           onClick={() => setSelectedAsset(asset)}
           title={name}
-          aria-label={\`Выбрать объект: \${name}\`}
+          aria-label={`Выбрать объект: ${name}`}
         >
           {image
             ? <><img className="map-marker-image" src={image} alt="" onError={(event) => {
@@ -702,7 +702,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
             : <i className="map-marker-fallback" />}
           <span className="map-marker-name">{name}</span>
         </button>;
-      })}}
+      })}
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
