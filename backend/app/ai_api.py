@@ -9,7 +9,7 @@ from uuid import uuid4
 from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
