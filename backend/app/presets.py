@@ -112,6 +112,10 @@ def apply_starter_preset(scenario: dict[str, Any], preset_id: str) -> dict[str, 
             asset["properties"]["economic_effects"] = dict(override["economic_effects"])
         if "process_bindings" in override:
             asset["properties"]["process_bindings"] = list(override["process_bindings"])
+        if override.get("power_generation_binding"):
+            asset["properties"]["power_generation_binding"] = True
+        if override.get("battery_storage_binding"):
+            asset["properties"]["battery_storage_binding"] = True
         if override:
             asset["properties"]["simulation_effects"] = "modeled"
     scenario["initial_infrastructure"] = infrastructure
