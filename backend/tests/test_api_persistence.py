@@ -1,5 +1,6 @@
 import unittest
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -50,8 +51,9 @@ class SessionPersistenceTests(unittest.TestCase):
             result = api.advance_game_session(session_id)
             self.assertEqual(result["current_period"], expected_period)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(HTTPException) as error:
             api.advance_game_session(session_id)
+        self.assertEqual(error.exception.status_code, 409)
 
 
 if __name__ == "__main__":
