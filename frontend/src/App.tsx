@@ -20,7 +20,7 @@ type Project = {
   approvals?: Array<{ decision: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
-type View = "overview" | "map" | "projects" | "people" | "assistant";
+type View = "overview" | "map" | "projects" | "people" | "assistant" | "tutorial";
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
@@ -194,7 +194,7 @@ export default function App() {
             {([
               ["overview", "Обзор", "◫"], ["map", "Карта колонии", "⌖"],
               ["projects", "Проекты", "▤"], ["people", "Участники", "♙"],
-              ["assistant", "ИИ-ведущий", "✧"]
+              ["assistant", "ИИ-ведущий", "✧"], ["tutorial", "Обучение", "?"]
             ] as Array<[View, string, string]>).map(([key, label, icon]) =>
               <button key={key} className={view === key ? "nav-item active" : "nav-item"} onClick={() => setView(key)}>
                 <span className="nav-icon">{icon}</span>{label}
@@ -212,8 +212,8 @@ export default function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
-              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : "ИИ-ведущий"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : "Сводки колонии, проектные предложения и сценарные события."}</p>
+              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : "ИИ-ведущий"}</h1>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
             <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ 4</small></strong></div>
           </div>
@@ -225,12 +225,33 @@ export default function App() {
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
+          {view === "tutorial" && <Tutorial onNavigate={setView} />}
 
-          {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
+          {auth.joinCode && <div className="invite-strip">
+            <div className="invite-values">
+              <div><span>ПОЛНЫЙ ID СЕССИИ</span><strong className="invite-code">{auth.sessionId}</strong></div>
+              <div><span>КОД ПРИГЛАШЕНИЯ</span><strong className="invite-code">{auth.joinCode}</strong></div>
+            </div>
+            <div className="invite-actions">
+              <button className="button button-quiet" onClick={() => copyInviteValue(auth.sessionId)}>Копировать ID</button>
+              <button className="button button-quiet" onClick={() => copyInviteValue(auth.joinCode || "")}>Копировать код</button>
+              <button className="button button-secondary" onClick={() => copyInviteValue(`ID: ${auth.sessionId}\nКод: ${auth.joinCode}`)}>Копировать приглашение</button>
+            </div>
+          </div>}
         </section>
       </main>
     </div>
   );
+}
+
+function copyInviteValue(value: string) {
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(value).catch(() => {
+      window.prompt("Скопируйте данные приглашения:", value);
+    });
+  } else {
+    window.prompt("Скопируйте данные приглашения:", value);
+  }
 }
 
 function Login({ busy, error, onCreate, onJoin }: {
@@ -299,6 +320,35 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
   </>;
 }
 
+function Tutorial({ onNavigate }: { onNavigate: (view: View) => void }) {
+  const [step, setStep] = useState(0);
+  const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
+    { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
+    { title: "Познакомьтесь с экипажем", explanation: "Командир распределяет роли и зоны ответственности. Руководитель направления готовит проекты в своей области, финансовый руководитель проверяет бюджет, инженер помогает разрабатывать и исполнять проекты.", task: "Если играете с другими участниками, откройте список экипажа и назначьте хотя бы одному игроку направление. Для одиночного обучения этот шаг можно пропустить.", view: "people", action: "Открыть экипаж" },
+    { title: "Создайте учебный проект", explanation: "Проект — основной способ менять инфраструктуру и производственные возможности колонии. У него есть тип, направления, стоимость, длительность, потребность в труде, энергии и материалах.", task: "Создайте тестовый проект: название «Учебный ремонт», тип «Ремонт», направление «Энергетика», бюджет 0, длительность 1 период, труд и энергия 0. Для учебного проекта можно оставить ожидаемый результат пустым.", view: "projects", action: "Открыть проектный офис" },
+    { title: "Отправьте проект на согласование", explanation: "Отправка фиксирует версию проекта и резервирует указанный бюджет. После отправки параметры заявки проходят проверку сервером.", task: "Найдите «Учебный ремонт» и нажмите «Отправить на согласование».", view: "projects", action: "Перейти к проектам" },
+    { title: "Примите решение", explanation: "Обычный проект согласуют уполномоченные руководители затронутых направлений; для платного проекта также требуется финансовое решение. Если командир сам является автором, он может утвердить проект командирским распоряжением с обязательным письменным обоснованием. Решение попадёт в журнал.", task: "Откройте согласование проекта. Для собственного проекта командира укажите обоснование не короче 10 символов.", view: "projects", action: "Открыть согласования" },
+    { title: "Запустите исполнение", explanation: "Утверждение ещё не меняет инфраструктуру. Запуск проекта — отдельная команда: сервер повторно проверяет полномочия, материалы, трудовые и энергетические ограничения.", task: "После статуса «Согласован» нажмите «Запустить проект».", view: "projects", action: "Открыть проект" },
+    { title: "Завершите игровой период", explanation: "Период охватывает 30 марсианских солов. При его завершении сервер пересчитывает потребление, производство, энергетику и прогресс активных проектов. Действие доступно командиру.", task: "Перейдите в обзор и нажмите «Завершить период». В учебной миссии достаточно одного перехода.", view: "overview", action: "Открыть обзор" },
+    { title: "Подтвердите результат", explanation: "Когда прогресс проекта достигнет длительности, уполномоченный участник подтверждает завершение. Только после этого применяются заявленные эффекты проекта и освобождаются занятые ресурсы исполнения.", task: "Вернитесь в проектный офис, проверьте прогресс и нажмите «Подтвердить завершение».", view: "projects", action: "Открыть проектный офис" }
+  ];
+  const current = steps[step];
+  return <section className="panel tutorial-panel">
+    <div className="eyebrow">ARES-01 / TRAINING MISSION</div>
+    <h2>Учебная миссия «Первая смена»</h2>
+    <p className="muted tutorial-intro">Пройдите один короткий цикл управления колонией. Учебный проект не требует бюджета, материалов или энергии и нужен для освоения интерфейса. Миссия не меняет правила основной кампании.</p>
+    <div className="tutorial-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
+    <div className="tutorial-step-count">ШАГ {step + 1} ИЗ {steps.length}</div>
+    <h3>{current.title}</h3><p>{current.explanation}</p>
+    <div className="tutorial-task"><strong>Ваше задание</strong><p>{current.task}</p></div>
+    <div className="tutorial-actions">
+      <button className="button button-quiet" disabled={step === 0} title={step === 0 ? "Это первый шаг учебной миссии." : undefined} onClick={() => setStep((value) => Math.max(0, value - 1))}>Назад</button>
+      <button className="button button-secondary" onClick={() => onNavigate(current.view)}>{current.action}</button>
+      <button className="button button-primary" disabled={step === steps.length - 1} title={step === steps.length - 1 ? "Учебная миссия завершена." : undefined} onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>{step === steps.length - 1 ? "Завершено" : "Следующий шаг"}</button>
+    </div>
+    <p className="muted tutorial-foot">Подсказка: в обычной партии команда планирует проекты, согласует межведомственные решения, запускает исполнение и только затем завершает период. ИИ-ведущий — дополнительный помощник; базовый игровой цикл работает без внешней модели.</p>
+  </section>;
+}
 function Metric({ label, value, unit, detail }: { label: string; value: string; unit: string; detail: string }) {
   return <div className="metric-card"><span>{label}</span><div><strong>{value}</strong><small>{unit}</small></div><p>{detail}</p></div>;
 }
@@ -375,10 +425,19 @@ function ProjectList({ projects, auth, player, onRefresh }: {
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
   const mutate = async (project: Project, action: string, extra: Record<string, unknown> = {}) => {
+    let actionData = extra;
+    if (action === "approvals" && extra.decision === "approve" && project.author_player_id === auth.playerId && roleSet.has("colony_commander")) {
+      const justification = window.prompt("Командирское распоряжение по собственному проекту. Укажите обоснование (не менее 10 символов):");
+      if (!justification || justification.trim().length < 10) {
+        setActionError("Командирское распоряжение не отправлено: требуется обоснование не короче 10 символов.");
+        return;
+      }
+      actionData = { ...extra, comment: justification.trim() };
+    }
     setSaving(true); setActionError("");
     try {
       await request(`${API}/sessions/${auth.sessionId}/projects/${project.id}/${action}`, auth.token, {
-        method: "POST", body: JSON.stringify({ expected_version: project.version, ...extra })
+        method: "POST", body: JSON.stringify({ expected_version: project.version, ...actionData })
       });
       await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
