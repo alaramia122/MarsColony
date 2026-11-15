@@ -163,3 +163,6 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .inventory-item>strong{font-size:15px;color:var(--text,#edf1f2)}
 .inventory-item small{font-size:10px;font-weight:400;color:var(--muted,#9aa4b2)}
 .inventory-panel{margin:16px 0}
+
+.catalog-search{display:grid;gap:6px;max-width:520px;margin:12px 0;color:var(--muted,#9aa4b2);font-size:10px}
+.catalog-search input{width:100%;padding:10px 12px;border:1px solid var(--border,rgba(255,255,255,.16));border-radius:8px;background:rgba(0,0,0,.16);color:var(--text,#edf1f2)}
