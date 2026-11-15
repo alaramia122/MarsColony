@@ -447,6 +447,30 @@
         "research",
         "automation"
       ]
+    },
+    {
+      "id": "emergency_water_contingency",
+      "entity_type": "procedure",
+      "kind": "procedure",
+      "name": "Регламент аварийного распределения воды",
+      "description": "Последовательность приоритетного ограничения расхода воды при снижении запасов.",
+      "domain_codes": [
+        "life_support",
+        "safety",
+        "administration"
+      ],
+      "research": {
+        "budget_credits": 25,
+        "duration_periods": 1,
+        "labor_fte": 0.2,
+        "energy_kwh_per_period": 0.1,
+        "resource_requirements": {}
+      },
+      "tags": [
+        "procedure",
+        "water",
+        "safety"
+      ]
     }
   ]
 }
