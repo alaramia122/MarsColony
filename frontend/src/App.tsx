@@ -826,9 +826,21 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     }
   };
   const approveEntityProposal = async (proposal: EntityProposal) => {
+    let approvalComment = "";
+    if (proposal.author_player_id === auth.playerId && roleSet.has("colony_commander")) {
+      const entered = window.prompt("Командирское распоряжение по собственной сущности. Укажите обоснование (не менее 10 символов):");
+      if (!entered || entered.trim().length < 10) {
+        setEntityProposalError("Согласование не отправлено: требуется обоснование не короче 10 символов.");
+        return;
+      }
+      approvalComment = entered.trim();
+    }
     setSaving(true);
     try {
-      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals/" + proposal.id + "/approve", auth.token, { method: "POST" });
+      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals/" + proposal.id + "/approve", auth.token, {
+        method: "POST",
+        body: JSON.stringify(approvalComment ? { comment: approvalComment } : {})
+      });
       const result = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
       setCatalogEntities(result.entities);
       setPendingEntityProposals(result.pending_proposals || []);
@@ -904,7 +916,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         return <div className="approval-history" key={proposal.id}>
           <strong>{proposal.name}</strong><p>{proposal.description}</p>
           <small>{proposal.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small>
-          <button className="button button-secondary" disabled={saving || !canReview || proposal.author_player_id === auth.playerId} title={!canReview ? "Нужны полномочия по всем затронутым направлениям." : proposal.author_player_id === auth.playerId ? "Автор не может согласовать собственную сущность." : undefined} onClick={() => void approveEntityProposal(proposal)}>Одобрить тип</button>
+          <button className="button button-secondary" disabled={saving || !canReview || (proposal.author_player_id === auth.playerId && !roleSet.has("colony_commander"))} title={!canReview ? "Нужны полномочия по всем затронутым направлениям." : proposal.author_player_id === auth.playerId ? "Командирское распоряжение потребует письменного обоснования." : undefined} onClick={() => void approveEntityProposal(proposal)}>Одобрить тип</button>
         </div>;
       })}
     </section>}
