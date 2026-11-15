@@ -1,5 +1,8 @@
 """HTTP API for creating and advancing authoritative game sessions."""
-import hashlib\nimport secrets\n\nfrom fastapi import APIRouter, HTTPException
+import hashlib
+import secrets
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
