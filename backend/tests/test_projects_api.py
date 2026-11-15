@@ -700,8 +700,18 @@ class ProjectWorkflowTests(unittest.TestCase):
             completed["expected_result"]["infrastructure_repairs"][0]["condition_delta"],
             0.35,
         )
-        state = api.get_session(self.session_id, self.owner_token)["state"]
+        session_state = api.get_session(self.session_id, self.owner_token)
+        state = session_state["state"]
         self.assertAlmostEqual(state["infrastructure"][0]["condition"], 0.75)
+        commissioned = next(
+            event for event in session_state["events"]
+            if event["type"] == "project.commissioned"
+            and event["payload"]["project_id"] == project["id"]
+        )
+        self.assertAlmostEqual(
+            commissioned["payload"]["infrastructure_repairs"][0]["condition_after"],
+            0.75,
+        )
 
     def test_research_project_unlocks_technology_on_completion(self):
         lead = self.join("Руководитель науки")
