@@ -6,6 +6,7 @@ type SessionData = {
   id: string;
   scenario_id: string;
   current_period: number;
+  settings?: { period_count: number; starting_resources: Record<string, number>; starting_credits: number };
   available_budget_credits: number;
   reserved_budget_credits: number;
   state: Record<string, unknown>;
@@ -21,7 +22,7 @@ type Project = {
   approvals?: Array<{ player_id: string; decision: string; comment: string; approval_mode: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
-type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistant" | "ai-settings" | "tutorial";
+type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistant" | "ai-settings" | "campaign-settings" | "tutorial";
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
@@ -227,8 +228,8 @@ export default function App() {
             {([
               ["overview", "Обзор колонии", "◫"], ["workspace", "Мой кабинет", "▣"], ["map", "Карта колонии", "⌖"],
               ["projects", "Проекты", "▤"], ["people", "Участники", "♙"],
-              ["assistant", "ИИ-ведущий", "✧"], ["ai-settings", "Настройки ИИ", "⚙"], ["tutorial", "Обучение", "?"]
-            ] as Array<[View, string, string]>).filter(([key]) => key !== "ai-settings" || Boolean(commander?.roles.includes("colony_commander"))).map(([key, label, icon]) =>
+              ["assistant", "ИИ-ведущий", "✧"], ["ai-settings", "Настройки ИИ", "⚙"], ["campaign-settings", "Параметры игры", "◷"], ["tutorial", "Обучение", "?"]
+            ] as Array<[View, string, string]>).filter(([key]) => !["ai-settings", "campaign-settings"].includes(key) || Boolean(commander?.roles.includes("colony_commander")) ).map(([key, label, icon]) =>
               <button key={key} className={view === key ? "nav-item active" : "nav-item"} onClick={() => setView(key)}>
                 <span className="nav-icon">{icon}</span>{label}
                 {key === "projects" && projects.length > 0 && <span className="nav-count">{projects.length}</span>}
@@ -245,10 +246,10 @@ export default function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
-              <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : "ИИ-ведущий"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
+              <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : view === "campaign-settings" ? "Параметры игры" : "ИИ-ведущий"}</h1>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : view === "campaign-settings" ? "Продолжительность кампании и исходные запасы колонии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
-            <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ 4</small></strong></div>
+            <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ {session?.settings?.period_count ?? 4}</small></strong></div>
           </div>
 
           {error && <div className="alert">{error}<button onClick={() => setError("")}>×</button></div>}
@@ -257,7 +258,7 @@ export default function App() {
           {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
-          {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
+          {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }\n          {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
           {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} onReturnToPreviousSession={returnToPreviousSession} hasPreviousSession={Boolean(previousAuth)} busy={busy} />}
@@ -360,6 +361,76 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
     <section className="panel"><div className="eyebrow">RECENT ACTIVITY</div><h2>Последние события моей зоны</h2>{relevantEvents.length === 0 ? <p className="muted">Связанных событий в доступной истории пока нет.</p> : relevantEvents.map((event) => <div className="role-task-row" key={event.sequence}><strong>{event.event_type}</strong><span>#{event.sequence} · {event.created_at ? new Date(event.created_at).toLocaleString("ru-RU") : "время не указано"}</span></div>)}</section>
   </div>;
 }
+
+function CampaignSettings({ session, auth, onRefresh }: {
+  session: SessionData;
+  auth: Auth;
+  onRefresh: () => Promise<void>;
+}) {
+  const catalog = session.resource_catalog || {};
+  const [periodCount, setPeriodCount] = useState(String(session.settings?.period_count ?? 4));
+  const [startingCredits, setStartingCredits] = useState(String(session.settings?.starting_credits ?? 0));
+  const [resources, setResources] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(session.settings?.starting_resources || {}).map(([key, value]) => [key, String(value)]))
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const locked = session.current_period > 0;
+  const resourceNames: Record<string, string> = {
+    oxygen: "Кислород", food_solids: "Пищевые запасы", usable_water: "Подготовленная вода",
+    raw_ice: "Сырой лёд"
+  };
+  const resourceEntries = Object.entries(catalog);
+  const valid = Number.isInteger(Number(periodCount)) && Number(periodCount) >= 1 && Number(periodCount) <= 100
+    && Number.isFinite(Number(startingCredits)) && Number(startingCredits) >= 0
+    && resourceEntries.every(([key, resource]) => {
+      const value = Number(resources[key] ?? session.settings?.starting_resources?.[resource.state_key || ""] ?? 0);
+      return Number.isFinite(value) && value >= 0;
+    });
+  useEffect(() => {
+    setPeriodCount(String(session.settings?.period_count ?? 4));
+    setStartingCredits(String(session.settings?.starting_credits ?? 0));
+    setResources(Object.fromEntries(Object.entries(session.settings?.starting_resources || {}).map(([key, value]) => [key, String(value)])));
+  }, [session.settings]);
+  const save = async () => {
+    if (locked || !valid) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const starting_resources = Object.fromEntries(resourceEntries.map(([key, resource]) => [
+        key, Number(resources[key] ?? session.settings?.starting_resources?.[resource.state_key || ""] ?? 0)
+      ]));
+      await request(`${API}/sessions/${auth.sessionId}/settings`, auth.token, {
+        method: "PATCH",
+        body: JSON.stringify({ period_count: Number(periodCount), starting_resources, starting_credits: Number(startingCredits) })
+      });
+      await onRefresh();
+      setNotice("Параметры кампании сохранены. Они применяются ко всем участникам этой сессии.");
+    } catch (reason) { setError((reason as Error).message); }
+    finally { setSaving(false); }
+  };
+  return <div className="ai-settings-layout">
+    <section className="panel">
+      <div className="eyebrow">CAMPAIGN CONFIGURATION</div><h2>Параметры игровой кампании</h2>
+      <p className="muted ai-settings-help">Настройки общие для всей сессии. Изменять их может только командир, до начала первого игрового периода и до создания первого проекта. После старта кампании параметры фиксируются.</p>
+      {locked && <div className="alert">Кампания уже началась. Изменение стартовых параметров заблокировано.</div>}
+      <label>Количество игровых периодов<input type="number" min="1" max="100" step="1" value={periodCount} disabled={locked} onChange={(event) => setPeriodCount(event.target.value)} /><small>Один период сценария Ares-1 равен 30 солам. Общая длительность пересчитывается автоматически.</small></label>
+      <div className="form-section"><strong>Стартовые ресурсы</strong><p className="field-help">Запасы, с которыми колония начинает кампанию. Значения проверяются по вместимости соответствующих хранилищ.</p>
+        <div className="form-grid">{resourceEntries.map(([key, resource]) => <label key={key}>{resourceNames[key] || key} ({resource.unit || "ед."})<input type="number" min="0" step="any" value={resources[key] ?? String(session.settings?.starting_resources?.[resource.state_key || ""] ?? 0)} disabled={locked} onChange={(event) => setResources((current) => ({ ...current, [key]: event.target.value }))} /><small>Начальный запас; вместимость хранилища проверяется сервером.</small></label>)}</div>
+      </div>
+      <label>Стартовый бюджет, игровые кредиты<input type="number" min="0" step="0.1" value={startingCredits} disabled={locked} onChange={(event) => setStartingCredits(event.target.value)} /><small>Начальный финансовый резерв колонии.</small></label>
+      {error && <div className="alert">{error}</div>}
+      {notice && <p className="assistant-notice">{notice}</p>}
+      <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и неотрицательные числовые значения." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
+    </section>
+    <section className="panel"><div className="eyebrow">CURRENT CAMPAIGN</div><h2>Сводка настроек</h2>
+      <div className="system-row"><div className="system-info"><strong>Игровые периоды</strong><span>Продолжительность кампании</span></div><div className="system-value">{session.settings?.period_count ?? 4}</div></div>
+      <div className="system-row"><div className="system-info"><strong>Стартовый бюджет</strong><span>Игровые кредиты</span></div><div className="system-value">{money(session.settings?.starting_credits ?? 0)}</div></div>
+      {resourceEntries.map(([key, resource]) => <div className="system-row" key={key}><div className="system-info"><strong>{resourceNames[key] || key}</strong><span>{resource.unit || "ед."}</span></div><div className="system-value">{quantity(session.settings?.starting_resources?.[resource.state_key || ""] ?? 0, 2)}</div></div>)}
+    </section>
+  </div>;
+}
+
 function AISettings() {
   const [provider, setProvider] = useState("yandex_ai_studio");
   const [apiKey, setApiKey] = useState("");
@@ -453,7 +524,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
     </div>
     <div className="section-grid">
       <section className="panel main-panel">
-        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= 4} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= 4 ? "Все четыре периода сценария завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
+        <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= 4 ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
