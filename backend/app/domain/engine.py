@@ -80,6 +80,7 @@ def _execute_scenario_process(
 def _power_loads(
     scenario: dict[str, Any],
     average_load_kw: float,
+    process_multipliers: dict[str, float],
 ) -> list[PowerLoad]:
     power = scenario["power"]
     loads = []
@@ -94,6 +95,9 @@ def _power_loads(
                 )
             else:
                 requested_kw += float(power["loads_kw"][source])
+        process_id = group.get("process_id")
+        if process_id:
+            requested_kw *= process_multipliers[process_id]
         loads.append(PowerLoad(
             load_id=group["id"],
             requested_kw=requested_kw,
@@ -196,7 +200,15 @@ def advance_period(
         supplied_kw = available_generation + battery_report["discharge_kw"]
         dispatch = dispatch_power(
             supplied_kw,
-            _power_loads(scenario, average_load_kw),
+            _power_loads(scenario, average_load_kw, {
+                process_id: (
+                    event_multipliers[process_id]
+                    / float(scenario["processes"][process_id]["requested_cycles_per_period"])
+                    if float(scenario["processes"][process_id]["requested_cycles_per_period"]) > 0
+                    else 0.0
+                )
+                for process_id in scenario["processes"]
+            }),
             duration_hours=duration,
         )
         battery_charge_report = None
@@ -269,7 +281,7 @@ def advance_period(
     food_demand = float(life["food_solids_demand_kg_per_person_day"]) * crew_days
     gross_water = float(life["gross_water_demand_kg_per_person_day"]) * crew_days
     water_loss = gross_water * (1.0 - float(life["water_recovery_fraction"]))
-    water_demand = water_loss + float(life["greenhouse_net_water_makeup_kg_per_period"))
+    water_demand = water_loss + float(life["greenhouse_net_water_makeup_kg_per_period"])
 
     oxygen_key = scenario["resource_catalog"]["oxygen"]["state_key"]
     food_key = scenario["resource_catalog"]["food_solids"]["state_key"]

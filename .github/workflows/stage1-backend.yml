@@ -51,6 +51,8 @@ jobs:
           python-version: "3.12"
       - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
+      - name: Compile backend and tooling modules
+        run: python -m compileall -q backend tools
       - name: Apply PostgreSQL migrations
         run: alembic -c backend/alembic.ini upgrade head
       - name: Run domain and PostgreSQL integration tests
