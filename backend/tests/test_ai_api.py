@@ -142,6 +142,14 @@ class AIProposalAPITests(unittest.TestCase):
         self.assertEqual(statuses[first["id"]], "superseded")
         self.assertEqual(statuses[second["id"]], "active")
 
+
+    def test_ai_request_quota_limits_player_to_eight_calls_per_hour(self):
+        for _ in range(8):
+            ai_api.create_colony_briefing(self.session_id, token=self.token)
+        with self.assertRaises(HTTPException) as error:
+            ai_api.create_colony_briefing(self.session_id, token=self.token)
+        self.assertEqual(error.exception.status_code, 429)
+
     def test_ai_briefing_is_grounded_in_session_context(self):
         result = ai_api.create_colony_briefing(self.session_id, token=self.token)
         self.assertEqual(result["period"], 0)
