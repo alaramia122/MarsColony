@@ -1,5 +1,4 @@
 """Player membership, scoped permissions and project workflow endpoints."""
-import base64
 import hashlib
 from copy import deepcopy
 import math
@@ -12,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import SessionLocal
+from .entity_images import image_bytes_to_data_url, image_record_to_data_url, sanitize_image_data_url
 from .domain.projects import (
     DOMAIN_CODES, PROJECT_TYPES, ROLE_CODES, approvals_complete,
     can_manage_project, can_propose_project,
@@ -124,6 +124,7 @@ class ProjectCreate(BaseModel):
     resource_requirements: dict = Field(default_factory=dict)
     expected_result: dict = Field(default_factory=dict)
     catalog_entity_ids: list[str] = Field(default_factory=list, max_length=20)
+    asset_image_data_url: str | None = Field(default=None, max_length=6_000_000)
 
 
 class VersionRequest(BaseModel):
@@ -284,6 +285,11 @@ def create_project(session_id: str, request: ProjectCreate,
                 ):
                     raise HTTPException(status_code=422, detail=f"Invalid quantity for resource: {resource_id}.")
             expected_result = deepcopy(request.expected_result)
+            sanitized_asset_image = sanitize_image_data_url(request.asset_image_data_url)
+            sanitized_asset_image_url = (
+                image_bytes_to_data_url(*sanitized_asset_image)
+                if sanitized_asset_image else None
+            )
             available_entities = {}
             selected_ids = list(request.catalog_entity_ids)
             if len(selected_ids) != len(set(selected_ids)):
@@ -304,10 +310,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 images_by_entity = {item.entity_id: item for item in custom_images}
                 for item in custom_records:
                     image = images_by_entity.get(item.id)
-                    image_data_url = (
-                        f"data:{image.media_type};base64,{base64.b64encode(image.image_data).decode('ascii')}"
-                        if image else None
-                    )
+                    image_data_url = image_record_to_data_url(image)
                     available_entities[item.entity_key] = {
                         "id": item.entity_key, "entity_type": item.entity_type,
                         "name": item.name, "description": item.description,
@@ -390,6 +393,21 @@ def create_project(session_id: str, request: ProjectCreate,
                 if procedures:
                     expected_result["procedure_unlocks"] = procedures
 
+            if sanitized_asset_image_url:
+                project_assets = expected_result.get("infrastructure", [])
+                if not isinstance(project_assets, list) or len(project_assets) != 1:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Attach one photo to exactly one infrastructure object per project.",
+                    )
+                project_asset = project_assets[0]
+                if not isinstance(project_asset, dict):
+                    raise HTTPException(status_code=422, detail="The photographed project result must be an infrastructure object.")
+                project_properties = project_asset.setdefault("properties", {})
+                if not isinstance(project_properties, dict):
+                    raise HTTPException(status_code=422, detail="Infrastructure properties must be an object.")
+                project_properties["image_data_url"] = sanitized_asset_image_url
+
             project = ProjectRecord(
                 session_id=session_id, author_player_id=actor.id,
                 title=request.title.strip(), description=request.description.strip(),
@@ -469,13 +487,19 @@ def create_project(session_id: str, request: ProjectCreate,
                     if set(item_domains) != set(entity.get("domain_codes", [])):
                         raise HTTPException(status_code=422, detail="Infrastructure domains must match the selected catalogue definition.")
                     expected_properties = _entity_operation_properties(entity)
+                    expected_image = (
+                        sanitized_asset_image_url
+                        if sanitized_asset_image_url else entity.get("image_data_url")
+                    )
                     if any(
                         properties.get(key) != value
                         for key, value in expected_properties.items()
-                    ) or properties.get("image_data_url") != entity.get("image_data_url"):
+                    ) or properties.get("image_data_url") != expected_image:
                         raise HTTPException(status_code=422, detail="Infrastructure economic effects, image and process bindings must exactly match the approved catalogue definition.")
                 elif "economic_effects" in properties:
                     raise HTTPException(status_code=422, detail="Economic effects can only come from an approved infrastructure catalogue definition.")
+                elif "image_data_url" in properties and properties.get("image_data_url") != sanitized_asset_image_url:
+                    raise HTTPException(status_code=422, detail="Object photos must be uploaded through the validated project image field.")
                 condition = properties.get("condition", 1.0)
                 if (
                     isinstance(condition, bool)
