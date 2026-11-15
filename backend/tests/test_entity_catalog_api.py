@@ -121,6 +121,66 @@ class EntityCatalogApiTests(unittest.TestCase):
             proposal["catalog_id"],
         )
 
+    def test_custom_entity_photo_is_sanitized_persisted_and_inherited_by_project_asset(self):
+        tiny_png = (
+            "data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p1sAAAAASUVORK5CYII="
+        )
+        proposal = entity_catalog_api.propose_catalog_entity(
+            self.session_id,
+            EntityProposalRequest(
+                entity_type="infrastructure",
+                name="Фотогенератор",
+                description="Проверка сохранения изображения объекта.",
+                domain_codes=["energy"],
+                definition={
+                    "kind": "photo_generator",
+                    "build": {"budget_credits": 5, "duration_periods": 1, "labor_fte": 0, "energy_kwh_per_period": 0, "resource_requirements": {}},
+                    "operation": {"power_generation_kw": 1, "power_load_kw": 0, "resource_inputs_per_period": {}, "resource_outputs_per_period": {}, "operating_cost_credits_per_period": 0},
+                },
+                image_data_url=tiny_png,
+            ),
+            self.player["player_token"],
+        )
+        self.assertTrue(proposal["image_data_url"].startswith("data:image/webp;base64,"))
+        image_catalog = entity_catalog_api.get_entity_catalog(self.session_id, self.owner_token)
+        pending = next(item for item in image_catalog["pending_proposals"] if item["id"] == proposal["id"])
+        self.assertTrue(pending["image_data_url"].startswith("data:image/webp;base64,"))
+        entity_catalog_api.approve_catalog_entity(self.session_id, proposal["id"], self.owner_token)
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Установка фотогенератора",
+                description="Проверка передачи изображения из каталога в проект.",
+                project_type="infrastructure",
+                domain_codes=["energy"],
+                budget_credits=5,
+                duration_periods=1,
+                labor_fte=0,
+                energy_kwh_per_period=0,
+                catalog_entity_ids=[proposal["catalog_id"]],
+            ),
+            self.owner_token,
+        )
+        asset = project["expected_result"]["infrastructure"][0]
+        self.assertTrue(asset["properties"]["image_data_url"].startswith("data:image/webp;base64,"))
+
+    def test_entity_photo_rejects_svg_and_invalid_payloads(self):
+        with self.assertRaises(HTTPException) as error:
+            entity_catalog_api.propose_catalog_entity(
+                self.session_id,
+                EntityProposalRequest(
+                    entity_type="infrastructure",
+                    name="Неподдерживаемый формат",
+                    description="SVG не принимается как фотография.",
+                    domain_codes=["energy"],
+                    definition={"kind": "unsafe_photo_asset"},
+                    image_data_url="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+                ),
+                self.player["player_token"],
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_commander_can_approve_own_definition_only_with_written_justification(self):
         proposal = entity_catalog_api.propose_catalog_entity(
             self.session_id,
