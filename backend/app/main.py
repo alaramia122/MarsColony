@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .api import router
 from .projects_api import router as projects_router
 from .realtime import router as realtime_router
+from .ai_api import router as ai_router
 from .db import SessionLocal
 
 
@@ -17,6 +18,7 @@ app = FastAPI(
 app.include_router(router)
 app.include_router(projects_router)
 app.include_router(realtime_router)
+app.include_router(ai_router)
 
 
 @app.get("/health")

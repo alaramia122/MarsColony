@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Assistant from "./Assistant";
 
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
 type SessionData = {
@@ -19,7 +20,7 @@ type Project = {
   approvals?: Array<{ decision: string }>;
 };
 type EventMessage = { sequence: number; event_type: string; payload: Record<string, unknown>; created_at?: string | null };
-type View = "overview" | "map" | "projects" | "people";
+type View = "overview" | "map" | "projects" | "people" | "assistant";
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
@@ -192,7 +193,8 @@ export default function App() {
           <div className="nav-list">
             {([
               ["overview", "Обзор", "◫"], ["map", "Карта колонии", "⌖"],
-              ["projects", "Проекты", "▤"], ["people", "Участники", "♙"]
+              ["projects", "Проекты", "▤"], ["people", "Участники", "♙"],
+              ["assistant", "ИИ-ведущий", "✧"]
             ] as Array<[View, string, string]>).map(([key, label, icon]) =>
               <button key={key} className={view === key ? "nav-item active" : "nav-item"} onClick={() => setView(key)}>
                 <span className="nav-icon">{icon}</span>{label}
@@ -210,8 +212,8 @@ export default function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">ARES-01 / MARS OPERATIONS</div>
-              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : "Состав экспедиции"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : "Участники сессии и распределение ответственности."}</p>
+              <h1>{view === "overview" ? "Центр управления" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : "ИИ-ведущий"}</h1>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "map" ? "Инфраструктура и тематические объекты колонии." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
             <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ 4</small></strong></div>
           </div>
@@ -222,6 +224,7 @@ export default function App() {
           {view === "map" && <ColonyMap assets={infrastructure} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
+          {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
 
           {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
         </section>

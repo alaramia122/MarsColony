@@ -122,3 +122,117 @@ class ProjectApprovalRecord(Base):
         DateTime(timezone=True), nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class AIProposalRecord(Base):
+    __tablename__ = "ai_proposals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    proposal: Mapped[dict] = mapped_column(JSON, nullable=False)
+    dialogue: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    revision_history: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_review")
+    created_project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class AIEventProposalRecord(Base):
+    __tablename__ = "ai_event_proposals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    period_created: Mapped[int] = mapped_column(Integer, nullable=False)
+    proposal: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_review")
+    published_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class GameEntityRecord(Base):
+    __tablename__ = "game_entities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    entity_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    domain_codes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    definition: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    assumptions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    risks: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_review")
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("game_entities.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_by_player_id: Mapped[str | None] = mapped_column(
+        ForeignKey("players.id", ondelete="SET NULL"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class AIRequestUsageRecord(Base):
+    __tablename__ = "ai_request_usage"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "player_id", "window_start",
+            name="uq_ai_request_usage_session_player_window",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    player_id: Mapped[str] = mapped_column(
+        ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

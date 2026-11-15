@@ -2,10 +2,9 @@
 
 **Актуальность:** 2026-11-15  
 **Основная ветка:** `main`  
-**Последний интегрированный этап:** этап 2  
-**Рабочая ветка этапа 3:** `feat/stage3-web-clients-map`  
-**PR этапа 3:** [#10](https://github.com/alaramia122/MarsColony/pull/10)  
-**Issue этапа 3:** [#9](https://github.com/alaramia122/MarsColony/issues/9)
+**Последний интегрированный этап:** этап 3  
+**Merge commit этапа 3:** `067a4197f4901884ceae0e164b467571a8e84978`  
+**Рабочая ветка этапа 4:** `feat/stage4-ai-gateway-game-master`
 
 ## Назначение
 
@@ -50,7 +49,7 @@ PR #8 объединён 2026-11-15 методом squash. Merge commit: `e37b1f
 - Аудит, конкурентная защита, миграции 0003/0004, ADR-004/005.
 - Backend CI на PostgreSQL 16: 68 тестов, миграции, OpenAPI, Compose startup и recovery прошли на head PR #8.
 
-## Этап 3 — реализация завершена, ожидает LAN-приёмки
+## Этап 3 — интегрирован, ожидает LAN-приёмки
 
 Issue #9; PR #10; ветка `feat/stage3-web-clients-map`.
 
@@ -86,13 +85,27 @@ CI на текущем кодовом head: [Stage 0](https://github.com/alarami
 
 - Репозиторий: https://github.com/alaramia122/MarsColony
 - PR #1, #5, #6, #8 — объединены.
-- PR #10 — открыт, этап 3; main не изменён этапом 3.
+- PR #10 — объединён в `main` через squash-коммит `067a4197f4901884ceae0e164b467571a8e84978`.
+- Рабочая ветка этапа 4: `feat/stage4-ai-gateway-game-master`; PR ещё не создан.
 - Issue #7 — закрыта.
 - Issue #9 — открыта.
 - Issue #3 — открыта; плейтест после готовности платформы.
 
+## Этап 4 — полный функциональный срез реализован, CI успешно пройден
+
+PR #12 (открыт, не объединён); ветка `feat/stage4-ai-gateway-game-master`.
+
+- AI Gateway: реестр нескольких OpenAI-compatible и нативных Yandex AI Studio профилей; маршрутизация по типам задач; последовательный fallback; JSON capability profiles; секреты через переменные окружения; AI выключен по умолчанию.
+- Проектные предложения из естественного языка; backend validation; явное создание обычного draft; уточняющий диалог и revision history.
+- ИИ-сводка по состоянию сессии.
+- Сценарные события: генерация, проверка командиром, публикация в event journal и WebSocket, отклонение; публикация не меняет экономику автоматически.
+- Реестр знаний: технологии, инфраструктура, процессы, ресурсы и процедуры; версии, утверждение и сохранение предыдущей версии.
+- React UI: сводка, проекты, диалог уточнения, сценарные события, реестр сущностей.
+- Миграции 0005–0008; тесты API и провайдеров; .env.example; docs/STAGE4_DESIGN.md; ADR-007/008.
+- CI на head 9cd03c49037c084f5e6f124615d3c85f160e130a: 91 backend-тест, PostgreSQL migrations, Compose build/start, API/web smoke, recovery и frontend typecheck/build — success ([backend/web CI](https://github.com/alaramia122/MarsColony/actions/runs/43730511165), [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43730511111)). Реальный Yandex API не вызывался: необходимы пользовательские API key и folder ID.
+- Утверждение записи реестра не включает сущность в расчётную модель автоматически.
+
 ## Следующие этапы
 
-- Этап 4: AI Gateway, ИИ-ведущий и типизированные предложения.
-- Этап 5: интеграция Яндекс Алисы.
-- Этап 6: интеграция, локальное развёртывание и плейтест Ares-1.
+- Этап 5: интеграция Яндекс Алисы и внешний HTTPS webhook.
+- Этап 6: LAN-приёмка, интеграция, локальное развёртывание и плейтест Ares-1.

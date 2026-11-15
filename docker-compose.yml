@@ -20,6 +20,14 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://marscolony:${POSTGRES_PASSWORD:-marscolony-dev}@db:5432/marscolony
+      MARS_AI_PROVIDER: ${MARS_AI_PROVIDER:-disabled}
+      MARS_AI_BASE_URL: ${MARS_AI_BASE_URL:-}
+      MARS_AI_API_KEY: ${MARS_AI_API_KEY:-}
+      MARS_AI_MODEL: ${MARS_AI_MODEL:-}
+      MARS_AI_YANDEX_API_KEY: ${MARS_AI_YANDEX_API_KEY:-}
+      MARS_AI_YANDEX_FOLDER_ID: ${MARS_AI_YANDEX_FOLDER_ID:-}
+      MARS_AI_YANDEX_MODEL: ${MARS_AI_YANDEX_MODEL:-yandexgpt/latest}
+      MARS_AI_TIMEOUT_SECONDS: ${MARS_AI_TIMEOUT_SECONDS:-45}
     ports:
       - "8000:8000"
     depends_on:
