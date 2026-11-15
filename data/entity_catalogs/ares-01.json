@@ -17,7 +17,11 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 12,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 80,
+          "aluminium": 60,
+          "electronics": 15
+        }
       },
       "operation": {
         "power_generation_kw": 18,
@@ -46,7 +50,11 @@
         "duration_periods": 2,
         "labor_fte": 1,
         "energy_kwh_per_period": 8,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 60,
+          "aluminium": 20,
+          "electronics": 10
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -76,7 +84,10 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 18,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 100,
+          "electronics": 5
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -107,7 +118,10 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 14,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 45,
+          "electronics": 12
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -139,7 +153,10 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 22,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 80,
+          "electronics": 10
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -172,7 +189,11 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 20,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 55,
+          "aluminium": 30,
+          "polymers": 20
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -207,7 +228,12 @@
         "duration_periods": 4,
         "labor_fte": 3,
         "energy_kwh_per_period": 15,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 160,
+          "aluminium": 80,
+          "polymers": 40,
+          "electronics": 20
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -236,7 +262,12 @@
         "duration_periods": 2,
         "labor_fte": 1.5,
         "energy_kwh_per_period": 10,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 50,
+          "aluminium": 20,
+          "electronics": 20,
+          "polymers": 15
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -266,7 +297,12 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 8,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 60,
+          "aluminium": 40,
+          "electronics": 15,
+          "polymers": 10
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -295,7 +331,11 @@
         "duration_periods": 3,
         "labor_fte": 2.5,
         "energy_kwh_per_period": 16,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 70,
+          "electronics": 12,
+          "polymers": 10
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -324,7 +364,11 @@
         "duration_periods": 1,
         "labor_fte": 0.8,
         "energy_kwh_per_period": 4,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 20,
+          "aluminium": 10,
+          "electronics": 8
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -354,7 +398,10 @@
         "duration_periods": 3,
         "labor_fte": 2,
         "energy_kwh_per_period": 24,
-        "resource_requirements": {}
+        "resource_requirements": {
+          "steel": 80,
+          "electronics": 10
+        }
       },
       "operation": {
         "power_generation_kw": 0,
@@ -551,7 +598,15 @@
     "additive_manufacturing_cell": {
       "economic_effects": {
         "power_load_kw": 0.8,
-        "operating_cost_credits_per_period": 1
+        "operating_cost_credits_per_period": 1,
+        "resource_inputs_per_period": {
+          "polymers": 8,
+          "steel": 2,
+          "electronics": 0.2
+        },
+        "resource_outputs_per_period": {
+          "spare_parts": 5
+        }
       }
     },
     "autonomous_scout_rover": {
@@ -748,8 +803,14 @@
     },
     "regolith_processing_plant": {
       "economic_effects": {
-        "power_load_kw": 0.8,
-        "operating_cost_credits_per_period": 1
+        "power_load_kw": 1.2,
+        "operating_cost_credits_per_period": 1,
+        "resource_inputs_per_period": {
+          "raw_regolith": 100
+        },
+        "resource_outputs_per_period": {
+          "regolith_bricks": 60
+        }
       }
     },
     "remote_sensing_station": {
@@ -803,7 +864,15 @@
     "spare_parts_workshop": {
       "economic_effects": {
         "power_load_kw": 0.5,
-        "operating_cost_credits_per_period": 0.6
+        "operating_cost_credits_per_period": 0.6,
+        "resource_inputs_per_period": {
+          "steel": 4,
+          "electronics": 1,
+          "polymers": 1
+        },
+        "resource_outputs_per_period": {
+          "spare_parts": 8
+        }
       }
     },
     "survey_rover": {
