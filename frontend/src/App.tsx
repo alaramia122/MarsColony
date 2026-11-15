@@ -390,7 +390,7 @@ export default function App() {
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
           {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
-          {view === "map" && <ColonyMap assets={infrastructure} />}
+          {view === "map" && <ColonyMap assets={infrastructure} auth={auth} projects={projects} player={commander} onRefresh={refresh} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
           {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
           {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} hasProjects={projects.length > 0} onRefresh={refresh} />}
@@ -786,9 +786,41 @@ function Metric({ label, value, unit, detail }: { label: string; value: string; 
   return <div className="metric-card"><span>{label}</span><div><strong>{value}</strong><small>{unit}</small></div><p>{detail}</p></div>;
 }
 
-function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
+function ColonyMap({ assets, auth, projects, player, onRefresh }: {
+  assets: Array<Record<string, unknown>>;
+  auth: Auth;
+  projects: Project[];
+  player: Player | undefined;
+  onRefresh: () => Promise<void>;
+}) {
   const [activeLayer, setActiveLayer] = useState("all");
   const [selectedAsset, setSelectedAsset] = useState<Record<string, unknown> | null>(null);
+  const [mapSnapshot, setMapSnapshot] = useState<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> } | null>(null);
+  const [selectedProject, setSelectedProject] = useState("");
+  const [placementName, setPlacementName] = useState("");
+  const [q, setQ] = useState("0");
+  const [r, setR] = useState("0");
+  const [commandJustification, setCommandJustification] = useState("");
+  const [mapBusy, setMapBusy] = useState(false);
+  const [mapError, setMapError] = useState("");
+  const eligibleProjects = projects.filter((project) =>
+    ["construction", "infrastructure"].includes(project.project_type)
+    && ["draft", "submitted", "approved"].includes(project.status)
+  );
+  const loadMap = useCallback(async () => {
+    const result = await request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
+      `${API}/sessions/${auth.sessionId}/map`, auth.token
+    );
+    setMapSnapshot(result);
+  }, [auth.sessionId, auth.token]);
+  useEffect(() => {
+    let active = true;
+    request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
+      `${API}/sessions/${auth.sessionId}/map`, auth.token
+    ).then((result) => { if (active) setMapSnapshot(result); })
+      .catch((reason) => { if (active) setMapError((reason as Error).message); });
+    return () => { active = false; };
+  }, [auth.sessionId, auth.token]);
   const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
   const matchesLayer = (asset: Record<string, unknown>) =>
     activeLayer === "all" || String(asset.kind || "other") === activeLayer;
@@ -799,11 +831,56 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   });
   const visible = positioned.filter(matchesLayer);
   const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
+  const axialPosition = (cellQ: number, cellR: number) => ({
+    left: `${(Math.sqrt(3) * 2 * (cellQ + cellR / 2))}%`,
+    top: `${(3 * cellR)}%`
+  });
+  const submitPlacement = async () => {
+    const project = eligibleProjects.find((item) => item.id === selectedProject);
+    if (!project || !placementName.trim() || !Number.isInteger(Number(q)) || !Number.isInteger(Number(r))) {
+      setMapError("Выберите строительный проект, укажите название объекта и целые координаты q и r.");
+      return;
+    }
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/placements`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: selectedProject, name: placementName.trim(),
+          q: Number(q), r: Number(r), expected_map_version: mapSnapshot?.map_version ?? 0
+        })
+      });
+      setPlacementName("");
+      await loadMap();
+      await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const decide = async (placement: Record<string, unknown>, domainCode: string, decision: "approve" | "reject", commandOrder: boolean) => {
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/placements/${String(placement.id)}/decisions`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          decision, domain_code: domainCode, command_order: commandOrder,
+          justification: commandOrder ? commandJustification : "",
+          comment: commandOrder ? commandJustification : ""
+        })
+      });
+      setCommandJustification("");
+      await loadMap();
+      await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const pendingPlacements = (mapSnapshot?.placements || []).filter((item) => item.status === "pending_approval");
+  const placed = (mapSnapshot?.placements || []).filter((item) => item.status === "placed");
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Карта использует постоянные осевые координаты q/r. Размещение строительного объекта становится действующим только после согласования строительства и профильного направления.</p></div><span className="layer-chip">◉ Гекс-сетка · версия {mapSnapshot?.map_version ?? "…"}</span></div>
+    {mapError && <div className="alert">{mapError}<button onClick={() => setMapError("")}>×</button></div>}
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
-      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)} >{entityKindLabel(kind)}</button>)}
+      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{entityKindLabel(kind)}</button>)}
     </div>
     <div className="map-canvas">
       <div className="map-grid" /><div className="map-horizon" />
@@ -811,34 +888,58 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
       {visible.map((asset, index) => {
         const properties = asset.properties as Record<string, unknown>;
         const rawImage = properties?.image_data_url || asset.image_data_url;
-        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/")
-          ? rawImage : null;
+        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/") ? rawImage : null;
         const name = String(asset.name || `Объект ${index + 1}`);
-        return <button
-          type="button"
-          className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"}
-          key={String(asset.id)}
-          style={{ left: `${properties.x}%`, top: `${properties.y}%` }}
-          onClick={() => setSelectedAsset(asset)}
-          title={name}
-          aria-label={`Выбрать объект: ${name}`}
-        >
-          {image
-            ? <><img className="map-marker-image" src={image} alt="" onError={(event) => {
-                event.currentTarget.style.display = "none";
-                const fallback = event.currentTarget.nextElementSibling;
-                if (fallback instanceof HTMLElement) fallback.hidden = false;
-              }} /><i className="map-marker-fallback" hidden /></>
-            : <i className="map-marker-fallback" />}
+        return <button type="button" className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"} key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }} onClick={() => setSelectedAsset(asset)} title={name} aria-label={`Выбрать объект: ${name}`}>
+          {image ? <><img className="map-marker-image" src={image} alt="" onError={(event) => { event.currentTarget.style.display = "none"; const fallback = event.currentTarget.nextElementSibling; if (fallback instanceof HTMLElement) fallback.hidden = false; }} /><i className="map-marker-fallback" hidden /></> : <i className="map-marker-fallback" />}
           <span className="map-marker-name">{name}</span>
         </button>;
       })}
-      <div className="map-coordinate">ГЕКСАГОНАЛЬНАЯ СЕТКА · СХЕМА</div>
+      {placed.map((item) => {
+        const position = axialPosition(Number(item.q), Number(item.r));
+        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: "placed_infrastructure", properties: item.metadata || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name)}`}>
+          <i className="map-marker-fallback" /><span className="map-marker-name">{String(item.name)}</span>
+        </button>;
+      })}
+      <div className="map-coordinate">ОСЕВЫЕ КООРДИНАТЫ q / r · POINTY-TOP</div>
     </div>
-    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
+    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Стартовая инфраструктура</span><span className="muted">{visible.length + placed.length} размещено · {unplaced.length} без координат</span></div>
+    <section className="form-section">
+      <strong>Предложить площадку для строительства</strong>
+      <p className="field-help">Площадка резервируется до решения ответственных. Для строительного проекта обязательны согласования направления «Строительство» и всех профильных направлений проекта.</p>
+      <div className="form-grid">
+        <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); if (project) setPlacementName(project.title); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
+        <label>Название объекта<input value={placementName} onChange={(event) => setPlacementName(event.target.value)} placeholder="Например, жилой модуль № 2" /></label>
+        <label>Координата q<input type="number" step="1" value={q} onChange={(event) => setQ(event.target.value)} /></label>
+        <label>Координата r<input type="number" step="1" value={r} onChange={(event) => setR(event.target.value)} /></label>
+      </div>
+      <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : "Отправить площадку на согласование"}</button>
+      {eligibleProjects.length === 0 && <p className="muted small">Сначала создайте строительный проект и отправьте его на согласование.</p>}
+    </section>
+    {pendingPlacements.length > 0 && <section className="form-section">
+      <strong>Площадки, ожидающие согласования</strong>
+      {pendingPlacements.map((item) => {
+        const approvals = Array.isArray(item.approvals) ? item.approvals as Array<Record<string, unknown>> : [];
+        const required = Array.isArray(item.required_approvals) ? item.required_approvals as string[] : [];
+        const missing = required.filter((domain) => !approvals.some((approval) => approval.domain_code === domain));
+        return <article className="map-object-details" key={String(item.id)}>
+          <div><h3>{String(item.name)}</h3><p>Гекс q={String(item.q)}, r={String(item.r)} · Ожидает: {missing.map((domain) => responsibilityDomainNames[domain] || domain).join(", ")}</p>
+            {missing.map((domain) => {
+              const isDomainLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes(domain));
+              const isCommander = Boolean(player?.roles.includes("colony_commander"));
+              const canApprove = player?.id !== item.author_player_id && (isDomainLead || isCommander);
+              if (!canApprove) return null;
+              const commandOrder = !isDomainLead && isCommander;
+              return <div className="form-foot" key={domain}><span>{responsibilityDomainNames[domain] || domain}</span><button className="button button-secondary small-button" disabled={mapBusy || (commandOrder && commandJustification.trim().length < 10)} title={commandOrder && commandJustification.trim().length < 10 ? "Для командирского распоряжения требуется обоснование не короче 10 символов." : undefined} onClick={() => void decide(item, domain, "approve", commandOrder)}>{commandOrder ? "Утвердить распоряжением" : "Согласовать"}</button><button className="button button-quiet small-button" disabled={mapBusy} onClick={() => void decide(item, domain, "reject", commandOrder)}>Отклонить</button></div>;
+            })}
+          </div>
+        </article>;
+      })}
+      {player?.roles.includes("colony_commander") && <label>Обоснование командирского распоряжения<textarea value={commandJustification} onChange={(event) => setCommandJustification(event.target.value)} rows={2} placeholder="Не менее 10 символов" /></label>}
+    </section>}
     {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
     {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {entityKindLabel(String(asset.kind || "other"))}</span>)}</div>}
-    {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
+    {assets.length === 0 && placed.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
 }
 
