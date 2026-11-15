@@ -488,6 +488,7 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
             active_projects = db.scalars(select(ProjectRecord).where(
                 ProjectRecord.session_id == session_id,
                 ProjectRecord.status == "executing",
+                ProjectRecord.progress_periods < ProjectRecord.duration_periods,
             ).with_for_update()).all()
             allocated_fte = sum(float(item.labor_fte) for item in active_projects)
             if allocated_fte + float(project.labor_fte) > available_fte + 1e-9:
