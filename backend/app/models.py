@@ -14,6 +14,7 @@ class GameSessionRecord(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     scenario_id: Mapped[str] = mapped_column(String(100), nullable=False)
     scenario_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    scenario_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     current_period: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     state: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .db import SessionLocal
 from .domain.engine import DomainError, advance_period, initial_state
 from .models import GameEventRecord, GameSessionRecord
-from .scenarios import load_scenario
+from .scenarios import ScenarioValidationError, load_scenario
 
 
 router = APIRouter(prefix="/api/v1")
@@ -15,6 +15,10 @@ router = APIRouter(prefix="/api/v1")
 
 class CreateSessionRequest(BaseModel):
     scenario_id: str = Field(default="ares-01", min_length=1, max_length=100)
+
+
+class AdvancePeriodRequest(BaseModel):
+    expected_period: int | None = Field(default=None, ge=0)
 
 
 def serialize_session(record: GameSessionRecord) -> dict:
@@ -34,10 +38,13 @@ def create_session(request: CreateSessionRequest) -> dict:
         scenario = load_scenario(request.scenario_id)
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+    except ScenarioValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     record = GameSessionRecord(
         scenario_id=scenario["scenario_id"],
         scenario_version=scenario["version"],
+        scenario_snapshot=scenario,
         current_period=0,
         state=initial_state(scenario),
     )
@@ -58,30 +65,36 @@ def create_session(request: CreateSessionRequest) -> dict:
 
 @router.get("/sessions/{session_id}")
 def get_session(session_id: str) -> dict:
-    with SessionLocal() as db:
-        record = db.get(GameSessionRecord, session_id)
-        if record is None:
-            raise HTTPException(status_code=404, detail="Game session not found.")
-        events = db.scalars(
-            select(GameEventRecord)
-            .where(GameEventRecord.session_id == session_id)
-            .order_by(GameEventRecord.sequence)
-        ).all()
-        result = serialize_session(record)
-        result["events"] = [
-            {
-                "sequence": event.sequence,
-                "type": event.event_type,
-                "payload": event.payload,
-                "created_at": event.created_at,
-            }
-            for event in events
-        ]
-        return result
+    try:
+        with SessionLocal() as db:
+            record = db.get(GameSessionRecord, session_id)
+            if record is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            events = db.scalars(
+                select(GameEventRecord)
+                .where(GameEventRecord.session_id == session_id)
+                .order_by(GameEventRecord.sequence)
+            ).all()
+            result = serialize_session(record)
+            result["events"] = [
+                {
+                    "sequence": event.sequence,
+                    "type": event.event_type,
+                    "payload": event.payload,
+                    "created_at": event.created_at,
+                }
+                for event in events
+            ]
+            return result
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
 
 
 @router.post("/sessions/{session_id}/advance")
-def advance_game_session(session_id: str) -> dict:
+def advance_game_session(
+    session_id: str,
+    request: AdvancePeriodRequest | None = None,
+) -> dict:
     try:
         with SessionLocal.begin() as db:
             record = db.scalar(
@@ -91,7 +104,19 @@ def advance_game_session(session_id: str) -> dict:
             )
             if record is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
-            scenario = load_scenario(record.scenario_id)
+            if (
+                request is not None
+                and request.expected_period is not None
+                and request.expected_period != record.current_period
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Session is at period {record.current_period}; "
+                        f"expected period {request.expected_period}."
+                    ),
+                )
+            scenario = record.scenario_snapshot or load_scenario(record.scenario_id)
             next_period = record.current_period + 1
             new_state, report = advance_period(scenario, record.state, next_period)
             record.current_period = next_period

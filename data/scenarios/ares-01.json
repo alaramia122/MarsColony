@@ -1,7 +1,7 @@
 {
   "scenario_id": "ares-01",
   "name": "Ares-1: первые 120 солов",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "baseline_for_playtest",
   "description": "Условная ранняя марсианская база после ввода основных систем в эксплуатацию. Локация вымышленная; наличие доступного подповерхностного льда подтверждено разведкой в рамках сценария.",
   "time": {
@@ -26,9 +26,6 @@
     "oxygen_kg": 1800,
     "usable_water_kg": 1500,
     "raw_ice_kg": 7000,
-    "water_storage_capacity_kg": 4000,
-    "oxygen_storage_capacity_kg": 2500,
-    "food_storage_capacity_kg": 3000,
     "food_solids_kg": 2000
   },
   "life_support": {
@@ -61,7 +58,57 @@
       "agriculture": 5,
       "medical_and_communications": 3,
       "industry_and_science": 6
-    }
+    },
+    "battery": {
+      "capacity_kwh": 1000,
+      "initial_charge_kwh": 1000,
+      "minimum_charge_kwh": 100,
+      "maximum_charge_kw": 20,
+      "maximum_discharge_kw": 10,
+      "charge_efficiency": 0.9,
+      "discharge_efficiency": 0.9
+    },
+    "dispatch_groups": [
+      {
+        "id": "critical_systems",
+        "load_sources": [
+          "habitat_thermal_and_environment",
+          "life_support_and_atmosphere",
+          "agriculture",
+          "medical_and_communications"
+        ],
+        "priority": 0,
+        "minimum_kw": 0,
+        "critical": true
+      },
+      {
+        "id": "oxygen_isru",
+        "load_sources": [
+          "oxygen_isru"
+        ],
+        "priority": 1,
+        "minimum_kw": 0,
+        "process_id": "oxygen_isru"
+      },
+      {
+        "id": "water_processing",
+        "load_sources": [
+          "ice_mining_and_water_processing"
+        ],
+        "priority": 2,
+        "minimum_kw": 0,
+        "process_id": "ice_to_usable_water"
+      },
+      {
+        "id": "industry_and_science",
+        "load_sources": [
+          "industry_and_science"
+        ],
+        "priority": 3,
+        "minimum_kw": 0
+      }
+    ],
+    "critical_dispatch_group_id": "critical_systems"
   },
   "finance": {
     "starting_credits": 600,
@@ -171,5 +218,92 @@
       "орбитальная механика и точный межпланетный график",
       "радиационная дозиметрия и детальная климатическая модель"
     ]
+  },
+  "resource_catalog": {
+    "oxygen": {
+      "state_key": "oxygen_kg",
+      "unit": "kg",
+      "precision_digits": 6,
+      "storage_id": "oxygen_tank"
+    },
+    "food_solids": {
+      "state_key": "food_solids_kg",
+      "unit": "kg",
+      "precision_digits": 6,
+      "storage_id": "food_store"
+    },
+    "usable_water": {
+      "state_key": "usable_water_kg",
+      "unit": "kg",
+      "precision_digits": 6,
+      "storage_id": "water_tank"
+    },
+    "raw_ice": {
+      "state_key": "raw_ice_kg",
+      "unit": "kg",
+      "precision_digits": 6,
+      "storage_id": "ice_bunker"
+    }
+  },
+  "storage_locations": [
+    {
+      "id": "oxygen_tank",
+      "name": "Резервуары кислорода",
+      "location": "Модуль жизнеобеспечения",
+      "resource_id": "oxygen",
+      "capacity": 2500
+    },
+    {
+      "id": "food_store",
+      "name": "Склад сухих пищевых веществ",
+      "location": "Жилой модуль",
+      "resource_id": "food_solids",
+      "capacity": 3000
+    },
+    {
+      "id": "water_tank",
+      "name": "Резервуары подготовленной воды",
+      "location": "Модуль жизнеобеспечения",
+      "resource_id": "usable_water",
+      "capacity": 4000
+    },
+    {
+      "id": "ice_bunker",
+      "name": "Бункер сырого льда",
+      "location": "Горнодобывающий комплекс",
+      "resource_id": "raw_ice",
+      "capacity": null
+    }
+  ],
+  "processes": {
+    "oxygen_isru": {
+      "requested_cycles_per_period": 300,
+      "event_multiplier_key": "oxygen_output_multiplier",
+      "inputs_per_cycle": {},
+      "outputs_per_cycle": {
+        "oxygen": 1
+      },
+      "energy_kwh_per_cycle": 30
+    },
+    "food_growing": {
+      "requested_cycles_per_period": 45,
+      "event_multiplier_key": "food_output_multiplier",
+      "inputs_per_cycle": {},
+      "outputs_per_cycle": {
+        "food_solids": 1
+      },
+      "energy_kwh_per_cycle": 0
+    },
+    "ice_to_usable_water": {
+      "requested_cycles_per_period": 1000,
+      "event_multiplier_key": "water_output_multiplier",
+      "inputs_per_cycle": {
+        "raw_ice": 1.25
+      },
+      "outputs_per_cycle": {
+        "usable_water": 1
+      },
+      "energy_kwh_per_cycle": 5
+    }
   }
 }

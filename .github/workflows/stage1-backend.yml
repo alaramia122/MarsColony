@@ -7,6 +7,8 @@ on:
       - "data/scenarios/**"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
+      - "docs/**"
+      - "README.md"
   push:
     branches: [main]
     paths:
@@ -14,6 +16,8 @@ on:
       - "data/scenarios/**"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
+      - "docs/**"
+      - "README.md"
 
 permissions:
   contents: read
@@ -37,6 +41,7 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgresql+psycopg://marscolony:marscolony-ci@localhost:5432/marscolony
+      MARS_COLONY_POSTGRES_TESTS: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -46,9 +51,57 @@ jobs:
           python-version: "3.12"
       - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
-      - name: Run domain and API persistence tests
-        run: python -m unittest discover -s backend/tests -v
-      - name: Validate scenario JSON
-        run: python -m json.tool data/scenarios/ares-01.json > /dev/null
+      - name: Compile backend and tooling modules
+        run: python -m compileall -q backend tools
       - name: Apply PostgreSQL migrations
         run: alembic -c backend/alembic.ini upgrade head
+      - name: Run domain and PostgreSQL integration tests
+        run: python -m unittest discover -s backend/tests -v
+      - name: Print backend campaign acceptance report
+        run: python tools/backend_campaign_report.py
+      - name: Validate scenario JSON
+        run: python -m json.tool data/scenarios/ares-01.json > /dev/null
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Start the complete Compose stack
+        run: docker compose up --build -d
+      - name: Verify database and API recovery
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ready > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8000/openapi.json | python -c "
+          import json,sys
+          spec=json.load(sys.stdin)
+          assert '/api/v1/sessions' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/advance' in spec['paths']
+          assert '/health/ready' in spec['paths']
+          "
+          SESSION_ID=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
+            -H "Content-Type: application/json" \
+            -d '{"scenario_id":"ares-01"}' | python -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          echo "SESSION_ID=$SESSION_ID" >> "$GITHUB_ENV"
+          curl -fsS -X POST "http://localhost:8000/api/v1/sessions/$SESSION_ID/advance" \
+            -H "Content-Type: application/json" \
+            -d '{"expected_period":0}' > /dev/null
+          docker compose restart db
+          for attempt in $(seq 1 30); do
+            if docker compose exec -T db pg_isready -U marscolony -d marscolony; then break; fi
+            sleep 2
+          done
+          docker compose restart api
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ready > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID" | python -c "
+          import json,sys
+          session=json.load(sys.stdin)
+          assert session['current_period'] == 1, session
+          assert len(session['events']) == 2, session
+          assert abs(session['state']['oxygen_kg'] - 1328.57556) < 1e-5, session
+          "
+      - name: Stop the complete Compose stack
+        if: always()
+        run: docker compose down -v
