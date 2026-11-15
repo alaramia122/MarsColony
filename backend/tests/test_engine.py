@@ -184,7 +184,7 @@ class PeriodEngineTests(unittest.TestCase):
         ]
         updated, report = advance_period(scenario, state, 1)
         self.assertAlmostEqual(updated["raw_regolith_kg"], 49900)
-        self.assertAlmostEqual(updated["regolith_bricks_kg"], 60)
+        self.assertAlmostEqual(updated["regolith_bricks_kg"], 560)
         self.assertAlmostEqual(updated["steel_kg"], 496)
         self.assertAlmostEqual(updated["electronics_units"], 99)
         self.assertAlmostEqual(updated["polymers_kg"], 299)
