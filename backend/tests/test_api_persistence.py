@@ -95,17 +95,22 @@ class SessionPersistenceTests(unittest.TestCase):
         with self.session_factory.begin() as db:
             db.add(GameEventRecord(
                 session_id=session_id,
-                sequence=2,
+                sequence=1,
                 event_type="test.conflict",
                 payload={"purpose": "force unique sequence conflict"},
             ))
 
-        with self.assertRaises(HTTPException) as error:
-            api.advance_game_session(
-                session_id,
-                AdvancePeriodRequest(expected_period=0),
-                player_token=owner_token,
-            )
+        original_sequence_allocator = api._next_event_sequence
+        api._next_event_sequence = lambda _db, _session_id: 1
+        try:
+            with self.assertRaises(HTTPException) as error:
+                api.advance_game_session(
+                    session_id,
+                    AdvancePeriodRequest(expected_period=0),
+                    player_token=owner_token,
+                )
+        finally:
+            api._next_event_sequence = original_sequence_allocator
         self.assertEqual(error.exception.status_code, 503)
 
         restored = api.get_session(session_id, owner_token)
@@ -113,7 +118,7 @@ class SessionPersistenceTests(unittest.TestCase):
         self.assertEqual(restored["state"], original_state)
         self.assertEqual(
             [event["sequence"] for event in restored["events"]],
-            [0, 2],
+            [0, 1],
         )
 
     def test_session_reaches_scenario_end_and_rejects_extra_period(self):
