@@ -10,11 +10,28 @@ from backend.app import ai_api, api, projects_api
 from backend.app.api import CreateSessionRequest
 from backend.app.ai_gateway import ProjectProposal
 from backend.app.db import Base
-from backend.app.ai_api import EventGenerationRequest, ProposalRequest
+from backend.app.ai_api import ClarificationRequest, EventGenerationRequest, ProposalRequest
 
 
 class FakeProvider:
     def generate_json(self, system_prompt, payload):
+        if "Уточни существующее проектное предложение" in system_prompt:
+            return {
+                "title": "Резервная линия кислорода — уточнённая",
+                "description": "Создать резервную линию производства кислорода.",
+                "project_type": "infrastructure",
+                "domain_codes": ["life_support"],
+                "budget_credits": 130,
+                "duration_periods": 2,
+                "labor_fte": 1,
+                "energy_kwh_per_period": 50,
+                "resource_requirements": {"raw_ice": 10},
+                "expected_result": {"resource_outputs_per_period": {"oxygen": 5}},
+                "rationale": "Уточнённая смета.",
+                "assumptions": ["Производительность является игровой оценкой."],
+                "risks": ["Потребуется проверка доступной мощности."],
+                "questions": [],
+            }
         if "оперативную сводку" in system_prompt:
             return {
                 "headline": "Колония работает штатно",
@@ -128,6 +145,23 @@ class AIProposalAPITests(unittest.TestCase):
         self.assertEqual(self.provider.context["scenario_id"], "ares-01")
         proposals = ai_api.list_ai_proposals(self.session_id, token=self.token)
         self.assertEqual(len(proposals["proposals"]), 1)
+
+
+    def test_project_clarification_creates_new_version_and_keeps_history(self):
+        proposal = ai_api.create_ai_proposal(
+            self.session_id,
+            ProposalRequest(text="Создать резервную линию кислорода."),
+            token=self.token,
+        )
+        revised = ai_api.clarify_ai_proposal(
+            self.session_id, proposal["id"],
+            ClarificationRequest(text="Увеличить бюджет до 130 кредитов."),
+            token=self.token,
+        )
+        self.assertEqual(revised["version"], 2)
+        self.assertEqual(revised["proposal"]["budget_credits"], 130)
+        self.assertEqual(len(revised["revision_history"]), 1)
+        self.assertEqual(revised["dialogue"][0]["text"], "Увеличить бюджет до 130 кредитов.")
 
     def test_proposal_is_only_converted_to_project_after_explicit_player_action(self):
         proposal = ai_api.create_ai_proposal(
