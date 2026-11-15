@@ -26,6 +26,49 @@ def _storage_capacity(scenario: dict[str, Any], resource_id: str) -> float | Non
     return None if capacity is None else float(capacity)
 
 
+STARTER_ASSET_ECONOMICS = {
+    # Scenario-specific game assumptions for starter assets not represented by a
+    # baseline process. Values are deliberately kept separate from real-world data.
+    "drilling_rig": {
+        "power_load_kw": 1.0,
+        "resource_outputs_per_period": {"raw_ice": 120.0},
+        "operating_cost_credits_per_period": 1.0,
+    },
+    "ice_mining_rig": {
+        "power_load_kw": 2.0,
+        "resource_outputs_per_period": {"raw_ice": 240.0},
+        "operating_cost_credits_per_period": 2.0,
+    },
+    "autonomous_drill_rover": {
+        "power_load_kw": 1.2,
+        "resource_outputs_per_period": {"raw_ice": 100.0},
+        "operating_cost_credits_per_period": 1.2,
+    },
+    "backup_power_unit": {
+        "power_generation_kw": 8.0,
+        "operating_cost_credits_per_period": 1.5,
+    },
+    "emergency_power_pack": {
+        "power_generation_kw": 2.0,
+        "operating_cost_credits_per_period": 0.5,
+    },
+}
+
+PROCESS_ASSET_BINDINGS = {
+    "oxygen_isru": {"atmosphere_control", "oxygen_backup_unit"},
+    "food_growing": {"hydroponic_greenhouse", "food_production_greenhouse"},
+    "ice_to_usable_water": {"water_recycling", "water_recovery_unit"},
+}
+
+
+def _asset_economic_effects(asset: dict[str, Any]) -> dict[str, Any]:
+    properties = asset.get("properties", {})
+    configured = properties.get("economic_effects")
+    if isinstance(configured, dict):
+        return configured
+    return STARTER_ASSET_ECONOMICS.get(str(asset.get("kind", "")), {})
+
+
 def _battery_spec(power: dict[str, Any]) -> BatterySpec:
     battery = power["battery"]
     return BatterySpec(
@@ -162,16 +205,25 @@ def advance_period(
         multiplier = float(event.get(multiplier_key, 1.0)) if multiplier_key else 1.0
         if multiplier < 0:
             raise DomainError(f"Event multiplier for '{process_id}' cannot be negative.")
+        asset_kinds = PROCESS_ASSET_BINDINGS.get(process_id)
+        capacity_factor = 1.0
+        if asset_kinds:
+            capacity_factor = sum(
+                max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+                for asset in state.get("infrastructure", [])
+                if asset.get("kind") in asset_kinds
+                and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+            )
         event_multipliers[process_id] = (
-            float(process["requested_cycles_per_period"]) * multiplier
+            float(process["requested_cycles_per_period"]) * multiplier * capacity_factor
         )
 
     infrastructure = list(state.get("infrastructure", []))
     asset_generation_kw = sum(
-        float(asset.get("properties", {}).get("economic_effects", {}).get("power_generation_kw", 0.0))
+        float(_asset_economic_effects(asset).get("power_generation_kw", 0.0))
         * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
         for asset in infrastructure
-        if asset.get("properties", {}).get("economic_effects")
+        if _asset_economic_effects(asset)
         and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
     )
     average_load_kw = sum(float(value) for value in power["loads_kw"].values())
@@ -202,7 +254,7 @@ def advance_period(
     active_loads = list(additional_loads or [])
     for asset in infrastructure:
         properties = asset.get("properties", {})
-        effects = properties.get("economic_effects", {})
+        effects = _asset_economic_effects(asset)
         status = asset.get("status", properties.get("status", "commissioned"))
         condition = max(0.0, min(1.0, float(asset.get("condition", properties.get("condition", 1.0)))))
         asset_domains = set(asset.get("domain_codes", []))
@@ -568,6 +620,12 @@ def advance_period(
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
+        "infrastructure_process_capacity": {
+            process_id: event_multipliers[process_id]
+            / float(scenario["processes"][process_id]["requested_cycles_per_period"])
+            if float(scenario["processes"][process_id]["requested_cycles_per_period"]) > 0 else 0.0
+            for process_id in scenario["processes"]
+        },
         "infrastructure_operations": asset_operation_reports,
         "infrastructure_condition_changes": condition_reports,
         "project_production_bonuses": production_bonus_report,
