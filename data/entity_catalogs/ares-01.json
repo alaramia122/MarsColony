@@ -1,0 +1,522 @@
+{
+  "scenario_id": "ares-01",
+  "version": "1.0.0",
+  "entities": [
+    {
+      "id": "solar_array",
+      "entity_type": "infrastructure",
+      "kind": "power_unit",
+      "name": "Солнечная электростанция",
+      "description": "Развёртываемый массив фотоэлектрических панелей.",
+      "domain_codes": [
+        "energy",
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 180,
+        "duration_periods": 2,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 12,
+        "resource_requirements": {
+          "steel": 80,
+          "aluminium": 25,
+          "electronics": 12
+        }
+      },
+      "operation": {
+        "power_generation_kw": 18,
+        "power_load_kw": 0,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 1
+      },
+      "tags": [
+        "generation",
+        "power"
+      ]
+    },
+    {
+      "id": "battery_bank",
+      "entity_type": "infrastructure",
+      "kind": "battery_storage",
+      "name": "Аккумуляторный блок",
+      "description": "Стационарное накопление и выдача электроэнергии.",
+      "domain_codes": [
+        "energy",
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 130,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 35,
+          "lithium": 18,
+          "electronics": 10
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 0.4,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 0.5
+      },
+      "tags": [
+        "storage",
+        "power"
+      ]
+    },
+    {
+      "id": "ice_miner",
+      "entity_type": "infrastructure",
+      "kind": "mining_unit",
+      "name": "Комплекс добычи водяного льда",
+      "description": "Добыча и первичная подготовка льда из реголита.",
+      "domain_codes": [
+        "geology",
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 210,
+        "duration_periods": 3,
+        "labor_fte": 2,
+        "energy_kwh_per_period": 18,
+        "resource_requirements": {
+          "steel": 65,
+          "electronics": 8,
+          "composites": 20
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 2.5,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {
+          "raw_ice": 180
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "mining",
+        "water"
+      ]
+    },
+    {
+      "id": "water_recycler",
+      "entity_type": "infrastructure",
+      "kind": "water_recycler",
+      "name": "Установка регенерации воды",
+      "description": "Очистка и возврат технической и бытовой воды в оборот.",
+      "domain_codes": [
+        "life_support",
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 160,
+        "duration_periods": 2,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 14,
+        "resource_requirements": {
+          "steel": 30,
+          "electronics": 12,
+          "filters": 10
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 1.8,
+        "resource_inputs_per_period": {
+          "waste_water": 80
+        },
+        "resource_outputs_per_period": {
+          "usable_water": 65
+        },
+        "operating_cost_credits_per_period": 1
+      },
+      "tags": [
+        "water",
+        "life_support"
+      ]
+    },
+    {
+      "id": "oxygen_isru",
+      "entity_type": "infrastructure",
+      "kind": "oxygen_plant",
+      "name": "Установка получения кислорода",
+      "description": "Производство кислорода из местного сырья.",
+      "domain_codes": [
+        "life_support",
+        "industry",
+        "science"
+      ],
+      "build": {
+        "budget_credits": 240,
+        "duration_periods": 3,
+        "labor_fte": 2,
+        "energy_kwh_per_period": 22,
+        "resource_requirements": {
+          "steel": 55,
+          "electronics": 18,
+          "ceramics": 12
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 3,
+        "resource_inputs_per_period": {
+          "raw_ice": 35
+        },
+        "resource_outputs_per_period": {
+          "oxygen": 24
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "isru",
+        "oxygen"
+      ]
+    },
+    {
+      "id": "greenhouse",
+      "entity_type": "infrastructure",
+      "kind": "greenhouse",
+      "name": "Герметичная теплица",
+      "description": "Выращивание пищевых культур в контролируемой среде.",
+      "domain_codes": [
+        "agriculture",
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 220,
+        "duration_periods": 3,
+        "labor_fte": 2,
+        "energy_kwh_per_period": 20,
+        "resource_requirements": {
+          "steel": 25,
+          "glass": 35,
+          "electronics": 8,
+          "nutrients": 12
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 2.2,
+        "resource_inputs_per_period": {
+          "usable_water": 20,
+          "nutrients": 5
+        },
+        "resource_outputs_per_period": {
+          "food_solids": 18,
+          "oxygen": 3
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "food",
+        "life_support"
+      ]
+    },
+    {
+      "id": "habitat_module",
+      "entity_type": "infrastructure",
+      "kind": "habitat",
+      "name": "Жилой модуль",
+      "description": "Герметичный жилой объём с системами жизнеобеспечения.",
+      "domain_codes": [
+        "construction",
+        "life_support",
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 300,
+        "duration_periods": 4,
+        "labor_fte": 3,
+        "energy_kwh_per_period": 15,
+        "resource_requirements": {
+          "steel": 90,
+          "aluminium": 35,
+          "composites": 40,
+          "electronics": 15
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 1.2,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "habitat",
+        "life_support"
+      ]
+    },
+    {
+      "id": "medical_unit",
+      "entity_type": "infrastructure",
+      "kind": "medical_unit",
+      "name": "Медицинский модуль",
+      "description": "Медицинская диагностика, стабилизация и базовое лечение.",
+      "domain_codes": [
+        "medicine",
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 190,
+        "duration_periods": 2,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 10,
+        "resource_requirements": {
+          "steel": 20,
+          "electronics": 25,
+          "medical_supplies": 20
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 1.1,
+        "resource_inputs_per_period": {
+          "medical_supplies": 2
+        },
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "medical",
+        "safety"
+      ]
+    },
+    {
+      "id": "rover",
+      "entity_type": "vehicle",
+      "kind": "rover",
+      "name": "Герметичный исследовательский ровер",
+      "description": "Пилотируемая мобильная платформа для разведки и перевозки.",
+      "domain_codes": [
+        "transport",
+        "geology",
+        "science"
+      ],
+      "build": {
+        "budget_credits": 260,
+        "duration_periods": 3,
+        "labor_fte": 2,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 30,
+          "aluminium": 35,
+          "electronics": 20,
+          "batteries": 12
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 0.5,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 3
+      },
+      "tags": [
+        "mobility",
+        "exploration"
+      ]
+    },
+    {
+      "id": "workshop",
+      "entity_type": "infrastructure",
+      "kind": "workshop",
+      "name": "Ремонтно-производственная мастерская",
+      "description": "Изготовление деталей и ремонт оборудования.",
+      "domain_codes": [
+        "industry",
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 200,
+        "duration_periods": 3,
+        "labor_fte": 2.5,
+        "energy_kwh_per_period": 16,
+        "resource_requirements": {
+          "steel": 50,
+          "electronics": 10,
+          "machine_parts": 15
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 2,
+        "resource_inputs_per_period": {
+          "steel": 8,
+          "machine_parts": 2
+        },
+        "resource_outputs_per_period": {
+          "spare_parts": 6
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "manufacturing",
+        "maintenance"
+      ]
+    },
+    {
+      "id": "comms_relay",
+      "entity_type": "infrastructure",
+      "kind": "communications",
+      "name": "Ретранслятор связи",
+      "description": "Узел связи и телеметрии колонии.",
+      "domain_codes": [
+        "communications",
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 95,
+        "duration_periods": 1,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "aluminium": 12,
+          "electronics": 18
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 0.25,
+        "resource_inputs_per_period": {},
+        "resource_outputs_per_period": {},
+        "operating_cost_credits_per_period": 0.5
+      },
+      "tags": [
+        "communications",
+        "safety"
+      ]
+    },
+    {
+      "id": "regolith_sinterer",
+      "entity_type": "infrastructure",
+      "kind": "industrial_unit",
+      "name": "Установка спекания реголита",
+      "description": "Производство строительных элементов из местного реголита.",
+      "domain_codes": [
+        "industry",
+        "construction",
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 230,
+        "duration_periods": 3,
+        "labor_fte": 2,
+        "energy_kwh_per_period": 24,
+        "resource_requirements": {
+          "steel": 35,
+          "electronics": 12,
+          "refractory_material": 15
+        }
+      },
+      "operation": {
+        "power_generation_kw": 0,
+        "power_load_kw": 3.2,
+        "resource_inputs_per_period": {
+          "regolith": 100
+        },
+        "resource_outputs_per_period": {
+          "construction_blocks": 35
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "manufacturing",
+        "isru"
+      ]
+    },
+    {
+      "id": "advanced_bioreactor",
+      "entity_type": "technology",
+      "kind": "technology",
+      "name": "Высокоэффективный биореактор",
+      "description": "Технология повышения выхода биологических производств.",
+      "domain_codes": [
+        "agriculture",
+        "science",
+        "life_support"
+      ],
+      "research": {
+        "budget_credits": 150,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 5,
+        "resource_requirements": {
+          "nutrients": 10
+        }
+      },
+      "effects": {
+        "resource_output_multiplier": {
+          "food_solids": 1.15
+        }
+      },
+      "tags": [
+        "research",
+        "biology"
+      ]
+    },
+    {
+      "id": "dust_mitigation",
+      "entity_type": "technology",
+      "kind": "technology",
+      "name": "Система защиты от пылевых бурь",
+      "description": "Технология снижения деградации внешнего оборудования.",
+      "domain_codes": [
+        "safety",
+        "planetary",
+        "energy"
+      ],
+      "research": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "electronics": 8
+        }
+      },
+      "effects": {
+        "asset_condition_loss_multiplier": 0.8
+      },
+      "tags": [
+        "research",
+        "safety"
+      ]
+    },
+    {
+      "id": "autonomous_mining",
+      "entity_type": "technology",
+      "kind": "technology",
+      "name": "Автономное управление добычей",
+      "description": "Технология снижения трудозатрат добывающих комплексов.",
+      "domain_codes": [
+        "geology",
+        "industry",
+        "science"
+      ],
+      "research": {
+        "budget_credits": 180,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "electronics": 15,
+          "machine_parts": 8
+        }
+      },
+      "effects": {
+        "labor_demand_multiplier": 0.85
+      },
+      "tags": [
+        "research",
+        "automation"
+      ]
+    }
+  ]
+}
