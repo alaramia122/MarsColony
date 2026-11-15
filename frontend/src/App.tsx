@@ -54,7 +54,7 @@ const entityKindNames: Record<string, string> = {
   cargo_hauler: "Грузовой транспорт", cargo_handling_crane: "Грузовой кран",
   autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
 };
-const entityKindLabel = (kind: string) => entityKindNames[kind] || kind.replaceAll("_", " ");
+const entityKindLabel = (kind: string) => entityKindNames[kind] || "Другие объекты";
 const projectTypeNames: Record<string, string> = {
   construction: "Строительство", production: "Производство", repair: "Ремонт",
   research: "Исследование", exploration: "Разведка", procurement: "Закупка",
@@ -73,7 +73,7 @@ const eventTypeNames: Record<string, string> = {
   "gm.event_proposed": "Предложено сценарное событие", "gm.event_published": "Сценарное событие опубликовано",
   "gm.event_rejected": "Сценарное событие отклонено"
 };
-const eventTypeLabel = (value: string) => eventTypeNames[value] || value.replaceAll(".", " · ").replaceAll("_", " ");
+const eventTypeLabel = (value: string) => eventTypeNames[value] || "Другое событие";
 
 
 const quantity = (value: number, digits = 1) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: digits }).format(value);
@@ -154,6 +154,7 @@ const localizeError = (message: string) => {
     const match = message.match(pattern);
     if (match) return translate(match);
   }
+  if (/^[A-Za-z][A-Za-z .:'"0-9_\/-]*$/.test(message)) return "Операция не выполнена. Проверьте введённые данные, полномочия и состояние игровой сессии. Если ошибка повторяется, проверьте журнал сервера.";
   return message;
 };
 
@@ -478,7 +479,7 @@ function RoleWorkspace({ player, players, projects, events, state, currentPeriod
           <h3>{info.title}</h3><p>{info.purpose}</p>
           <div className="domain-metrics">{info.metrics.map(([key,label,unit]) => <div key={key}><span>{label}</span><strong>{metricValue(key)} <small>{unit}</small></strong></div>)}<div><span>Инфраструктурные объекты направления</span><strong>{infrastructure.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(code)).length} <small>шт.</small></strong></div><div><span>Активные проекты направления</span><strong>{related.filter((project) => ["approved","executing"].includes(project.status)).length} <small>шт.</small></strong></div></div>
           <div className="domain-projects"><strong>Стартовый комплект · {relatedAssets.length} объектов</strong>{relatedAssets.map((asset) => <span key={String(asset.id)}>{String(asset.name || asset.kind || "Инфраструктурный объект")}</span>)}</div>
-          <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</span>)}</div>
+          <div className="domain-projects"><strong>{related.length} проектов</strong>{related.slice(0,3).map((project) => <span key={project.id}>{project.title} · {projectStatusNames[project.status] || "Неизвестный статус"}</span>)}</div>
         </article>;
       })}
     </section>
@@ -603,7 +604,7 @@ function AISettings() {
     <section className="panel">
       <div className="eyebrow">ПРОВАЙДЕР ИИ / НАСТРОЙКА СЕРВЕРА</div><h2>Подключение ИИ-ведущего</h2>
       <p className="muted ai-settings-help">Настройка выполняется для всей игровой сессии. Ключи не сохраняются в браузере после закрытия страницы и не отправляются в игровой API: панель формирует блок для серверного файла .env. Не вставляйте секреты в общий чат и не публикуйте .env в Git.</p>
-      <label>Провайдер<select value={provider} onChange={(event) => { setProvider(event.target.value); setNotice(""); }}>{[["yandex_ai_studio","Yandex AI Studio"],["openai_compatible","OpenAI-compatible API"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Провайдер<select value={provider} onChange={(event) => { setProvider(event.target.value); setNotice(""); }}>{[["yandex_ai_studio","Yandex AI Studio"],["openai_compatible","API, совместимый с OpenAI"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {provider === "openai_compatible" && <label>Базовый URL API<input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" /></label>}
       {provider === "yandex_ai_studio" && <label>ID каталога Yandex Cloud<input value={folderId} onChange={(event) => setFolderId(event.target.value)} placeholder="b1g..." /></label>}
       <label>Название модели<input value={model} onChange={(event) => setModel(event.target.value)} placeholder="yandexgpt/latest" /></label>
@@ -611,7 +612,7 @@ function AISettings() {
       <div className="form-foot"><span className="muted">После изменения .env выполните <code>docker compose up -d --force-recreate api</code>.</span><button className="button button-primary" onClick={copyConfig}>Скопировать настройки</button></div>
       {notice && <p className="assistant-notice">{notice}</p>}
     </section>
-    <section className="panel"><div className="eyebrow">ПРЕДПРОСМОТР НАСТРОЕК</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через MARS_AI_PROVIDERS и MARS_AI_TASK_ROUTING. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
+    <section className="panel"><div className="eyebrow">ПРЕДПРОСМОТР НАСТРОЕК</div><h2>Блок для .env</h2><pre className="env-preview">{config}</pre><p className="muted small">AI Gateway поддерживает несколько провайдеров и маршрутизацию задач через реестр провайдеров и маршрутизация задач. Эта форма пока генерирует конфигурацию одного провайдера.</p></section>
   </div>;
 }
 
@@ -732,11 +733,11 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
       <section className="panel side-panel">
         <div className="panel-heading"><div><div className="eyebrow">ПРОЕКТНЫЙ ОФИС</div><h2>Проекты</h2></div><button className="text-button" onClick={onOpenProjects}>Все проекты ↗</button></div>
         {projects.length === 0 ? <div className="empty-state"><span>▤</span><strong>Пока нет проектов</strong><p>Здесь появятся инициативы и ход их исполнения.</p></div> :
-          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{projectStatusNames[project.status] || project.status} · {project.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
+          projects.slice(0, 4).map((project) => <div className="compact-project" key={project.id}><div><strong>{project.title}</strong><span>{projectStatusNames[project.status] || project.status} · {project.domain_codes.map((code) => domainLabels[code] || "Другое направление").join(", ")}</span></div><b>{project.progress_periods}/{project.duration_periods}</b></div>)}
       </section>
     </div>
     <section className="panel event-panel">
-      <div className="panel-heading"><div><div className="eyebrow">ЛЕНТА СОБЫТИЙ</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · PostgreSQL event log</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">ЛЕНТА СОБЫТИЙ</div><h2>Последние изменения</h2></div><span className="muted small">WebSocket · журнал событий PostgreSQL</span></div>
       {events.length === 0 ? <p className="muted">Ожидание событий игровой сессии.</p> : events.slice().reverse().map((event) =>
         <div className="event-row" key={event.sequence}><span className="event-seq">#{event.sequence}</span><strong>{event.event_type}</strong><span>{event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "—"}</span></div>)}
     </section>
@@ -1079,7 +1080,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const describeEffects = (effect: Record<string, unknown>) => {
     const details: string[] = [];
     const outputs = effect.resource_outputs_per_period as Record<string, number> | undefined;
-    if (outputs) Object.entries(outputs).forEach(([key, value]) => details.push(`${resourceLabels[key] || key}: +${quantity(value, 2)}/период`));
+    if (outputs) Object.entries(outputs).forEach(([key, value]) => details.push(`${resourceLabels[key] || "Другой ресурс"}: +${quantity(value, 2)}/период`));
     if (Number(effect.power_generation_kw_delta) > 0) details.push(`Генерация +${quantity(Number(effect.power_generation_kw_delta), 2)} кВт`);
     if (Number(effect.power_load_kw_delta) > 0) details.push(`Нагрузка +${quantity(Number(effect.power_load_kw_delta), 2)} кВт`);
     const assets = effect.infrastructure as Array<{ name?: string; properties?: Record<string, unknown> }> | undefined;
@@ -1249,7 +1250,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
-        <div className="project-card-top"><span className="eyebrow">{projectTypeNames[project.project_type] || project.project_type}</span><span className={`status status-${project.status}`}>{labels[project.status] || project.status}</span></div>
+        <div className="project-card-top"><span className="eyebrow">{projectTypeNames[project.project_type] || "Другой тип проекта"}</span><span className={`status status-${project.status}`}>{labels[project.status] || project.status}</span></div>
         <h3>{project.title}</h3><p>{project.description}</p>
         <div className="project-meta"><span>{project.domain_codes.map((code) => domainLabels[code] || code).join(" · ")}</span><strong>{money(project.budget_credits)} кр.</strong></div>
         <div className="project-detail-grid">
