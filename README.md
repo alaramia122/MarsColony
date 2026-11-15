@@ -37,3 +37,13 @@ python -m json.tool data/scenarios/ares-01.json
 python -m unittest discover -s tests -v
 python tools/scenario_sim.py
 ```
+
+
+## Структура репозитория
+
+- `docs/` — GDD, техническое задание, экономическая модель, сценарии, план и ADR.
+- `data/scenarios/` — машиночитаемые игровые сценарии.
+- `tools/` — контрольные расчёты и проектные утилиты.
+- `tests/` — автоматические проверки сценариев и доменных расчётов.
+- `.github/workflows/` — CI и автоматизация.
+- `AGENTS.md` и `docs/PROJECT_STATE.md` — переносимый контекст для продолжения работы.
