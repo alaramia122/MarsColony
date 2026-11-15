@@ -70,6 +70,25 @@ class InfrastructureEconomyTests(unittest.TestCase):
         self.assertAlmostEqual(updated["infrastructure"][0]["condition"], 0.495)
         self.assertAlmostEqual(state["infrastructure"][0]["properties"]["condition"], 0.5)
 
+    def test_research_technology_increases_matching_asset_process_output(self):
+        scenario = deepcopy(SCENARIO)
+        scenario["initial_infrastructure"] = [{
+            "id": "GREEN-1",
+            "name": "Теплица",
+            "kind": "hydroponic_greenhouse",
+            "domain_codes": ["agriculture", "life_support"],
+            "properties": {"condition": 1.0, "status": "commissioned"},
+        }]
+        state = initial_state(scenario)
+        state["technologies"] = [{
+            "id": "advanced_bioreactor",
+            "name": "Высокоэффективный биореактор",
+            "domain_codes": ["agriculture", "science", "life_support"],
+            "effects": {"resource_output_multiplier": {"food_solids": 1.15}},
+        }]
+        _, report = advance_period(scenario, state, 1)
+        self.assertAlmostEqual(report["food_output_kg"], 51.75, places=5)
+
     def test_drilling_rig_produces_ice_and_consumes_power_and_budget(self):
         scenario = deepcopy(SCENARIO)
         scenario["initial_infrastructure"] = [
