@@ -40,7 +40,12 @@ def _battery_spec(power: dict[str, Any]) -> BatterySpec:
 def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
     """Create the first game-state snapshot from a validated scenario."""
     stocks = scenario["stocks"]
-    state = {"period": 0}
+    state = {
+        "period": 0,
+        "infrastructure": [],
+        "production_bonuses_per_period": {},
+        "power_generation_kw_delta": 0.0,
+    }
     for resource in scenario["resource_catalog"].values():
         state[resource["state_key"]] = float(stocks[resource["state_key"]])
     state["budget_credits"] = float(scenario["finance"]["starting_credits"])
@@ -81,6 +86,7 @@ def _power_loads(
     scenario: dict[str, Any],
     average_load_kw: float,
     process_multipliers: dict[str, float],
+    additional_loads: list[dict[str, Any]] | None = None,
 ) -> list[PowerLoad]:
     power = scenario["power"]
     loads = []
@@ -104,6 +110,13 @@ def _power_loads(
             priority=int(group["priority"]),
             minimum_kw=float(group["minimum_kw"]),
         ))
+    for item in additional_loads or []:
+        loads.append(PowerLoad(
+            load_id=str(item["load_id"]),
+            requested_kw=float(item["requested_kw"]),
+            priority=int(item.get("priority", 4)),
+            minimum_kw=float(item.get("minimum_kw", 0.0)),
+        ))
     return loads
 
 
@@ -111,6 +124,7 @@ def advance_period(
     scenario: dict[str, Any],
     state: dict[str, Any],
     period_number: int,
+    additional_loads: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Calculate one period and return a new state and a detailed report."""
     state = dict(state)
@@ -154,6 +168,7 @@ def advance_period(
         int(power["module_count"])
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        + float(state.get("power_generation_kw_delta", 0.0))
     )
     service_duration_hours = float(event.get("duration_hours", 0.0))
     if service_duration_hours < 0 or service_duration_hours > period_hours:
@@ -165,6 +180,7 @@ def advance_period(
         modules_online
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        + float(state.get("power_generation_kw_delta", 0.0))
     )
     normal_duration_hours = period_hours - service_duration_hours
     battery_spec = _battery_spec(power)
@@ -208,7 +224,7 @@ def advance_period(
                     else 0.0
                 )
                 for process_id in scenario["processes"]
-            }),
+            }, additional_loads),
             duration_hours=duration,
         )
         battery_charge_report = None
@@ -266,6 +282,22 @@ def advance_period(
             scenario, state, process_id, requested_cycles, energy_budget
         )
         process_reports[process_id] = process_report
+
+    production_bonus_report = {}
+    for resource_id, quantity in state.get("production_bonuses_per_period", {}).items():
+        if resource_id not in scenario["resource_catalog"]:
+            raise DomainError(f"Unknown production bonus resource '{resource_id}'.")
+        resource = scenario["resource_catalog"][resource_id]
+        state_key = resource["state_key"]
+        current = float(state[state_key])
+        capacity = _storage_capacity(scenario, resource_id)
+        new_quantity = current + float(quantity)
+        if capacity is not None and new_quantity > capacity + 1e-9:
+            raise DomainError(
+                f"Production bonus for '{resource_id}' exceeds storage capacity."
+            )
+        state[state_key] = _round_resource(new_quantity, scenario, resource_id)
+        production_bonus_report[resource_id] = float(quantity)
 
     allocated_process_energy_kwh = sum(process_energy_budgets.values())
     actual_process_energy_kwh = sum(
@@ -377,6 +409,7 @@ def advance_period(
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
+        "project_production_bonuses": production_bonus_report,
         "power_intervals": interval_reports,
         "available_generation_kw": generation_kw,
         "average_load_kw": average_load_kw,
