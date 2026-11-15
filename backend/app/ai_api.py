@@ -180,7 +180,7 @@ def create_ai_proposal(
             actor = authenticate(db, session_id, token)
             if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose a project.")
-            provider = configured_provider()
+            provider = configured_provider("project_proposal")
             _reserve_ai_request(db, session_id, actor)
             context = build_provider_context(session, actor)
             context_period = session.current_period
@@ -373,7 +373,7 @@ def create_colony_briefing(
             if session is None:
                 raise HTTPException(status_code=404, detail="Game session not found.")
             actor = authenticate(db, session_id, token)
-            provider = configured_provider()
+            provider = configured_provider("briefing")
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             period = session.current_period
@@ -410,7 +410,7 @@ def create_ai_event_proposal(
             actor = authenticate(db, session_id, token)
             if "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the colony commander can request a game event.")
-            provider = configured_provider()
+            provider = configured_provider("scenario_event")
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
@@ -574,7 +574,7 @@ def clarify_ai_proposal(
                 raise HTTPException(status_code=409, detail="Only pending proposals can be clarified.")
             if actor.id != record.author_player_id and "colony_commander" not in (actor.roles or []):
                 raise HTTPException(status_code=403, detail="Only the proposal author or colony commander can clarify it.")
-            provider = configured_provider()
+            provider = configured_provider("project_clarification")
             dialogue = list(record.dialogue or [])
             if len(dialogue) >= 20:
                 raise HTTPException(status_code=409, detail="The clarification limit for this proposal has been reached.")
@@ -698,7 +698,7 @@ def create_ai_entity(
             actor = authenticate(db, session_id, token)
             if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
                 raise HTTPException(status_code=403, detail="Player has no authority to propose a knowledge entity.")
-            provider = configured_provider()
+            provider = configured_provider("knowledge_entity")
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
