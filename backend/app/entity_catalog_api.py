@@ -13,7 +13,7 @@ from .db import SessionLocal
 from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity
 from .domain.projects import DOMAIN_CODES
 from .models import GameEntityRecord, GameEventRecord, GameSessionRecord
-from .projects_api import authenticate, policy
+from .projects_api import authenticate
 
 router = APIRouter(prefix="/api/v1")
 
