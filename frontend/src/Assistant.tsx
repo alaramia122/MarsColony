@@ -32,6 +32,82 @@ type Briefing = {
   risks: string[]; decisions_needed: string[]; next_period_focus: string[];
 };
 
+const localizeError = (message: string) => {
+  const exact: Record<string, string> = {
+    "AI provider is not configured.": "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api.",
+    "Player token is required.": "Для выполнения действия требуется авторизация игрока.",
+    "Invalid player token for this session.": "Токен игрока недействителен. Войдите в игровую сессию заново.",
+    "Game session not found.": "Игровая сессия не найдена.",
+    "Game storage is unavailable.": "Хранилище игры временно недоступно. Проверьте состояние базы данных.",
+    "Only the colony commander can change campaign settings.": "Изменять параметры кампании может только командир колонии.",
+    "Campaign settings are locked after the first period starts.": "Параметры кампании заблокированы после начала первого периода.",
+    "Campaign settings are locked after the first project is created.": "Параметры кампании заблокированы после создания первого проекта.",
+    "Only the colony commander can advance the period.": "Завершить игровой период может только командир колонии.",
+    "Only the colony commander can request a game event.": "Запрашивать сценарные события может только командир колонии.",
+    "Only the colony commander can publish a game event.": "Публиковать сценарные события может только командир колонии.",
+    "Only the colony commander can reject a game event.": "Отклонять сценарные события может только командир колонии.",
+    "AI event did not match its response contract.": "ИИ вернул событие в неподдерживаемом формате. Повторите запрос позже.",
+    "AI briefing did not match its response contract.": "ИИ вернул сводку в неподдерживаемом формате. Повторите запрос позже.",
+    "Project domains must be unique valid domain codes.": "Укажите неповторяющиеся допустимые направления проекта.",
+    "Unknown project type.": "Выбран неизвестный тип проекта.",
+    "Player has no authority to propose this project.": "У вас недостаточно полномочий для создания проекта в выбранных направлениях.",
+    "Project labor demand exceeds scenario workforce capacity.": "Потребность проекта в персонале превышает доступную численность работников.",
+    "Project energy demand must be finite.": "Потребность проекта в энергии должна быть конечным числом.",
+    "Project title and description are required.": "Укажите название и описание проекта.",
+    "Only draft projects can be submitted.": "На согласование можно отправить только черновик проекта.",
+    "Only the author or colony commander can submit.": "Отправить проект на согласование может только его автор или командир колонии.",
+    "Insufficient unreserved colony budget.": "Недостаточно свободного бюджета колонии.",
+    "Decision must be approve or reject.": "Выберите решение: согласовать или отклонить.",
+    "Only submitted projects can be approved.": "Решение можно принять только по проекту, отправленному на согласование.",
+    "Project authors cannot approve their own project; a commander may issue a documented command order.": "Автор проекта не может согласовать его самостоятельно. Командир может оформить отдельное распоряжение с обоснованием.",
+    "A command order for the commander's own project requires a justification of at least 10 characters.": "Для командирского распоряжения по собственному проекту требуется обоснование не короче 10 символов.",
+    "Player has no approval authority.": "У вас нет полномочий согласовывать этот проект.",
+    "Player has already voted on this project.": "Вы уже приняли решение по этому проекту.",
+    "Project requires all approvals before execution.": "Для запуска проекта необходимо получить все обязательные согласования.",
+    "Player has no authority to execute this project.": "У вас нет полномочий запускать этот проект.",
+    "Only executing projects can be completed.": "Подтвердить завершение можно только для исполняемого проекта.",
+    "Project has not completed its required execution periods.": "Проект ещё не отработал необходимое количество периодов.",
+    "Only the author or colony commander can cancel.": "Отменить проект может только его автор или командир колонии.",
+    "AI proposal has already been processed.": "Это предложение ИИ уже обработано.",
+    "Only pending proposals can be clarified.": "Уточнять можно только предложения, ожидающие проверки.",
+    "The clarification limit for this proposal has been reached.": "Достигнут лимит уточнений для этого предложения.",
+    "AI event proposal has already been processed.": "Это сценарное событие уже обработано.",
+    "AI event proposal belongs to an earlier game period.": "Это событие относится к предыдущему игровому периоду.",
+    "Knowledge entity is not pending review.": "Сущность уже не ожидает проверки.",
+    "Only the colony commander can approve a knowledge entity.": "Утверждать записи реестра знаний может только командир колонии.",
+    "Only the colony commander can reject a knowledge entity.": "Отклонять записи реестра знаний может только командир колонии."
+  };
+  if (exact[message]) return exact[message];
+  const patterns: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
+    [/^AI provider is not configured\.$/i, () => "ИИ-провайдер не подключён. Настройте его в файле .env и перезапустите контейнер api."],
+    [/^Yandex AI Studio requires MARS_AI_YANDEX_API_KEY and MARS_AI_YANDEX_FOLDER_ID\.$/i, () => "Для Yandex AI Studio укажите API-ключ и идентификатор каталога в файле .env."],
+    [/^OpenAI-compatible provider requires MARS_AI_BASE_URL, MARS_AI_API_KEY and MARS_AI_MODEL\.$/i, () => "Для совместимого API укажите адрес, API-ключ и название модели в файле .env."],
+    [/^AI request limit for this session has been reached/i, () => "Достигнут часовой лимит запросов к ИИ для игровой сессии."],
+    [/^AI request limit for this player has been reached/i, () => "Достигнут часовой лимит запросов к ИИ для этого игрока."],
+    [/^Unknown starting resource: (.+)\.$/, m => `Неизвестный стартовый ресурс: ${m[1]}.`],
+    [/^Starting resource '(.+)' must be finite and non-negative\.$/, m => `Количество ресурса «${m[1]}» должно быть конечным неотрицательным числом.`],
+    [/^Starting resource '(.+)' exceeds storage capacity \((.+)\)\.$/, m => `Запас ресурса «${m[1]}» превышает вместимость хранилища (${m[2]}).`],
+    [/^Unknown resource requirement: (.+)\.$/, m => `Неизвестный требуемый ресурс: ${m[1]}.`],
+    [/^Invalid quantity for resource: (.+)\.$/, m => `Некорректное количество ресурса: ${m[1]}.`],
+    [/^Unknown or unapproved catalogue entity: (.+)\.$/, m => `Тип сущности «${m[1]}» не найден или ещё не утверждён.`],
+    [/^Project budget is below selected entities' minimum \((.+) credits\)\.$/, m => `Бюджет проекта ниже минимального для выбранных сущностей (${m[1]} игровых кредитов).`],
+    [/^Project labor is below selected entities' minimum \((.+) FTE\)\.$/, m => `Трудозатраты проекта ниже минимальных для выбранных сущностей (${m[1]} FTE).`],
+    [/^Project energy is below selected entities' minimum \((.+) kWh per period\)\.$/, m => `Энергия проекта ниже минимальной потребности выбранных сущностей (${m[1]} кВт·ч за период).`],
+    [/^Insufficient resource '(.+)' to start the project\.$/, m => `Недостаточно ресурса «${m[1]}» для запуска проекта.`],
+    [/^Only the colony commander/i, () => "Это действие доступно только командиру колонии."],
+    [/^Player has no authority/i, () => "У вас недостаточно полномочий для выполнения этого действия."],
+    [/^Game state changed while the event was being generated/i, () => "Состояние игры изменилось во время подготовки события. Обновите данные и повторите запрос."],
+    [/^Game state changed while the AI proposal was being generated/i, () => "Состояние игры изменилось во время подготовки предложения ИИ. Повторите запрос."],
+    [/^Unsupported AI provider adapter/i, () => "Выбранный тип ИИ-провайдера не поддерживается."]
+  ];
+  for (const [pattern, translate] of patterns) {
+    const match = message.match(pattern);
+    if (match) return translate(match);
+  }
+  if (/^[A-Za-z][A-Za-z .:'"0-9_\/-]*$/.test(message)) return "Операция не выполнена. Проверьте введённые данные, полномочия и состояние игровой сессии. Если ошибка повторяется, проверьте журнал сервера.";
+  return message;
+};
+
 async function aiRequest<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -39,7 +115,7 @@ async function aiRequest<T>(path: string, token: string, init: RequestInit = {})
   const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || `Ошибка запроса: HTTP ${response.status}`);
+    throw new Error(localizeError(body.detail || `Ошибка запроса: HTTP ${response.status}`));
   }
   return response.json() as Promise<T>;
 }
@@ -54,6 +130,22 @@ const domainNames: Record<string, string> = {
   transport: "Транспорт", administration: "Администрация", safety: "Безопасность",
   communications: "Связь", external_relations: "Внешние связи"
 };
+const projectTypeNames: Record<string, string> = {
+  construction: "Строительство", production: "Производство", repair: "Ремонт",
+  research: "Исследование", exploration: "Разведка", procurement: "Закупка",
+  infrastructure: "Инфраструктура", other: "Прочее"
+};
+const severityNames: Record<string, string> = {
+  low: "Низкая", moderate: "Умеренная", high: "Высокая", critical: "Критическая"
+};
+const resourceNames: Record<string, string> = {
+  oxygen: "Кислород", food_solids: "Пищевые запасы", usable_water: "Подготовленная вода",
+  raw_ice: "Сырой лёд", raw_regolith: "Исходный реголит", regolith_bricks: "Реголитовые блоки",
+  steel: "Конструкционная сталь", aluminium: "Алюминиевые сплавы",
+  electronics: "Электронные компоненты", polymers: "Полимеры и герметики",
+  spare_parts: "Запасные части"
+};
+
 
 export default function Assistant({ sessionId, token, playerId, eventWatermark, isCommander, canProposeEntity, onRefresh }: {
   sessionId: string; token: string; playerId: string; eventWatermark: number;
@@ -84,7 +176,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
   }, [sessionId, token]);
 
   useEffect(() => {
-    void load().catch((reason: Error) => setError(reason.message));
+    void load().catch((reason: Error) => setError(localizeError(reason.message)));
   }, [load, eventWatermark]);
 
   const run = async (key: string, action: () => Promise<void>) => {
@@ -187,7 +279,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
   return <div className="assistant-layout">
     <section className="panel assistant-panel">
       <div className="panel-heading">
-        <div><div className="eyebrow">AI GAME MASTER</div><h2>Оперативная сводка</h2></div>
+        <div><div className="eyebrow">ИИ-ВЕДУЩИЙ</div><h2>Оперативная сводка</h2></div>
         <button className="button button-secondary small-button" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateBriefing()}>
           {busy === "briefing" ? "Анализ…" : "Сформировать сводку"}
         </button>
@@ -205,7 +297,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">NATURAL LANGUAGE / PROJECT OFFICE</div><h2>Предложить проект</h2></div></div>
+      <div className="panel-heading"><div><div className="eyebrow">ЕСТЕСТВЕННЫЙ ЯЗЫК / ПРОЕКТНЫЙ ОФИС</div><h2>Предложить проект</h2></div></div>
       <p className="muted assistant-help">Опишите задачу обычным языком. ИИ подготовит проектную инициативу и отметит неизвестные параметры.</p>
       <textarea className="assistant-input" value={requestText} onChange={(event) => setRequestText(event.target.value)}
         placeholder="Например: организовать резервную линию производства кислорода, чтобы повысить устойчивость жизнеобеспечения…" rows={4} maxLength={8000} />
@@ -216,19 +308,19 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">PROPOSAL REVIEW</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">ПРОВЕРКА ПРЕДЛОЖЕНИЙ</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
       {proposals.length === 0 ? <p className="muted assistant-empty">Здесь будут появляться предложения, сформированные игроками.</p> :
         <div className="assistant-cards">{proposals.map((item) => <article className="assistant-card" key={item.id}>
-          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{item.proposal.project_type}</span></div>
+          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{projectTypeNames[item.proposal.project_type] || "Другой тип проекта"}</span></div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.description}</p>
           <div className="assistant-facts">
             <span>Бюджет <b>{money(item.proposal.budget_credits)} кр.</b></span>
             <span>Срок <b>{item.proposal.duration_periods} пер.</b></span>
             <span>Труд <b>{money(item.proposal.labor_fte)} FTE</b></span>
             <span>Энергия <b>{money(item.proposal.energy_kwh_per_period)} кВт·ч/пер.</b></span>
-            <span className="assistant-fact-wide">Направления <b>{item.proposal.domain_codes.map((code) => domainNames[code] || code).join(", ")}</b></span>
+            <span className="assistant-fact-wide">Направления <b>{item.proposal.domain_codes.map((code) => domainNames[code] || "Другое направление").join(", ")}</b></span>
           </div>
-          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${key}: ${money(value)}`).join(" · ")}</p>}
+          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${resourceNames[key] || "Другой ресурс"}: ${money(value)}`).join(" · ")}</p>}
           {item.proposal.rationale && <p className="assistant-note"><b>Обоснование:</b> {item.proposal.rationale}</p>}
           {item.proposal.assumptions.length > 0 && <BriefingList title="Допущения" items={item.proposal.assumptions} />}
           {item.proposal.risks.length > 0 && <BriefingList title="Риски" items={item.proposal.risks} />}
@@ -249,17 +341,17 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
     </section>
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">SCENARIO DIRECTOR</div><h2>Сценарные события</h2></div><span className="count-chip">{events.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">СЦЕНАРНЫЙ РЕЖИССЁР</div><h2>Сценарные события</h2></div><span className="count-chip">{events.length}</span></div>
       <p className="muted assistant-help">Сценарные карточки, подготовленные ИИ-ведущим и опубликованные командиром.</p>
       {isCommander && <div className="assistant-toolbar event-generation">
         <input value={eventFocus} onChange={(event) => setEventFocus(event.target.value)} maxLength={1000} placeholder="Фокус события, например: внешняя логистика или пылевая буря" />
-        <button className="button button-primary" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : undefined} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
+        <button className="button button-primary" disabled={Boolean(busy)} title={busy ? "Дождитесь завершения текущего запроса к ИИ." : "Для подготовки события требуется подключённый ИИ-провайдер. Без него кнопка сообщит, что именно нужно настроить."} onClick={() => void generateEvent()}>{busy === "event" ? "Подготовка…" : "Предложить событие"}</button>
       </div>}
       {events.length === 0 ? <p className="muted assistant-empty">Событий пока нет.</p> :
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
             <span className={`status status-${item.status === "published" ? "approved" : item.status === "pending_review" ? "submitted" : "rejected"}`}>{item.status === "published" ? "Опубликовано" : item.status === "pending_review" ? "На проверке" : "Отклонено"}</span>
-            <span className="muted small">Период {item.period_created} · {item.proposal.severity} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
+            <span className="muted small">Период {item.period_created} · {severityNames[item.proposal.severity] || "Не указана"} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
           </div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.narrative}</p>
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
@@ -274,7 +366,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
 
 
     <section className="panel assistant-panel">
-      <div className="panel-heading"><div><div className="eyebrow">KNOWLEDGE REGISTRY</div><h2>Реестр сущностей и версий</h2></div><span className="count-chip">{entities.length}</span></div>
+      <div className="panel-heading"><div><div className="eyebrow">РЕЕСТР ЗНАНИЙ</div><h2>Реестр сущностей и версий</h2></div><span className="count-chip">{entities.length}</span></div>
       <p className="muted assistant-help">Технологии, инфраструктура, процессы, ресурсы и процедуры хранятся как версии базы знаний. Утверждение добавляет запись в реестр, но не меняет расчётную модель автоматически.</p>
       {canProposeEntity && <>
         <textarea className="assistant-input" value={entityText} onChange={(event) => setEntityText(event.target.value)}
@@ -288,11 +380,11 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
         <div className="assistant-cards">{entities.map((entity) => <article className="assistant-card" key={entity.id}>
           <div className="assistant-card-top">
             <span className={`status status-${entity.status === "active" ? "approved" : entity.status === "pending_review" ? "submitted" : "rejected"}`}>{entity.status === "active" ? "Утверждена" : entity.status === "pending_review" ? "На проверке" : entity.status === "superseded" ? "Предыдущая версия" : "Отклонена"}</span>
-            <span className="muted small">v{entity.version} · {entity.entity_type}</span>
+            <span className="muted small">v{entity.version} · {({ technology: "Технология", infrastructure: "Инфраструктура", equipment: "Оборудование", vehicle: "Транспорт", process: "Процесс", procedure: "Процедура" } as Record<string, string>)[entity.entity_type] || "Другая сущность"}</span>
           </div>
           <h3>{entity.name}</h3><p>{entity.description}</p>
           <p className="assistant-note"><b>Идентификатор:</b> {entity.entity_key}</p>
-          <p className="assistant-note"><b>Направления:</b> {entity.domain_codes.map((code) => domainNames[code] || code).join(", ")}</p>
+          <p className="assistant-note"><b>Направления:</b> {entity.domain_codes.map((code) => domainNames[code] || "Другое направление").join(", ")}</p>
           {entity.assumptions.length > 0 && <BriefingList title="Допущения" items={entity.assumptions} />}
           {entity.risks.length > 0 && <BriefingList title="Риски" items={entity.risks} />}
           {isCommander && entity.status === "pending_review" && <div className="assistant-actions">
