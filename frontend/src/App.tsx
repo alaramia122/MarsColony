@@ -250,7 +250,7 @@ export default function App() {
             <div>
               <div className="eyebrow">ARES-01 / {session?.starter_preset?.name || "MARS OPERATIONS"}</div>
               <h1>{view === "overview" ? "Центр управления" : view === "workspace" ? "Мой кабинет" : view === "map" ? "Карта колонии" : view === "projects" ? "Проектный офис" : view === "people" ? "Состав экспедиции" : view === "tutorial" ? "Обучение экипажа" : view === "ai-settings" ? "Настройки ИИ" : view === "campaign-settings" ? "Параметры игры" : "ИИ-ведущий"}</h1>
-              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : view === "campaign-settings" ? "Продолжительность кампании и исходные запасы колонии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
+              <p>{view === "overview" ? "Оперативная картина состояния базы и ход экспедиции." : view === "workspace" ? "Персональные обязанности, показатели и задачи вашей зоны ответственности." : view === "map" ? "Интерактивная схема инфраструктуры и расположения объектов." : view === "projects" ? "Инициативы, согласования и ход исполнения." : view === "people" ? "Участники сессии и распределение ответственности." : view === "tutorial" ? "Учебная миссия: от первого осмотра до завершения проекта." : view === "ai-settings" ? "Подключение провайдера ИИ для всей игровой сессии." : view === "campaign-settings" ? "Продолжительность кампании и финансовые параметры. Стартовая инфраструктура выбирается при создании сессии." : "Сводки колонии, проектные предложения и сценарные события."}</p>
             </div>
             <div className="period-chip"><span>ТЕКУЩИЙ ПЕРИОД</span><strong>{session?.current_period ?? "—"} <small>/ {session?.settings?.period_count ?? 4}</small></strong></div>
           </div>
@@ -377,39 +377,40 @@ function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
   const catalog = session.resource_catalog || {};
   const [periodCount, setPeriodCount] = useState(String(session.settings?.period_count ?? 4));
   const [startingCredits, setStartingCredits] = useState(String(session.settings?.starting_credits ?? 0));
-  const [resources, setResources] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(session.settings?.starting_resources || {}).map(([key, value]) => [key, String(value)]))
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const locked = session.current_period > 0 || hasProjects;
-  const resourceNames: Record<string, string> = {
-    oxygen: "Кислород", food_solids: "Пищевые запасы", usable_water: "Подготовленная вода",
-    raw_ice: "Сырой лёд"
-  };
-  const resourceEntries = Object.entries(catalog);
   const valid = Number.isInteger(Number(periodCount)) && Number(periodCount) >= 1 && Number(periodCount) <= 100
-    && Number.isFinite(Number(startingCredits)) && Number(startingCredits) >= 0
-    && resourceEntries.every(([key, resource]) => {
-      const value = Number(resources[key] ?? session.settings?.starting_resources?.[resource.state_key || ""] ?? 0);
-      return Number.isFinite(value) && value >= 0;
-    });
+    && Number.isFinite(Number(startingCredits)) && Number(startingCredits) >= 0;
+  const domainLabels: Record<string, string> = {
+    geology: "Геологоразведка и добыча", industry: "Промышленность и производство",
+    energy: "Энергетика", life_support: "Жизнеобеспечение", construction: "Строительство и инфраструктура",
+    agriculture: "Сельское хозяйство", medicine: "Медицина", social: "Социальное развитие",
+    education: "Образование", science: "Наука и технологии", planetary: "Планетология",
+    transport: "Транспорт и логистика", administration: "Администрация и экономика",
+    safety: "Безопасность", communications: "Связь", external_relations: "Внешнее снабжение"
+  };
+  const infrastructure = Array.isArray(session.state.infrastructure)
+    ? session.state.infrastructure as Array<Record<string, unknown>> : [];
+  const starterAssets = infrastructure.filter((asset) =>
+    (asset.properties as Record<string, unknown> | undefined)?.starter_asset === true
+  );
+  const materialStockLabels: Record<string, string> = {
+    oxygen: "Кислород", food_solids: "Пищевые запасы",
+    usable_water: "Подготовленная вода", raw_ice: "Сырой лёд"
+  };
   useEffect(() => {
     setPeriodCount(String(session.settings?.period_count ?? 4));
     setStartingCredits(String(session.settings?.starting_credits ?? 0));
-    setResources(Object.fromEntries(Object.entries(session.settings?.starting_resources || {}).map(([key, value]) => [key, String(value)])));
   }, [session.settings]);
   const save = async () => {
     if (locked || !valid) return;
     setSaving(true); setError(""); setNotice("");
     try {
-      const starting_resources = Object.fromEntries(resourceEntries.map(([key, resource]) => [
-        key, Number(resources[key] ?? session.settings?.starting_resources?.[resource.state_key || ""] ?? 0)
-      ]));
       await request(`${API}/sessions/${auth.sessionId}/settings`, auth.token, {
         method: "PATCH",
-        body: JSON.stringify({ period_count: Number(periodCount), starting_resources, starting_credits: Number(startingCredits) })
+        body: JSON.stringify({ period_count: Number(periodCount), starting_credits: Number(startingCredits) })
       });
       await onRefresh();
       setNotice("Параметры кампании сохранены. Они применяются ко всем участникам этой сессии.");
@@ -419,24 +420,36 @@ function CampaignSettings({ session, auth, hasProjects, onRefresh }: {
   return <div className="ai-settings-layout">
     <section className="panel">
       <div className="eyebrow">CAMPAIGN CONFIGURATION</div><h2>Параметры игровой кампании</h2>
-      <p className="muted ai-settings-help">Настройки общие для всей сессии. Изменять их может только командир, до начала первого игрового периода и до создания первого проекта. После старта кампании параметры фиксируются.</p>
-      {locked && <div className="alert">{session.current_period > 0 ? "Кампания уже началась." : "Уже создан проект."} Изменение стартовых параметров заблокировано.</div>}
+      <p className="muted ai-settings-help">Здесь задаются продолжительность и финансовый резерв. Стартовая техническая и инфраструктурная комплектация выбирается капитаном на экране создания сессии.</p>
+      {locked && <div className="alert">{session.current_period > 0 ? "Кампания уже началась." : "Уже создан проект."} Изменение параметров заблокировано.</div>}
       <label>Количество игровых периодов<input type="number" min="1" max="100" step="1" value={periodCount} disabled={locked} onChange={(event) => setPeriodCount(event.target.value)} /><small>Один период сценария Ares-1 равен 30 солам. Общая длительность пересчитывается автоматически.</small></label>
-      <div className="form-section"><strong>Стартовые ресурсы</strong><p className="field-help">Запасы, с которыми колония начинает кампанию. Значения проверяются по вместимости соответствующих хранилищ.</p>
-        <div className="form-grid">{resourceEntries.map(([key, resource]) => <label key={key}>{resourceNames[key] || key} ({resource.unit || "ед."})<input type="number" min="0" step="any" value={resources[key] ?? String(session.settings?.starting_resources?.[resource.state_key || ""] ?? 0)} disabled={locked} onChange={(event) => setResources((current) => ({ ...current, [key]: event.target.value }))} /><small>Начальный запас; вместимость хранилища проверяется сервером.</small></label>)}</div>
-      </div>
       <label>Стартовый бюджет, игровые кредиты<input type="number" min="0" step="0.1" value={startingCredits} disabled={locked} onChange={(event) => setStartingCredits(event.target.value)} /><small>Начальный финансовый резерв колонии.</small></label>
+      <div className="form-section">
+        <strong>Стартовые материальные запасы по сценарию</strong>
+        <p className="field-help">Это расходуемые вещества и материалы, а не технические объекты. Они задаются сценарием отдельно от стартовой инфраструктуры.</p>
+        <div className="system-list">{Object.entries(catalog).map(([key, resource]) => {
+          const value = session.settings?.starting_resources?.[resource.state_key || ""] ?? 0;
+          return <div className="system-row" key={key}><div className="system-info"><strong>{materialStockLabels[key] || key}</strong><span>{resource.unit || "ед."}</span></div><div className="system-value">{quantity(value, resource.precision_digits ?? 2)}</div></div>;
+        })}</div>
+      </div>
       {error && <div className="alert">{error}</div>}
       {notice && <p className="assistant-notice">{notice}</p>}
-      <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании или создания первого проекта." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и неотрицательные числовые значения." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
+      <div className="form-foot"><span className="muted">Текущий период: {session.current_period} из {session.settings?.period_count ?? 4}.</span><button className="button button-primary" disabled={locked || saving || !valid} title={locked ? "Параметры заблокированы после начала кампании или создания первого проекта." : saving ? "Сохранение выполняется." : !valid ? "Проверьте количество периодов и стартовый бюджет." : "Сохранить параметры кампании."} onClick={() => void save()}>{saving ? "Сохранение…" : "Сохранить параметры"}</button></div>
     </section>
-    <section className="panel"><div className="eyebrow">CURRENT CAMPAIGN</div><h2>Сводка настроек</h2>
-      <div className="system-row"><div className="system-info"><strong>Игровые периоды</strong><span>Продолжительность кампании</span></div><div className="system-value">{session.settings?.period_count ?? 4}</div></div>
-      <div className="system-row"><div className="system-info"><strong>Стартовый бюджет</strong><span>Игровые кредиты</span></div><div className="system-value">{money(session.settings?.starting_credits ?? 0)}</div></div>
-      {resourceEntries.map(([key, resource]) => <div className="system-row" key={key}><div className="system-info"><strong>{resourceNames[key] || key}</strong><span>{resource.unit || "ед."}</span></div><div className="system-value">{quantity(session.settings?.starting_resources?.[resource.state_key || ""] ?? 0, 2)}</div></div>)}
+    <section className="panel">
+      <div className="eyebrow">STARTING INFRASTRUCTURE</div><h2>Выбранная комплектация</h2>
+      <h3>{session.starter_preset?.name || "Стартовый профиль не указан"}</h3>
+      <p className="muted">{session.starter_preset?.description || "Профиль стартовой инфраструктуры не сохранён в снимке сессии."}</p>
+      <div className="system-row"><div className="system-info"><strong>Инфраструктурных объектов</strong><span>В начальном составе колонии</span></div><div className="system-value">{starterAssets.length}</div></div>
+      {Object.entries(domainLabels).map(([domain, label]) => {
+        const assets = starterAssets.filter((asset) => Array.isArray(asset.domain_codes) && asset.domain_codes.includes(domain));
+        return <details className="starter-preset-details" key={domain}><summary>{label} · {assets.length} объектов</summary>{assets.map((asset) => <div key={String(asset.id)}><strong>{String(asset.name || asset.kind)}</strong><span>{String((asset.properties as Record<string, unknown> | undefined)?.description || "")}</span></div>)}</details>;
+      })}
+      <p className="field-help">Выбранный профиль фиксируется при создании сессии. Для смены стартовой комплектации нужно создать новую сессию.</p>
     </section>
   </div>;
 }
+
 
 function AISettings() {
   const [provider, setProvider] = useState("yandex_ai_studio");
