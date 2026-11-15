@@ -654,7 +654,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   const visible = positioned.filter(matchesLayer);
   const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Стартовая комплектация отображается в реестре и на схеме по зонам ответственности. Экономические эффекты отдельных стартовых объектов пока не рассчитываются движком; это учтённые объекты, а не уже подключённые производственные модели.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
       {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
@@ -804,6 +804,9 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       setNewEntityName("");
       setNewEntityDescription("");
       setEntityFormOpen(false);
+      const latestCatalog = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
+      setCatalogEntities(latestCatalog.entities);
+      setPendingEntityProposals(latestCatalog.pending_proposals || []);
       setEntityProposalError("Предложение отправлено на согласование. После одобрения оно появится в каталоге.");
     } catch (reason) {
       setEntityProposalError((reason as Error).message);
