@@ -49,8 +49,10 @@ class PeriodEngineTests(unittest.TestCase):
             )
 
         self.assertTrue(all(item["essential_demands_met"] for item in reports))
-        self.assertGreater(state["raw_ice_kg"], 0.0)
-        self.assertLess(state["raw_ice_kg"], SCENARIO["stocks"]["raw_ice_kg"])
+        self.assertAlmostEqual(state["oxygen_kg"], 356.037283, places=5)
+        self.assertAlmostEqual(state["food_solids_kg"], 322.818320, places=5)
+        self.assertAlmostEqual(state["usable_water_kg"], 2802.230370, places=5)
+        self.assertAlmostEqual(state["raw_ice_kg"], 2706.103987, places=5)
         self.assertAlmostEqual(state["budget_credits"], 500.0, places=6)
         self.assertGreaterEqual(state["oxygen_kg"], SCENARIO["victory_conditions"]["minimum_oxygen_end_kg"])
         self.assertGreaterEqual(state["food_solids_kg"], SCENARIO["victory_conditions"]["minimum_food_end_kg"])
@@ -69,6 +71,10 @@ class PeriodEngineTests(unittest.TestCase):
         )
         self.assertLess(reports[1]["oxygen_output_kg"], 300.0)
         self.assertLess(reports[1]["water_output_kg"], 1000.0)
+        self.assertAlmostEqual(reports[1]["oxygen_output_kg"], 291.735043, places=5)
+        self.assertAlmostEqual(reports[1]["water_output_kg"], 935.116810, places=5)
+        self.assertAlmostEqual(reports[1]["power_service"]["battery_discharge_kwh"], 96.0)
+        self.assertFalse(reports[1]["all_electrical_loads_served"])
 
     def test_period_two_dispatches_power_and_discharges_battery(self):
         state = initial_state(SCENARIO)
