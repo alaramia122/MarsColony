@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .api import router
+from .api import router\nfrom .projects_api import router as projects_router
 from .db import SessionLocal
 
 
@@ -12,7 +12,7 @@ app = FastAPI(
     version="0.2.0",
     description="Authoritative game-state API for MarsColony.",
 )
-app.include_router(router)
+app.include_router(router)\napp.include_router(projects_router)
 
 
 @app.get("/health")
