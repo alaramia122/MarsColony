@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type AIProposal = {
   id: string;
+  author_player_id: string;
   status: string;
   version: number;
   proposal: {
@@ -54,8 +55,8 @@ const domainNames: Record<string, string> = {
   communications: "Связь", external_relations: "Внешние связи"
 };
 
-export default function Assistant({ sessionId, token, isCommander, canProposeEntity, onRefresh }: {
-  sessionId: string; token: string; isCommander: boolean; canProposeEntity: boolean;
+export default function Assistant({ sessionId, token, playerId, isCommander, canProposeEntity, onRefresh }: {
+  sessionId: string; token: string; playerId: string; isCommander: boolean; canProposeEntity: boolean;
   onRefresh: () => Promise<void>;
 }) {
   const [requestText, setRequestText] = useState("");
@@ -231,7 +232,7 @@ export default function Assistant({ sessionId, token, isCommander, canProposeEnt
           {item.proposal.assumptions.length > 0 && <BriefingList title="Допущения" items={item.proposal.assumptions} />}
           {item.proposal.risks.length > 0 && <BriefingList title="Риски" items={item.proposal.risks} />}
           {item.proposal.questions.length > 0 && <BriefingList title="Нужно уточнить" items={item.proposal.questions} />}
-          {item.status === "pending_review" && <div className="assistant-clarify">
+          {item.status === "pending_review" && (item.author_player_id === playerId || isCommander) && <div className="assistant-clarify">
             <label>Уточнить предложение
               <textarea value={clarifications[item.id] || ""} onChange={(event) => setClarifications((current) => ({ ...current, [item.id]: event.target.value }))}
                 placeholder="Ответьте на вопросы ИИ или скорректируйте параметры проекта…" rows={2} maxLength={4000} />
@@ -239,7 +240,7 @@ export default function Assistant({ sessionId, token, isCommander, canProposeEnt
             <button className="button button-secondary small-button" disabled={Boolean(busy) || (clarifications[item.id] || "").trim().length < 2}
               onClick={() => void clarifyProposal(item)}>{busy === `${item.id}-clarify` ? "Уточнение…" : `Уточнить предложение · v${item.version}`}</button>
           </div>}
-          {item.status === "pending_review" && <div className="assistant-actions">
+          {item.status === "pending_review" && (item.author_player_id === playerId || isCommander) && <div className="assistant-actions">
             <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "create-project")}>{busy === `${item.id}-create-project` ? "Создание…" : "Создать черновик проекта"}</button>
             <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "reject")}>Отклонить</button>
           </div>}
