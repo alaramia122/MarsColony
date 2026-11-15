@@ -109,6 +109,21 @@ class AIProposalAPITests(unittest.TestCase):
             )
         self.assertEqual(error.exception.status_code, 403)
 
+
+    def test_proposal_can_be_rejected_without_creating_a_project(self):
+        proposal = ai_api.create_ai_proposal(
+            self.session_id,
+            ProposalRequest(text="Создать резервную линию кислорода."),
+            token=self.token,
+        )
+        rejected = ai_api.reject_ai_proposal(
+            self.session_id, proposal["id"], token=self.token
+        )
+        self.assertEqual(rejected["status"], "rejected")
+        with self.session_factory() as db:
+            from backend.app.models import ProjectRecord
+            self.assertEqual(db.query(ProjectRecord).count(), 0)
+
     def test_proposal_cannot_be_converted_twice(self):
         proposal = ai_api.create_ai_proposal(
             self.session_id,
