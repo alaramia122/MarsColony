@@ -76,13 +76,18 @@ jobs:
           spec=json.load(sys.stdin)
           assert '/api/v1/sessions' in spec['paths']
           assert '/api/v1/sessions/{session_id}/advance' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/players' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/projects' in spec['paths']
           assert '/health/ready' in spec['paths']
           "
-          SESSION_ID=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
+          SESSION_DATA=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
             -H "Content-Type: application/json" \
-            -d '{"scenario_id":"ares-01"}' | python -c "import json,sys; print(json.load(sys.stdin)['id'])")
+            -d '{"scenario_id":"ares-01"}' | python -c "import json,sys; s=json.load(sys.stdin); print(s['id'], s['owner_token'])")
+          read SESSION_ID OWNER_TOKEN <<< "$SESSION_DATA"
           echo "SESSION_ID=$SESSION_ID" >> "$GITHUB_ENV"
+          echo "OWNER_TOKEN=$OWNER_TOKEN" >> "$GITHUB_ENV"
           curl -fsS -X POST "http://localhost:8000/api/v1/sessions/$SESSION_ID/advance" \
+            -H "X-Player-Token: $OWNER_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{"expected_period":0}' > /dev/null
           docker compose restart db
@@ -95,7 +100,8 @@ jobs:
             if curl -fsS http://localhost:8000/health/ready > /dev/null; then break; fi
             sleep 2
           done
-          curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID" | python -c "
+          curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID" \
+            -H "X-Player-Token: $OWNER_TOKEN" | python -c "
           import json,sys
           session=json.load(sys.stdin)
           assert session['current_period'] == 1, session
