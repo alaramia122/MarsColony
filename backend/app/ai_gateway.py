@@ -127,11 +127,17 @@ def configured_provider() -> AIProvider:
     model = os.getenv("MARS_AI_MODEL", "").strip()
     if not base_url or not api_key or not model:
         raise ProviderError("AI provider requires MARS_AI_BASE_URL, MARS_AI_API_KEY and MARS_AI_MODEL.")
+    try:
+        timeout = float(os.getenv("MARS_AI_TIMEOUT_SECONDS", "45"))
+        if not 1.0 <= timeout <= 180.0:
+            raise ValueError("timeout outside supported range")
+    except ValueError as error:
+        raise ProviderError("MARS_AI_TIMEOUT_SECONDS must be between 1 and 180.") from error
     return OpenAICompatibleProvider(
         base_url=base_url,
         api_key=api_key,
         model=model,
-        timeout=float(os.getenv("MARS_AI_TIMEOUT_SECONDS", "45")),
+        timeout=timeout,
     )
 
 
