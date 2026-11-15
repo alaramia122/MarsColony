@@ -190,6 +190,9 @@ class PeriodEngineTests(unittest.TestCase):
         self.assertAlmostEqual(updated["polymers_kg"], 299)
         self.assertAlmostEqual(updated["spare_parts_units"], 88)
         self.assertAlmostEqual(report["service_capacity_per_period"]["repair_work_orders_per_period"], 15)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["requested"], 2)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["served"], 2)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["unmet"], 0)
 
     def test_periods_must_be_advanced_sequentially(self):
         with self.assertRaises(DomainError):
