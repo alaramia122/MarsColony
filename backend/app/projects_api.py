@@ -781,7 +781,7 @@ def execute_project(session_id: str, project_id: str, request: VersionRequest,
                 raise HTTPException(status_code=409, detail="Project version is stale.")
             if project.status != "approved":
                 raise HTTPException(status_code=409, detail="Project requires all approvals before execution.")
-            if project.project_type in {"construction", "infrastructure"}:
+            if project.project_type in {"construction", "infrastructure"} and (project.expected_result or {}).get("infrastructure"):
                 approved_site = db.scalar(select(MapPlacementRecord.id).where(
                     MapPlacementRecord.session_id == session_id,
                     MapPlacementRecord.project_id == project_id,
