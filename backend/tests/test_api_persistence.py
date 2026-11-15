@@ -104,6 +104,7 @@ class SessionPersistenceTests(unittest.TestCase):
             api.advance_game_session(
                 session_id,
                 AdvancePeriodRequest(expected_period=0),
+                player_token=owner_token,
             )
         self.assertEqual(error.exception.status_code, 503)
 
