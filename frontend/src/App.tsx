@@ -931,6 +931,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       {canPropose && <button className="button button-primary" onClick={() => setFormOpen((value) => !value)}>{formOpen ? "Закрыть форму" : "＋ Новый проект"}</button>}
     </div>
     {actionError && <div className="alert">{actionError}<button onClick={() => setActionError("")}>×</button></div>}
+    {entityProposalError && <div className="alert">{entityProposalError}<button onClick={() => setEntityProposalError("")}>×</button></div>}
     {pendingEntityProposals.length > 0 && <section className="panel project-form">
       <div className="eyebrow">ENTITY CATALOG REVIEW</div><h2>Новые типы на согласовании</h2>
       {pendingEntityProposals.map((proposal) => {
@@ -976,7 +977,6 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
           <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
           <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
-          {entityProposalError && <p className="field-help">{entityProposalError}</p>}
           <button type="button" className="button button-primary" disabled={saving || newEntityName.trim().length < 2 || !newEntityDescription.trim()} onClick={() => void proposeNewEntity()}>Отправить тип на согласование</button>
         </div>}
       </div>
