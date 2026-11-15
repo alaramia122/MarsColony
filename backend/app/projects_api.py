@@ -314,6 +314,7 @@ def create_project(session_id: str, request: ProjectCreate,
                         technologies.append({
                             "id": entity_id, "name": entity["name"],
                             "description": entity["description"], "level": 1,
+                            "domain_codes": list(entity.get("domain_codes", [])),
                             "catalog_entity_id": entity_id, "effects": entity.get("effects", {}),
                         })
                     else:
