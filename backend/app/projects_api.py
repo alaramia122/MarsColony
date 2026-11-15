@@ -1,4 +1,5 @@
 """Player membership, scoped permissions and project workflow endpoints."""
+import base64
 import hashlib
 from copy import deepcopy
 import math
@@ -16,7 +17,7 @@ from .domain.projects import (
     can_manage_project, can_propose_project,
 )
 from .models import (
-    GameEntityRecord, GameEventRecord, GameSessionRecord, PlayerRecord,
+    GameEntityImageRecord, GameEntityRecord, GameEventRecord, GameSessionRecord, PlayerRecord,
     ProjectApprovalRecord, ProjectRecord,
 )
 from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity
@@ -280,11 +281,21 @@ def create_project(session_id: str, request: ProjectCreate,
                     GameEntityRecord.session_id == session_id,
                     GameEntityRecord.status == "approved",
                 )).all()
+                custom_images = db.scalars(select(GameEntityImageRecord).where(
+                    GameEntityImageRecord.entity_id.in_([item.id for item in custom_records])
+                )).all() if custom_records else []
+                images_by_entity = {item.entity_id: item for item in custom_images}
                 for item in custom_records:
+                    image = images_by_entity.get(item.id)
+                    image_data_url = (
+                        f"data:{image.media_type};base64,{base64.b64encode(image.image_data).decode('ascii')}"
+                        if image else None
+                    )
                     available_entities[item.entity_key] = {
                         "id": item.entity_key, "entity_type": item.entity_type,
                         "name": item.name, "description": item.description,
                         "domain_codes": item.domain_codes or [],
+                        "image_data_url": image_data_url,
                         **(item.definition or {}),
                     }
                 total_catalog_budget = 0.0
@@ -318,6 +329,7 @@ def create_project(session_id: str, request: ProjectCreate,
                             "description": entity["description"], "level": 1,
                             "domain_codes": list(entity.get("domain_codes", [])),
                             "catalog_entity_id": entity_id, "effects": entity.get("effects", {}),
+                            "image_data_url": entity.get("image_data_url"),
                         })
                     elif entity["entity_type"] == "procedure":
                         procedures.append({
@@ -325,6 +337,7 @@ def create_project(session_id: str, request: ProjectCreate,
                             "description": entity["description"],
                             "domain_codes": list(entity.get("domain_codes", [])),
                             "catalog_entity_id": entity_id,
+                            "image_data_url": entity.get("image_data_url"),
                         })
                     else:
                         infrastructure.append({
@@ -336,6 +349,7 @@ def create_project(session_id: str, request: ProjectCreate,
                                 "condition": 1.0,
                                 "economic_effects": entity.get("operation", {}),
                                 "catalog_entity_id": entity_id,
+                                "image_data_url": entity.get("image_data_url"),
                             },
                         })
                 if request.budget_credits + 1e-9 < total_catalog_budget:
