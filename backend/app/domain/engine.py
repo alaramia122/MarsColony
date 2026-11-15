@@ -212,6 +212,7 @@ def advance_period(
     )
 
     event_multipliers = {}
+    process_asset_capacity = {}
     process_reports = {}
     for process_id, process in scenario["processes"].items():
         multiplier_key = process.get("event_multiplier_key")
@@ -227,6 +228,7 @@ def advance_period(
                 if asset.get("kind") in asset_kinds
                 and asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
             )
+        process_asset_capacity[process_id] = capacity_factor
         event_multipliers[process_id] = (
             float(process["requested_cycles_per_period"]) * multiplier * capacity_factor
         )
@@ -640,12 +642,7 @@ def advance_period(
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
-        "infrastructure_process_capacity": {
-            process_id: event_multipliers[process_id]
-            / float(scenario["processes"][process_id]["requested_cycles_per_period"])
-            if float(scenario["processes"][process_id]["requested_cycles_per_period"]) > 0 else 0.0
-            for process_id in scenario["processes"]
-        },
+        "infrastructure_process_capacity": process_asset_capacity,
         "infrastructure_operations": asset_operation_reports,
         "infrastructure_condition_changes": condition_reports,
         "project_production_bonuses": production_bonus_report,
