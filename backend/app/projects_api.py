@@ -269,9 +269,10 @@ def create_project(session_id: str, request: ProjectCreate,
             }
             if not set(request.expected_result).issubset(allowed_effects):
                 raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
-            for resource_id, quantity in request.expected_result.get(
-                "resource_outputs_per_period", {}
-            ).items():
+            resource_outputs = request.expected_result.get("resource_outputs_per_period", {})
+            if not isinstance(resource_outputs, dict):
+                raise HTTPException(status_code=422, detail="Resource outputs must be an object.")
+            for resource_id, quantity in resource_outputs.items():
                 if resource_id not in catalog:
                     raise HTTPException(status_code=422, detail=f"Unknown output resource: {resource_id}.")
                 if (
