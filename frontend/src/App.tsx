@@ -705,6 +705,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [entityFormOpen, setEntityFormOpen] = useState(false);
   const [newEntityType, setNewEntityType] = useState("infrastructure");
+  const [newEntityDomains, setNewEntityDomains] = useState<string[]>(player?.responsibility_domains?.length ? player.responsibility_domains : ["life_support"]);
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityDescription, setNewEntityDescription] = useState("");
   const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
@@ -713,6 +714,11 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [actionError, setActionError] = useState("");
   const roleSet = new Set(player?.roles || []);
   const canPropose = ["colony_commander", "domain_lead", "engineer"].some((role) => roleSet.has(role));
+  useEffect(() => {
+    if (player?.responsibility_domains?.length) {
+      setNewEntityDomains(player.responsibility_domains);
+    }
+  }, [player?.id]);
   useEffect(() => {
     let active = true;
     request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token)
@@ -799,7 +805,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       setEntityProposalError("Определение сущности должно быть корректным JSON-объектом.");
       return;
     }
-    if (domains.length === 0) {
+    if (newEntityDomains.length === 0) {
       setEntityProposalError("Выберите хотя бы одну зону ответственности.");
       return;
     }
@@ -809,7 +815,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         method: "POST",
         body: JSON.stringify({
           entity_type: newEntityType, name: newEntityName,
-          description: newEntityDescription, domain_codes: domains,
+          description: newEntityDescription, domain_codes: newEntityDomains,
           definition, source_text: "Создано игроком через проектный офис."
         })
       });
@@ -863,7 +869,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (Object.keys(outputs).length) expected.resource_outputs_per_period = outputs;
     if (Number(generationDelta) > 0) expected.power_generation_kw_delta = Number(generationDelta);
     if (Number(loadDelta) > 0) expected.power_load_kw_delta = Number(loadDelta);
-    const selectedKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+    const selectedKind = assetKind.trim();
     if (assetName.trim() && selectedKind) {
       const properties: Record<string, unknown> = { condition: 1 };
       if (assetX.trim() !== "" && assetY.trim() !== "") { properties.x = Number(assetX); properties.y = Number(assetY); }
@@ -917,7 +923,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (procedures) procedures.forEach((item) => details.push(`Процедура: ${item.name || "без названия"}`));
     return details.join(" · ") || "Не задан";
   };
-  const selectedAssetKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+  const selectedAssetKind = assetKind.trim();
   const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))));
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
@@ -968,6 +974,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           <label>Категория<select value={newEntityType} onChange={(event) => setNewEntityType(event.target.value)}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
           <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
           <label>Описание<textarea value={newEntityDescription} onChange={(event) => setNewEntityDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Назначение, ограничения и принцип работы" /></label>
+          <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
           <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
           <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
           {entityProposalError && <p className="field-help">{entityProposalError}</p>}
@@ -979,8 +986,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       <div className="form-grid">
         <label>Дополнительная генерация, кВт<input type="number" min="0" step="0.1" value={generationDelta} onChange={(event) => setGenerationDelta(event.target.value)} /></label>
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
-        <label>Новый объект инфраструктуры<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный резервуар" /><small>Конкретный экземпляр, который появится на карте после завершения проекта.</small></label>
-        <label>Тип объекта<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}<option value="__custom__">＋ Добавить новый тип…</option></select>{assetKind === "__custom__" && <input value={customAssetKind} onChange={(event) => setCustomAssetKind(event.target.value)} maxLength={80} placeholder="Новый идентификатор типа, например water_recycler" />}<small>Выберите существующий тип или добавьте новый. Тип — категория; название выше — отдельный объект.</small></label>
+        <label>Дополнительная инвентарная запись<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный контейнер" /><small>Создаёт только запись об экземпляре без самостоятельной экономической модели. Для работающего оборудования выберите тип из каталога выше; для нового типа отправьте предложение на согласование.</small></label>
+        <label>Тип инвентарной записи<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select><small>Это не создаёт новый тип в каталоге и не добавляет производительность.</small></label>
         <label>Координата X, % от ширины карты<input type="number" min="0" max="100" step="0.1" value={assetX} onChange={(event) => setAssetX(event.target.value)} placeholder="Не задана" /></label>
         <label>Координата Y, % от высоты карты<input type="number" min="0" max="100" step="0.1" value={assetY} onChange={(event) => setAssetY(event.target.value)} placeholder="Не задана" /><small>Обе координаты необязательны. Если не заданы, объект останется в списке «без координат».</small></label>
       </div>
