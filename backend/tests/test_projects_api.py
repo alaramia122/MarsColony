@@ -618,6 +618,23 @@ class ProjectWorkflowTests(unittest.TestCase):
             self.assertEqual(ready.progress_periods, 1)
             self.assertEqual(ready.version, 5)
 
+    def test_project_result_rejects_malformed_resource_output_contract(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Некорректный выпуск",
+                    description="Структура результата должна быть типизированной.",
+                    project_type="production",
+                    domain_codes=["industry"],
+                    budget_credits=0,
+                    duration_periods=1,
+                    expected_result={"resource_outputs_per_period": "oxygen"},
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()
