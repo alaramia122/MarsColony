@@ -68,7 +68,7 @@ Issue #9; ветка `feat/stage3-web-clients-map`.
 
 Текущий механизм WebSocket опрашивает PostgreSQL каждые 750 мс. Клиент воспринимает события как уведомления и перечитывает авторитетный HTTP snapshot. При reconnect сервер отправляет новый snapshot. Детали: `docs/STAGE3_DESIGN.md`, ADR-006.
 
-**Проверки этапа 3 пока не подтверждены GitHub Actions.** Код создан в feature-ветке; результаты CI должны быть зафиксированы после открытия PR и запуска workflow.
+CI этапа 3 пройден на head PR #10: [Stage 0](https://github.com/alaramia122/MarsColony/actions/runs/43723818235) и [Backend and web validation](https://github.com/alaramia122/MarsColony/actions/runs/43723818294) — success. Подтверждены 71 backend test, frontend typecheck/build, PostgreSQL migrations, Compose config/build/start, доступность web/API и восстановление состояния после перезапуска PostgreSQL/API.
 
 ## Следующие задачи этапа 3
 
