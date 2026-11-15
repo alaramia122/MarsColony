@@ -1,0 +1,118 @@
+import unittest
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from backend.app import api, entity_catalog_api, projects_api
+from backend.app.db import Base
+from backend.app.api import CreateSessionRequest
+from backend.app.entity_catalog_api import EntityProposalRequest
+
+
+class EntityCatalogApiTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine(
+            "sqlite+pysqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=self.engine)
+        self.session_factory = sessionmaker(
+            bind=self.engine, autoflush=False, expire_on_commit=False
+        )
+        self.original_factories = (
+            api.SessionLocal,
+            projects_api.SessionLocal,
+            entity_catalog_api.SessionLocal,
+        )
+        api.SessionLocal = self.session_factory
+        projects_api.SessionLocal = self.session_factory
+        entity_catalog_api.SessionLocal = self.session_factory
+        self.session = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
+        self.session_id = self.session["id"]
+        self.owner_token = self.session["owner_token"]
+        self.player = projects_api.join_session(
+            self.session_id,
+            projects_api.JoinRequest(
+                display_name="Руководитель энергетики",
+                invite_code=self.session["join_code"],
+            ),
+        )
+        projects_api.assign_roles(
+            self.session_id,
+            self.player["player_id"],
+            projects_api.RoleAssignment(
+                roles=["domain_lead"],
+                responsibility_domains=["energy"],
+            ),
+            self.owner_token,
+        )
+
+    def tearDown(self):
+        api.SessionLocal, projects_api.SessionLocal, entity_catalog_api.SessionLocal = self.original_factories
+        Base.metadata.drop_all(bind=self.engine)
+        self.engine.dispose()
+
+    def test_custom_entity_requires_independent_approval_before_catalogue_use(self):
+        proposal = entity_catalog_api.propose_catalog_entity(
+            self.session_id,
+            EntityProposalRequest(
+                entity_type="infrastructure",
+                name="Компактный резервный генератор",
+                description="Небольшой дополнительный источник электроэнергии.",
+                domain_codes=["energy"],
+                definition={
+                    "kind": "custom_generator",
+                    "build": {
+                        "budget_credits": 50,
+                        "duration_periods": 1,
+                        "labor_fte": 0.5,
+                        "energy_kwh_per_period": 1,
+                        "resource_requirements": {},
+                    },
+                    "operation": {
+                        "power_generation_kw": 2,
+                        "power_load_kw": 0,
+                        "resource_inputs_per_period": {},
+                        "resource_outputs_per_period": {},
+                        "operating_cost_credits_per_period": 0.1,
+                    },
+                },
+                source_text="Проверка пользовательского определения.",
+            ),
+            self.player["player_token"],
+        )
+        self.assertEqual(proposal["status"], "pending_review")
+        with self.assertRaises(Exception):
+            entity_catalog_api.approve_catalog_entity(
+                self.session_id, proposal["id"], self.player["player_token"]
+            )
+        approved = entity_catalog_api.approve_catalog_entity(
+            self.session_id, proposal["id"], self.owner_token
+        )
+        self.assertEqual(approved["status"], "approved")
+        catalogue = entity_catalog_api.get_entity_catalog(self.session_id, self.owner_token)
+        custom = next(
+            item for item in catalogue["entities"]
+            if item["id"] == proposal["catalog_id"]
+        )
+        self.assertEqual(custom["operation"]["power_generation_kw"], 2)
+
+    def test_player_cannot_propose_definition_outside_assigned_domains(self):
+        with self.assertRaises(Exception):
+            entity_catalog_api.propose_catalog_entity(
+                self.session_id,
+                EntityProposalRequest(
+                    entity_type="infrastructure",
+                    name="Новый медицинский модуль",
+                    description="Проверка границ полномочий.",
+                    domain_codes=["medicine"],
+                    definition={"kind": "medical_module"},
+                ),
+                self.player["player_token"],
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
