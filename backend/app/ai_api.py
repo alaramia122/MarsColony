@@ -6,6 +6,7 @@ a separate player action creates an ordinary draft project for the existing work
 import math
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, ValidationError
@@ -20,7 +21,7 @@ from .db import SessionLocal
 from .domain.projects import DOMAIN_CODES, PROJECT_TYPES, can_propose_project
 from .models import (
     AIEventProposalRecord, AIProposalRecord, GameEventRecord, GameSessionRecord,
-    PlayerRecord, ProjectRecord,
+    GameEntityRecord, PlayerRecord, ProjectRecord,
 )
 from .projects_api import authenticate, policy
 
@@ -591,6 +592,212 @@ def clarify_ai_proposal(
         raise HTTPException(status_code=503, detail=str(error)) from error
     except ValidationError as error:
         raise HTTPException(status_code=502, detail="AI clarification did not match the project contract.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+
+class EntityGenerationRequest(BaseModel):
+    text: str = Field(min_length=5, max_length=8000)
+
+
+class AIEntityDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_key: str = Field(pattern="^[a-z][a-z0-9_]{1,63}$")
+    entity_type: Literal["technology", "infrastructure", "process", "resource", "procedure"]
+    name: str = Field(min_length=2, max_length=160)
+    description: str = Field(min_length=1, max_length=4000)
+    domain_codes: list[str] = Field(min_length=1, max_length=8)
+    definition: dict = Field(default_factory=dict)
+    assumptions: list[str] = Field(default_factory=list, max_length=20)
+    risks: list[str] = Field(default_factory=list, max_length=20)
+
+
+def _serialize_entity(record: GameEntityRecord) -> dict:
+    return {
+        "id": record.id, "entity_key": record.entity_key,
+        "entity_type": record.entity_type, "name": record.name,
+        "description": record.description, "domain_codes": record.domain_codes,
+        "definition": record.definition, "assumptions": record.assumptions,
+        "risks": record.risks, "source_text": record.source_text,
+        "version": record.version, "status": record.status,
+        "supersedes_id": record.supersedes_id,
+        "approved_by_player_id": record.approved_by_player_id,
+        "approved_at": record.approved_at, "created_at": record.created_at,
+        "updated_at": record.updated_at,
+    }
+
+
+@router.post("/sessions/{session_id}/ai/entities", status_code=201)
+def create_ai_entity(
+    session_id: str,
+    request: EntityGenerationRequest,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal() as db:
+            session = db.get(GameSessionRecord, session_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if not ({"colony_commander", "domain_lead", "engineer"}.intersection(actor.roles or [])):
+                raise HTTPException(status_code=403, detail="Player has no authority to propose a knowledge entity.")
+            context = _load_game_context(db, session)
+            context_period = session.current_period
+        provider = configured_provider()
+        raw = provider.generate_json(
+            "Ты — инженерный редактор реестра знаний игры MarsColony. Преобразуй описание "
+            "в структурированную сущность одного типа: technology, infrastructure, process, "
+            "resource или procedure. entity_key — стабильный lower_snake_case идентификатор. "
+            "Не добавляй неизвестные численные характеристики как факты. Все оценки и "
+            "непроверенные характеристики укажи в assumptions/risks. Сущность предназначена "
+            "для экспертной проверки и не должна менять расчётную модель. Верни JSON с полями "
+            "entity_key, entity_type, name, description, domain_codes, definition, assumptions, risks.",
+            {"user_description": request.text.strip(), "game_context": context},
+        )
+        entity = AIEntityDefinition.model_validate(raw)
+        if not set(entity.domain_codes).issubset(DOMAIN_CODES) or len(set(entity.domain_codes)) != len(entity.domain_codes):
+            raise HTTPException(status_code=422, detail="AI entity contains unknown or duplicate domains.")
+        if not isinstance(entity.definition, dict) or len(entity.definition) > 40:
+            raise HTTPException(status_code=422, detail="AI entity definition exceeds the supported structure.")
+        if not "colony_commander" in (actor.roles or []) and not set(entity.domain_codes).intersection(actor.responsibility_domains or []):
+            raise HTTPException(status_code=403, detail="AI entity is outside the player's responsibility domains.")
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if session.current_period != context_period:
+                raise HTTPException(status_code=409, detail="Game period changed while the entity was being generated.")
+            latest = db.scalar(select(GameEntityRecord).where(
+                GameEntityRecord.session_id == session_id,
+                GameEntityRecord.entity_key == entity.entity_key,
+            ).order_by(GameEntityRecord.version.desc()).limit(1))
+            active = db.scalar(select(GameEntityRecord).where(
+                GameEntityRecord.session_id == session_id,
+                GameEntityRecord.entity_key == entity.entity_key,
+                GameEntityRecord.status == "active",
+            ).order_by(GameEntityRecord.version.desc()).limit(1))
+            record = GameEntityRecord(
+                session_id=session_id, author_player_id=actor.id,
+                entity_key=entity.entity_key, entity_type=entity.entity_type,
+                name=entity.name, description=entity.description,
+                domain_codes=entity.domain_codes, definition=entity.definition,
+                assumptions=entity.assumptions, risks=entity.risks,
+                source_text=request.text.strip(),
+                version=1 if latest is None else latest.version + 1,
+                status="pending_review",
+                supersedes_id=active.id if active else None,
+            )
+            db.add(record)
+            db.flush()
+            _append_event(db, session_id, "gm.entity_proposed", {
+                "entity_id": record.id, "entity_key": record.entity_key,
+                "version": record.version, "status": record.status,
+            })
+            return _serialize_entity(record)
+    except ProviderError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except ValidationError as error:
+        raise HTTPException(status_code=502, detail="AI entity did not match the registry contract.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.get("/sessions/{session_id}/ai/entities")
+def list_ai_entities(
+    session_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal() as db:
+            authenticate(db, session_id, token)
+            records = db.scalars(select(GameEntityRecord).where(
+                GameEntityRecord.session_id == session_id
+            ).order_by(GameEntityRecord.entity_key, GameEntityRecord.version.desc())).all()
+            return {"entities": [_serialize_entity(item) for item in records]}
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/entities/{entity_id}/approve")
+def approve_ai_entity(
+    session_id: str,
+    entity_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can approve a knowledge entity.")
+            record = db.scalar(select(GameEntityRecord).where(
+                GameEntityRecord.id == entity_id,
+                GameEntityRecord.session_id == session_id,
+            ).with_for_update())
+            if record is None:
+                raise HTTPException(status_code=404, detail="Knowledge entity not found.")
+            if record.status != "pending_review":
+                raise HTTPException(status_code=409, detail="Knowledge entity is not pending review.")
+            active_records = db.scalars(select(GameEntityRecord).where(
+                GameEntityRecord.session_id == session_id,
+                GameEntityRecord.entity_key == record.entity_key,
+                GameEntityRecord.status == "active",
+            ).with_for_update()).all()
+            for previous in active_records:
+                previous.status = "superseded"
+                previous.updated_at = datetime.now(timezone.utc)
+            record.status = "active"
+            record.approved_by_player_id = actor.id
+            record.approved_at = datetime.now(timezone.utc)
+            record.updated_at = datetime.now(timezone.utc)
+            _append_event(db, session_id, "gm.entity_approved", {
+                "entity_id": record.id, "entity_key": record.entity_key,
+                "version": record.version, "approved_by": actor.id,
+            })
+            return _serialize_entity(record)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
+
+
+@router.post("/sessions/{session_id}/ai/entities/{entity_id}/reject")
+def reject_ai_entity(
+    session_id: str,
+    entity_id: str,
+    token: str | None = Header(default=None, alias="X-Player-Token"),
+) -> dict:
+    try:
+        with SessionLocal.begin() as db:
+            session = db.scalar(select(GameSessionRecord).where(
+                GameSessionRecord.id == session_id
+            ).with_for_update())
+            if session is None:
+                raise HTTPException(status_code=404, detail="Game session not found.")
+            actor = authenticate(db, session_id, token)
+            if "colony_commander" not in (actor.roles or []):
+                raise HTTPException(status_code=403, detail="Only the colony commander can reject a knowledge entity.")
+            record = db.scalar(select(GameEntityRecord).where(
+                GameEntityRecord.id == entity_id,
+                GameEntityRecord.session_id == session_id,
+            ).with_for_update())
+            if record is None:
+                raise HTTPException(status_code=404, detail="Knowledge entity not found.")
+            if record.status != "pending_review":
+                raise HTTPException(status_code=409, detail="Knowledge entity is not pending review.")
+            record.status = "rejected"
+            record.updated_at = datetime.now(timezone.utc)
+            _append_event(db, session_id, "gm.entity_rejected", {
+                "entity_id": record.id, "entity_key": record.entity_key,
+                "version": record.version, "rejected_by": actor.id,
+            })
+            return _serialize_entity(record)
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Game storage is unavailable.") from error
 
