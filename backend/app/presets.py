@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .entity_catalog import load_entity_catalog, validate_entity_catalogue_resources
+
 
 MODULE_PATH = Path(__file__).resolve()
 DATA_ROOTS = (MODULE_PATH.parents[2], MODULE_PATH.parents[1])
@@ -100,7 +102,19 @@ def apply_starter_preset(scenario: dict[str, Any], preset_id: str) -> dict[str, 
     """Attach a selected preset's assets and metadata to a fresh scenario snapshot."""
     catalogue = load_starter_presets(scenario["scenario_id"])
     preset = get_starter_preset(catalogue, preset_id)
-    scenario["initial_infrastructure"] = build_initial_infrastructure(preset)
+    entity_catalogue = load_entity_catalog(scenario["scenario_id"])
+    validate_entity_catalogue_resources(entity_catalogue, scenario["resource_catalog"])
+    infrastructure = build_initial_infrastructure(preset)
+    starter_overrides = entity_catalogue.get("starter_kind_overrides", {})
+    for asset in infrastructure:
+        override = starter_overrides.get(asset["kind"], {})
+        if "economic_effects" in override:
+            asset["properties"]["economic_effects"] = dict(override["economic_effects"])
+        if "process_bindings" in override:
+            asset["properties"]["process_bindings"] = list(override["process_bindings"])
+        if override:
+            asset["properties"]["simulation_effects"] = "modeled"
+    scenario["initial_infrastructure"] = infrastructure
     scenario["starter_preset"] = {
         "id": preset["id"],
         "name": preset["name"],
