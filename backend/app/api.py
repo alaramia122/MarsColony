@@ -187,6 +187,7 @@ def advance_game_session(
             active_projects = db.scalars(select(ProjectRecord).where(
                 ProjectRecord.session_id == session_id,
                 ProjectRecord.status == "executing",
+                ProjectRecord.progress_periods < ProjectRecord.duration_periods,
             ).with_for_update()).all()
             allocated_fte = sum(float(item.labor_fte) for item in active_projects)
             available_fte = float(scenario.get("population", {}).get("available_fte", 0))
