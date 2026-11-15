@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Assistant from "./Assistant";
 
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
@@ -799,15 +799,29 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [mapSnapshot, setMapSnapshot] = useState<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> } | null>(null);
   const [selectedProject, setSelectedProject] = useState("");
   const [placementName, setPlacementName] = useState("");
-  const [q, setQ] = useState("0");
-  const [r, setR] = useState("0");
+  const [selectedHex, setSelectedHex] = useState({ q: 0, r: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [commandJustification, setCommandJustification] = useState("");
   const [mapBusy, setMapBusy] = useState(false);
   const [mapError, setMapError] = useState("");
+  const [featureType, setFeatureType] = useState("discovery");
+  const [featureName, setFeatureName] = useState("");
+  const [featureSource, setFeatureSource] = useState("");
+  const [featureProject, setFeatureProject] = useState("");
+  const [featureConfidence, setFeatureConfidence] = useState("0.5");
+  const [featureDescription, setFeatureDescription] = useState("");
+  const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [moveReason, setMoveReason] = useState("");
+  const [moveTarget, setMoveTarget] = useState<{ q: number; r: number } | null>(null);
   const eligibleProjects = projects.filter((project) =>
     ["construction", "infrastructure"].includes(project.project_type)
     && Array.isArray(project.expected_result.infrastructure) && project.expected_result.infrastructure.length > 0
     && ["draft", "submitted", "approved"].includes(project.status)
+  );
+  const researchProjects = projects.filter((project) =>
+    ["research", "exploration"].includes(project.project_type) && project.status === "completed"
   );
   const loadMap = useCallback(async () => {
     const result = await request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
@@ -823,24 +837,37 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       .catch((reason) => { if (active) setMapError((reason as Error).message); });
     return () => { active = false; };
   }, [auth.sessionId, auth.token, eventWatermark, assets]);
-  const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
-  const matchesLayer = (asset: Record<string, unknown>) =>
-    activeLayer === "all" || String(asset.kind || "other") === activeLayer;
-  const positioned = assets.filter((asset) => {
-    const properties = asset.properties as Record<string, unknown> | undefined;
-    return properties && typeof properties.x === "number" && typeof properties.y === "number"
-      && properties.x >= 0 && properties.x <= 100 && properties.y >= 0 && properties.y <= 100;
+  const layers = [
+    ["all", "Все слои"], ["infrastructure", "Инфраструктура"], ["deposit", "Месторождения"],
+    ["discovery", "Научные открытия"], ["vehicle", "Транспорт"], ["expedition", "Экспедиции"],
+    ["route", "Маршруты и сети"], ["zone", "Зоны и ограничения"]
+  ];
+  const records = [
+    ...(mapSnapshot?.legacy_objects || []),
+    ...(mapSnapshot?.placements || [])
+  ];
+  const visible = records.filter((item) =>
+    activeLayer === "all" || String(item.object_type) === activeLayer
+  );
+  const pendingPlacements = (mapSnapshot?.placements || []).filter((item) => item.status === "pending_approval");
+  const placed = (mapSnapshot?.placements || []).filter((item) => item.status === "placed");
+  const worldPoint = (cellQ: number, cellR: number) => ({
+    left: `${1000 + 42 * Math.sqrt(3) * (cellQ + cellR / 2)}px`,
+    top: `${800 + 63 * cellR}px`
   });
-  const visible = positioned.filter(matchesLayer);
-  const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
-  const axialPosition = (cellQ: number, cellR: number) => ({
-    left: `${(Math.sqrt(3) * 2 * (cellQ + cellR / 2))}%`,
-    top: `${(3 * cellR)}%`
-  });
+  const hexes: Array<{ q: number; r: number }> = [];
+  for (let qCell = -10; qCell <= 10; qCell += 1) {
+    for (let rCell = -10; rCell <= 10; rCell += 1) {
+      if (Math.abs(qCell + rCell) <= 10) hexes.push({ q: qCell, r: rCell });
+    }
+  }
+  const selectHex = (qCell: number, rCell: number) => {
+    setSelectedHex({ q: qCell, r: rCell });
+    setMoveTarget({ q: qCell, r: rCell });
+  };
   const submitPlacement = async () => {
-    const project = eligibleProjects.find((item) => item.id === selectedProject);
-    if (!project || !placementName.trim() || !Number.isInteger(Number(q)) || !Number.isInteger(Number(r))) {
-      setMapError("Выберите строительный проект, укажите название объекта и целые координаты q и r.");
+    if (!selectedProject || !placementName.trim()) {
+      setMapError("Выберите проект и укажите название объекта.");
       return;
     }
     setMapBusy(true); setMapError("");
@@ -849,12 +876,37 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         method: "POST",
         body: JSON.stringify({
           project_id: selectedProject, name: placementName.trim(),
-          q: Number(q), r: Number(r), expected_map_version: mapSnapshot?.map_version ?? 0
+          q: selectedHex.q, r: selectedHex.r,
+          expected_map_version: mapSnapshot?.map_version ?? 0
         })
       });
       setPlacementName("");
       await loadMap();
       await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const submitFeature = async () => {
+    if (!featureName.trim()) { setMapError("Укажите название объекта."); return; }
+    if (["deposit", "discovery"].includes(featureType) && (!featureProject || !featureSource.trim())) {
+      setMapError("Для открытия выберите завершённый исследовательский проект и укажите источник данных.");
+      return;
+    }
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/features`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          object_type: featureType, name: featureName.trim(),
+          q: selectedHex.q, r: selectedHex.r,
+          source_project_id: featureProject || null,
+          confidence: ["deposit", "discovery"].includes(featureType) ? Number(featureConfidence) : null,
+          source: featureSource, description: featureDescription,
+          expected_map_version: mapSnapshot?.map_version ?? 0
+        })
+      });
+      setFeatureName(""); setFeatureSource(""); setFeatureDescription("");
+      await loadMap(); await onRefresh();
     } catch (reason) { setMapError((reason as Error).message); }
     finally { setMapBusy(false); }
   };
@@ -869,58 +921,114 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
           comment: commandOrder ? commandJustification : ""
         })
       });
-      setCommandJustification("");
-      await loadMap();
-      await onRefresh();
+      setCommandJustification(""); await loadMap(); await onRefresh();
     } catch (reason) { setMapError((reason as Error).message); }
     finally { setMapBusy(false); }
   };
-  const pendingPlacements = (mapSnapshot?.placements || []).filter((item) => item.status === "pending_approval");
-  const placed = (mapSnapshot?.placements || []).filter((item) => item.status === "placed");
+  const loadHistory = async (feature: Record<string, unknown>) => {
+    try {
+      const result = await request<{ history: Array<Record<string, unknown>> }>(
+        `${API}/sessions/${auth.sessionId}/map/features/${String(feature.id)}/history`, auth.token
+      );
+      setHistory(result.history);
+    } catch (reason) { setMapError((reason as Error).message); }
+  };
+  const moveFeature = async () => {
+    if (!selectedAsset || !moveTarget || !moveReason.trim()) return;
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/features/${String(selectedAsset.id)}/position`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          q: moveTarget.q, r: moveTarget.r,
+          expected_map_version: mapSnapshot?.map_version ?? 0, reason: moveReason
+        })
+      });
+      setMoveReason(""); await loadMap(); await loadHistory(selectedAsset); await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const isTransportLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes("transport"));
+  const markerName = (item: Record<string, unknown>) => String(item.name || "Объект");
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Карта использует постоянные осевые координаты q/r. Размещение строительного объекта становится действующим только после согласования строительства и профильного направления.</p></div><span className="layer-chip">◉ Гекс-сетка · версия {mapSnapshot?.map_version ?? "…"}</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Выберите гекс на сетке; масштаб меняется колёсиком, карту можно перетаскивать.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
     {mapError && <div className="alert">{mapError}<button onClick={() => setMapError("")}>×</button></div>}
     <div className="map-layers" aria-label="Слои карты">
-      <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
-      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{entityKindLabel(kind)}</button>)}
+      {layers.map(([key, label]) => <button key={key} className={activeLayer === key ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(key)}>{label}</button>)}
     </div>
-    <div className="map-canvas">
-      <div className="map-grid" /><div className="map-horizon" />
-      <button className="map-base" type="button" title="Центральный узел колонии Ares-1" onClick={() => setSelectedAsset({ name: "Базовый модуль Ares-1", kind: "base", properties: { description: "Центральный узел сценария. Подробная геометрия базы пока не задана." } })}><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></button>
-      {visible.map((asset, index) => {
-        const properties = asset.properties as Record<string, unknown>;
-        const rawImage = properties?.image_data_url || asset.image_data_url;
-        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/") ? rawImage : null;
-        const name = String(asset.name || `Объект ${index + 1}`);
-        return <button type="button" className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"} key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }} onClick={() => setSelectedAsset(asset)} title={name} aria-label={`Выбрать объект: ${name}`}>
-          {image ? <><img className="map-marker-image" src={image} alt="" onError={(event) => { event.currentTarget.style.display = "none"; const fallback = event.currentTarget.nextElementSibling; if (fallback instanceof HTMLElement) fallback.hidden = false; }} /><i className="map-marker-fallback" hidden /></> : <i className="map-marker-fallback" />}
-          <span className="map-marker-name">{name}</span>
-        </button>;
-      })}
-      {placed.map((item) => {
-        const position = axialPosition(Number(item.q), Number(item.r));
-        const metadata = item.metadata as Record<string, unknown> | undefined;
-        const properties = metadata?.properties as Record<string, unknown> | undefined;
-        const image = typeof properties?.image_data_url === "string" ? properties.image_data_url : "";
-        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: String(metadata?.kind || "placed_infrastructure"), properties: properties || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name)}`}>
-          {image.startsWith("data:image/") ? <img className="map-marker-image" src={image} alt="" /> : <i className="map-marker-fallback" />}
-          <span className="map-marker-name">{String(item.name)}</span>
-        </button>;
-      })}
-      <div className="map-coordinate">ОСЕВЫЕ КООРДИНАТЫ q / r · POINTY-TOP</div>
+    <div className="hex-map-viewport"
+      onWheel={(event) => { event.preventDefault(); setZoom((value) => Math.max(0.55, Math.min(2.4, value * (event.deltaY < 0 ? 1.12 : 0.89)))); }}
+      onPointerDown={(event) => { if ((event.target as HTMLElement).closest("button")) return; drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={(event) => { if (drag.current) setPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y }); }}
+      onPointerUp={() => { drag.current = null; }}
+      onPointerCancel={() => { drag.current = null; }}
+      aria-label="Гексагональная карта колонии">
+      <div className="hex-map-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+        {hexes.map((cell) => {
+          const occupied = records.some((item) => {
+            const qValue = Number(item.q), rValue = Number(item.r);
+            return qValue === cell.q && rValue === cell.r && item.status !== "rejected" && item.status !== "superseded";
+          });
+          const blocked = placed.some((item) => item.object_type === "zone" && (item.footprint as number[][] || [[0,0]]).some((offset) => Number(item.q) + offset[0] === cell.q && Number(item.r) + offset[1] === cell.r) && Boolean((item.metadata as Record<string, unknown>)?.blocked ?? true));
+          const chosen = selectedHex.q === cell.q && selectedHex.r === cell.r;
+          return <button key={`${cell.q}:${cell.r}`} type="button"
+            className={`hex-cell${chosen ? " chosen" : ""}${occupied ? " occupied" : ""}${blocked ? " blocked" : ""}`}
+            style={worldPoint(cell.q, cell.r)}
+            onClick={() => selectHex(cell.q, cell.r)}
+            title={`Гекс q=${cell.q}, r=${cell.r}${blocked ? " · запретная зона" : occupied ? " · занят" : ""}`}
+            aria-label={`Гекс q=${cell.q}, r=${cell.r}`}>
+            <span>{cell.q},{cell.r}</span>
+          </button>;
+        })}
+        <div className="map-base-hex" style={worldPoint(0, 0)}>ARES-1<small>БАЗОВЫЙ МОДУЛЬ</small></div>
+        {visible.map((item) => {
+          const metadata = item.metadata as Record<string, unknown> | undefined;
+          const properties = metadata?.properties as Record<string, unknown> | undefined;
+          const imageValue = properties?.image_data_url || metadata?.image_data_url || item.image_data_url;
+          const image = typeof imageValue === "string" && imageValue.startsWith("data:image/") ? imageValue : "";
+          const qValue = Number(item.q), rValue = Number(item.r);
+          if (!Number.isFinite(qValue) || !Number.isFinite(rValue)) return null;
+          return <button key={String(item.id)} type="button"
+            className={`hex-map-marker type-${String(item.object_type)}${selectedAsset?.id === item.id ? " selected" : ""}`}
+            style={worldPoint(qValue, rValue)}
+            onClick={() => { setSelectedAsset(item); setMoveTarget({ q: qValue, r: rValue }); setHistory([]); }}
+            title={markerName(item)} aria-label={`Выбрать объект: ${markerName(item)}`}>
+            {image ? <img src={image} alt="" /> : <i />}
+            <span>{markerName(item)}</span>
+          </button>;
+        })}
+      </div>
+      <div className="hex-map-controls"><button onClick={() => setZoom((value) => Math.min(2.4, value * 1.15))}>+</button><button onClick={() => setZoom((value) => Math.max(0.55, value / 1.15))}>−</button><button onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>Сбросить вид</button></div>
     </div>
-    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Стартовая инфраструктура</span><span className="muted">{visible.length + placed.length} размещено · {unplaced.length} без координат</span></div>
+    <div className="map-legend"><span><i className="legend-base" />База</span><span><i className="legend-asset" />Объект</span><span><i className="legend-blocked" />Запретная зона</span><span className="muted">Выбран гекс q={selectedHex.q}, r={selectedHex.r} · объектов: {visible.length}</span></div>
     <section className="form-section">
-      <strong>Предложить площадку для строительства</strong>
-      <p className="field-help">Площадка резервируется до решения ответственных. Для строительного проекта обязательны согласования направления «Строительство» и всех профильных направлений проекта.</p>
+      <strong>Предложить строительную площадку</strong>
+      <p className="field-help">Выбранный гекс используется как опорная ячейка. Площадка станет действующей только после профильного согласования.</p>
       <div className="form-grid">
         <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); if (project) setPlacementName(project.title); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
         <label>Название объекта<input value={placementName} onChange={(event) => setPlacementName(event.target.value)} placeholder="Например, жилой модуль № 2" /></label>
-        <label>Координата q<input type="number" step="1" value={q} onChange={(event) => setQ(event.target.value)} /></label>
-        <label>Координата r<input type="number" step="1" value={r} onChange={(event) => setR(event.target.value)} /></label>
       </div>
-      <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : "Отправить площадку на согласование"}</button>
-      {eligibleProjects.length === 0 && <p className="muted small">Сначала создайте строительный проект с выбранным объектом из каталога.</p>}
+      <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : `Предложить гекс q=${selectedHex.q}, r=${selectedHex.r}`}</button>
+      {eligibleProjects.length === 0 && <p className="muted small">Нет строительных проектов с объектами, ожидающих размещения.</p>}
+    </section>
+    <section className="form-section">
+      <strong>Добавить пространственный объект</strong>
+      <p className="field-help">Открытия публикуются только по завершённому исследовательскому проекту. Транспорт и экспедиции регистрируются ответственными игроками.</p>
+      <div className="form-grid">
+        <label>Тип объекта<select value={featureType} onChange={(event) => setFeatureType(event.target.value)}>
+          <option value="discovery">Научное открытие</option><option value="deposit">Месторождение</option>
+          <option value="vehicle">Транспорт</option><option value="expedition">Экспедиция</option>
+          <option value="route">Маршрут или сеть</option><option value="zone">Зона ограничений</option>
+        </select></label>
+        <label>Название<input value={featureName} onChange={(event) => setFeatureName(event.target.value)} /></label>
+        {["deposit", "discovery"].includes(featureType) && <>
+          <label>Завершённое исследование<select value={featureProject} onChange={(event) => setFeatureProject(event.target.value)}><option value="">Выберите проект</option>{researchProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+          <label>Источник данных<input value={featureSource} onChange={(event) => setFeatureSource(event.target.value)} placeholder="Отчёт, проба, измерение…" /></label>
+          <label>Достоверность, 0–1<input type="number" min="0" max="1" step="0.05" value={featureConfidence} onChange={(event) => setFeatureConfidence(event.target.value)} /></label>
+        </>}
+        <label>Описание<input value={featureDescription} onChange={(event) => setFeatureDescription(event.target.value)} /></label>
+      </div>
+      <button className="button button-secondary" disabled={mapBusy} onClick={() => void submitFeature()}>Добавить объект в выбранный гекс</button>
     </section>
     {pendingPlacements.length > 0 && <section className="form-section">
       <strong>Площадки, ожидающие согласования</strong>
@@ -929,23 +1037,40 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         const required = Array.isArray(item.required_approvals) ? item.required_approvals as string[] : [];
         const missing = required.filter((domain) => !approvals.some((approval) => approval.domain_code === domain));
         return <article className="map-object-details" key={String(item.id)}>
-          <div><h3>{String(item.name)}</h3><p>Гекс q={String(item.q)}, r={String(item.r)} · Ожидает: {missing.map((domain) => responsibilityDomainNames[domain] || domain).join(", ")}</p>
+          <div><h3>{markerName(item)}</h3><p>Гекс q={String(item.q)}, r={String(item.r)} · Ожидает: {missing.map((domain) => responsibilityDomainNames[domain] || domain).join(", ")}</p>
             {missing.map((domain) => {
-              const isDomainLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes(domain));
+              const isLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes(domain));
               const isCommander = Boolean(player?.roles.includes("colony_commander"));
-              const canApprove = player?.id !== item.author_player_id && (isDomainLead || isCommander);
+              const canApprove = player?.id !== item.author_player_id && (isLead || isCommander);
               if (!canApprove) return null;
-              const commandOrder = !isDomainLead && isCommander;
-              return <div className="form-foot" key={domain}><span>{responsibilityDomainNames[domain] || domain}</span><button className="button button-secondary small-button" disabled={mapBusy || (commandOrder && commandJustification.trim().length < 10)} title={commandOrder && commandJustification.trim().length < 10 ? "Для командирского распоряжения требуется обоснование не короче 10 символов." : undefined} onClick={() => void decide(item, domain, "approve", commandOrder)}>{commandOrder ? "Утвердить распоряжением" : "Согласовать"}</button><button className="button button-quiet small-button" disabled={mapBusy} onClick={() => void decide(item, domain, "reject", commandOrder)}>Отклонить</button></div>;
+              const commandOrder = !isLead && isCommander;
+              return <div className="form-foot" key={domain}><span>{responsibilityDomainNames[domain] || domain}</span>
+                <button className="button button-secondary small-button" disabled={mapBusy || (commandOrder && commandJustification.trim().length < 10)} title={commandOrder && commandJustification.trim().length < 10 ? "Для командирского распоряжения требуется обоснование не короче 10 символов." : undefined} onClick={() => void decide(item, domain, "approve", commandOrder)}>{commandOrder ? "Утвердить распоряжением" : "Согласовать"}</button>
+                <button className="button button-quiet small-button" disabled={mapBusy} onClick={() => void decide(item, domain, "reject", commandOrder)}>Отклонить</button>
+              </div>;
             })}
           </div>
         </article>;
       })}
       {player?.roles.includes("colony_commander") && <label>Обоснование командирского распоряжения<textarea value={commandJustification} onChange={(event) => setCommandJustification(event.target.value)} rows={2} placeholder="Не менее 10 символов" /></label>}
     </section>}
-    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
-    {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {entityKindLabel(String(asset.kind || "other"))}</span>)}</div>}
-    {assets.length === 0 && placed.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
+    {selectedAsset && <section className="map-object-details">
+      <div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{markerName(selectedAsset)}</h3>
+        <p>{String((selectedAsset.metadata as Record<string, unknown> | undefined)?.description || ((selectedAsset.metadata as Record<string, unknown> | undefined)?.properties as Record<string, unknown> | undefined)?.description || "Описание не задано.")}</p>
+        <small>Тип: {String(selectedAsset.object_type)} · q={String(selectedAsset.q)}, r={String(selectedAsset.r)}</small>
+        {selectedAsset.metadata && <p>Источник: {String((selectedAsset.metadata as Record<string, unknown>).source || "не указан")} · Достоверность: {String((selectedAsset.metadata as Record<string, unknown>).confidence ?? "не применяется")}</p>}
+      </div>
+      <div className="map-object-actions">
+        {["vehicle", "expedition"].includes(String(selectedAsset.object_type)) && isTransportLead && <>
+          <p>Переместить объект в выбранный гекс q={moveTarget?.q}, r={moveTarget?.r}</p>
+          <label>Причина перемещения<input value={moveReason} onChange={(event) => setMoveReason(event.target.value)} /></label>
+          <button className="button button-secondary small-button" disabled={mapBusy || !moveReason.trim()} onClick={() => void moveFeature()}>Подтвердить перемещение</button>
+        </>}
+        {selectedAsset.id && <button className="button button-quiet small-button" onClick={() => void loadHistory(selectedAsset)}>История движения</button>}
+        <button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button>
+      </div>
+      {history.length > 0 && <ol className="map-history">{history.map((item, index) => <li key={index}>{item.from_q === null ? "Регистрация" : `q=${item.from_q}, r=${item.from_r} → `}q={item.q}, r={item.r} · {String(item.reason)}</li>)}</ol>}
+    </section>}
   </div>;
 }
 
