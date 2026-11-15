@@ -1,6 +1,7 @@
 """Authenticated WebSocket stream for committed session events."""
 import asyncio
 import hashlib
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -12,6 +13,7 @@ from .db import SessionLocal
 from .models import GameEventRecord, GameSessionRecord, PlayerRecord
 
 router = APIRouter()
+logger = logging.getLogger("marscolony.realtime")
 
 
 @router.websocket("/api/v1/sessions/{session_id}/stream")
@@ -22,18 +24,22 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
     to put bearer credentials in URLs, where proxies commonly log them.
     """
     await websocket.accept()
+    logger.info("WebSocket accepted for session %s", session_id)
     try:
         try:
             message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
         except (asyncio.TimeoutError, ValueError):
+            logger.warning("WebSocket authentication message missing for session %s", session_id)
             await websocket.close(code=4401, reason="Authentication required")
             return
 
         if not isinstance(message, dict) or message.get("type") != "authenticate":
+            logger.warning("WebSocket authentication protocol mismatch for session %s", session_id)
             await websocket.close(code=4401, reason="Authentication required")
             return
         token = message.get("player_token")
         if not isinstance(token, str) or not token:
+            logger.warning("WebSocket empty player token for session %s", session_id)
             await websocket.close(code=4401, reason="Invalid credentials")
             return
 
@@ -41,6 +47,7 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
         with SessionLocal() as db:
             session = db.get(GameSessionRecord, session_id)
             if session is None:
+                logger.warning("WebSocket requested unknown session %s", session_id)
                 await websocket.close(code=4404, reason="Session not found")
                 return
             player = db.scalar(select(PlayerRecord).where(
@@ -48,6 +55,7 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
                 PlayerRecord.token_hash == digest,
             ))
             if player is None:
+                logger.warning("WebSocket player authentication failed for session %s", session_id)
                 await websocket.close(code=4401, reason="Invalid credentials")
                 return
 
@@ -68,6 +76,7 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
                 "responsibility_domains": player.responsibility_domains or [],
             }
 
+        logger.info("WebSocket authenticated player %s for session %s", player.id, session_id)
         await websocket.send_json({
             "type": "snapshot",
             "session": snapshot,
@@ -104,9 +113,11 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
                     "server_time": datetime.now(timezone.utc).isoformat(),
                 })
                 last_heartbeat = now
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as error:
+        logger.info("WebSocket disconnected for session %s with code %s", session_id, error.code)
         return
     except SQLAlchemyError:
+        logger.exception("WebSocket database failure for session %s", session_id)
         try:
             await websocket.close(code=1011, reason="Session storage unavailable")
         except RuntimeError:
