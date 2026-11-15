@@ -680,8 +680,29 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
       <button className="map-base" type="button" title="Центральный узел колонии Ares-1" onClick={() => setSelectedAsset({ name: "Базовый модуль Ares-1", kind: "base", properties: { description: "Центральный узел сценария. Подробная геометрия базы пока не задана." } })}><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></button>
       {visible.map((asset, index) => {
         const properties = asset.properties as Record<string, unknown>;
-        return <button type="button" className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"} key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }} onClick={() => setSelectedAsset(asset)}><i />{String(asset.name || `Объект ${index + 1}`)}</button>;
-      })}
+        const rawImage = properties?.image_data_url || asset.image_data_url;
+        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/")
+          ? rawImage : null;
+        const name = String(asset.name || \`Объект \${index + 1}\`);
+        return <button
+          type="button"
+          className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"}
+          key={String(asset.id)}
+          style={{ left: \`\${properties.x}%\`, top: \`\${properties.y}%\` }}
+          onClick={() => setSelectedAsset(asset)}
+          title={name}
+          aria-label={\`Выбрать объект: \${name}\`}
+        >
+          {image
+            ? <><img className="map-marker-image" src={image} alt="" onError={(event) => {
+                event.currentTarget.style.display = "none";
+                const fallback = event.currentTarget.nextElementSibling;
+                if (fallback instanceof HTMLElement) fallback.hidden = false;
+              }} /><i className="map-marker-fallback" hidden /></>
+            : <i className="map-marker-fallback" />}
+          <span className="map-marker-name">{name}</span>
+        </button>;
+      })}}
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
