@@ -840,6 +840,7 @@ class ProjectWorkflowTests(unittest.TestCase):
                 duration_periods=2,
                 labor_fte=1.5,
                 energy_kwh_per_period=12,
+                resource_requirements={"steel": 80, "aluminium": 60, "electronics": 15},
                 catalog_entity_ids=["solar_array"],
             ),
             self.owner_token,
