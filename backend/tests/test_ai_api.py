@@ -56,6 +56,7 @@ class FakeProvider:
             "title": "Пылевая буря в районе базы",
             "category": "environment",
             "severity": "moderate",
+            "likelihood": 0.35,
             "trigger": "Наблюдение за погодными условиями.",
             "narrative": "В районе базы усиливается пылевая буря.",
             "player_options": ["Укрыть внешнее оборудование.", "Продолжить работы с ограничениями."],
