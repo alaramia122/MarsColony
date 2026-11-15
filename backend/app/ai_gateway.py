@@ -110,22 +110,27 @@ def _project_prompt(text: str, context: dict) -> tuple[str, dict]:
 class OpenAICompatibleProvider:
     """Adapter for APIs implementing OpenAI Chat Completions."""
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout: float):
+    def __init__(self, base_url: str, api_key: str, model: str, timeout: float,
+                 json_mode: bool = True, max_tokens: int = 3000):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
         self.timeout = timeout
+        self.json_mode = json_mode
+        self.max_tokens = max_tokens
 
     def generate_json(self, system_prompt: str, payload: dict) -> dict:
         body = {
             "model": self.model,
             "temperature": 0.1,
-            "response_format": {"type": "json_object"},
+            "max_tokens": self.max_tokens,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}
             ],
         }
+        if self.json_mode:
+            body["response_format"] = {"type": "json_object"}
         request = Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -218,17 +223,105 @@ class YandexAIStudioProvider:
             raise ProviderError("Yandex AI Studio returned a project outside the required schema.") from error
 
 
-def configured_provider() -> AIProvider:
-    provider_name = os.getenv("MARS_AI_PROVIDER", "disabled").strip().lower()
-    if provider_name == "disabled":
-        raise ProviderError("AI provider is not configured.")
+class ProviderChain:
+    """Try configured providers in order; every candidate must satisfy the same JSON contract."""
+
+    def __init__(self, providers: list[AIProvider]):
+        if not providers:
+            raise ProviderError("No compatible AI provider is configured.")
+        self.providers = providers
+
+    def generate_json(self, system_prompt: str, payload: dict) -> dict:
+        last_error = None
+        for provider in self.providers:
+            try:
+                return provider.generate_json(system_prompt, payload)
+            except ProviderError as error:
+                last_error = error
+        raise ProviderError("All configured AI providers failed.") from last_error
+
+    def propose_project(self, text: str, context: dict) -> ProjectProposal:
+        system, payload = _project_prompt(text, context)
+        try:
+            return ProjectProposal.model_validate(self.generate_json(system, payload))
+        except ValidationError as error:
+            raise ProviderError("Configured providers returned a project outside the required schema.") from error
+
+
+def _timeout_seconds() -> float:
     try:
         timeout = float(os.getenv("MARS_AI_TIMEOUT_SECONDS", "45"))
         if not 1.0 <= timeout <= 180.0:
             raise ValueError("timeout outside supported range")
+        return timeout
     except ValueError as error:
         raise ProviderError("MARS_AI_TIMEOUT_SECONDS must be between 1 and 180.") from error
 
+
+def _provider_from_profile(name: str, profile: dict, timeout: float) -> AIProvider:
+    if not isinstance(profile, dict):
+        raise ProviderError(f"AI provider profile '{name}' must be an object.")
+    provider_type = str(profile.get("type", "")).strip().lower()
+    api_key_env = profile.get("api_key_env", "")
+    if api_key_env and not isinstance(api_key_env, str):
+        raise ProviderError(f"AI provider profile '{name}' has an invalid api_key_env.")
+    api_key = os.getenv(api_key_env, "") if api_key_env else ""
+    model = str(profile.get("model", "")).strip()
+    capabilities = profile.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        raise ProviderError(f"AI provider profile '{name}' capabilities must be an object.")
+    json_mode = capabilities.get("json_object", True)
+    if not isinstance(json_mode, bool):
+        raise ProviderError(f"AI provider profile '{name}' json_object capability must be boolean.")
+    max_tokens = profile.get("max_tokens", 3000)
+    if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or not 1 <= max_tokens <= 100000:
+        raise ProviderError(f"AI provider profile '{name}' max_tokens must be between 1 and 100000.")
+    if provider_type == "openai_compatible":
+        base_url = str(profile.get("base_url", "")).strip()
+        if not base_url.startswith(("https://", "http://")) or not model:
+            raise ProviderError(f"AI provider profile '{name}' requires an HTTP(S) base_url and model.")
+        if not api_key and profile.get("requires_api_key", True):
+            raise ProviderError(f"AI provider profile '{name}' requires environment variable '{api_key_env}'.")
+        return OpenAICompatibleProvider(base_url, api_key, model, timeout, json_mode=json_mode, max_tokens=max_tokens)
+    if provider_type == "yandex_ai_studio":
+        folder_id = str(profile.get("folder_id", "")).strip()
+        if not api_key or not folder_id:
+            raise ProviderError(f"Yandex profile '{name}' requires an API key environment variable and folder_id.")
+        return YandexAIStudioProvider(api_key, folder_id, model or "yandexgpt/latest", timeout)
+    raise ProviderError(f"Unsupported adapter type '{provider_type}' in AI provider profile '{name}'.")
+
+
+def configured_provider(task: str = "default") -> AIProvider:
+    """Resolve task routing and ordered fallbacks from environment-only profiles."""
+    timeout = _timeout_seconds()
+    profiles_text = os.getenv("MARS_AI_PROVIDERS", "").strip()
+    routing_text = os.getenv("MARS_AI_TASK_ROUTING", "").strip()
+    if profiles_text:
+        try:
+            profiles = json.loads(profiles_text)
+            routing = json.loads(routing_text) if routing_text else {}
+        except json.JSONDecodeError as error:
+            raise ProviderError("MARS_AI_PROVIDERS and MARS_AI_TASK_ROUTING must contain valid JSON.") from error
+        if not isinstance(profiles, dict) or not profiles:
+            raise ProviderError("MARS_AI_PROVIDERS must be a non-empty JSON object.")
+        if not isinstance(routing, dict):
+            raise ProviderError("MARS_AI_TASK_ROUTING must be a JSON object.")
+        selected = routing.get(task, routing.get("default"))
+        if selected is None:
+            selected = [next(iter(profiles))]
+        if isinstance(selected, str):
+            selected = [selected]
+        if not isinstance(selected, list) or not selected or any(not isinstance(item, str) for item in selected):
+            raise ProviderError(f"Routing for task '{task}' must be a provider name or non-empty list.")
+        providers = []
+        for name in selected:
+            if name not in profiles:
+                raise ProviderError(f"Task '{task}' references unknown AI provider '{name}'.")
+            providers.append(_provider_from_profile(name, profiles[name], timeout))
+        return providers[0] if len(providers) == 1 else ProviderChain(providers)
+    provider_name = os.getenv("MARS_AI_PROVIDER", "disabled").strip().lower()
+    if provider_name == "disabled":
+        raise ProviderError("AI provider is not configured.")
     if provider_name == "openai_compatible":
         base_url = os.getenv("MARS_AI_BASE_URL", "").strip()
         api_key = os.getenv("MARS_AI_API_KEY", "").strip()
@@ -236,7 +329,6 @@ def configured_provider() -> AIProvider:
         if not base_url or not api_key or not model:
             raise ProviderError("OpenAI-compatible provider requires MARS_AI_BASE_URL, MARS_AI_API_KEY and MARS_AI_MODEL.")
         return OpenAICompatibleProvider(base_url, api_key, model, timeout)
-
     if provider_name == "yandex_ai_studio":
         api_key = os.getenv("MARS_AI_YANDEX_API_KEY", "").strip()
         folder_id = os.getenv("MARS_AI_YANDEX_FOLDER_ID", "").strip()
@@ -244,9 +336,7 @@ def configured_provider() -> AIProvider:
         if not api_key or not folder_id:
             raise ProviderError("Yandex AI Studio requires MARS_AI_YANDEX_API_KEY and MARS_AI_YANDEX_FOLDER_ID.")
         return YandexAIStudioProvider(api_key, folder_id, model, timeout)
-
     raise ProviderError(f"Unsupported AI provider adapter: {provider_name}.")
-
 
 def build_provider_context(session, actor) -> dict:
     scenario = session.scenario_snapshot or {}
