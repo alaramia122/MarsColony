@@ -23,7 +23,7 @@ def can_propose_project(player: dict, domains: list[str]) -> bool:
     if has_role(player, "colony_commander"):
         return True
     return (
-        has_role(player, "domain_lead")
+        bool({"domain_lead", "engineer"}.intersection(player["roles"]))
         and bool(set(domains).intersection(player["responsibility_domains"]))
     )
 
@@ -32,7 +32,7 @@ def can_manage_project(player: dict, domains: list[str]) -> bool:
     if has_role(player, "colony_commander"):
         return True
     return (
-        has_role(player, "domain_lead")
+        bool({"domain_lead", "engineer"}.intersection(player["roles"]))
         and set(domains).issubset(player["responsibility_domains"])
     )
 
