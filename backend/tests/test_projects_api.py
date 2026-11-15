@@ -74,8 +74,16 @@ class ProjectWorkflowTests(unittest.TestCase):
                 domain_codes=["energy"],
                 budget_credits=120,
                 duration_periods=2,
+                labor_fte=1,
+                energy_kwh_per_period=100,
                 resource_requirements={"raw_ice": 50},
-                expected_result={"availability_factor": 0.95},
+                expected_result={
+                    "resource_outputs_per_period": {"oxygen": 10},
+                    "power_generation_kw_delta": 2,
+                    "infrastructure": [
+                        {"name": "Резервная энергетическая линия", "kind": "power_unit"}
+                    ],
+                },
             ),
             self.owner_token,
         )
@@ -119,19 +127,45 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(executing["status"], "executing")
         self.assertEqual(executing["version"], 5)
 
+        with self.assertRaises(HTTPException) as early_completion:
+            projects_api.complete_project(
+                self.session_id, project["id"], VersionRequest(expected_version=5),
+                self.owner_token,
+            )
+        self.assertEqual(early_completion.exception.status_code, 409)
+
+        for expected_period in (0, 1):
+            api.advance_game_session(
+                self.session_id,
+                api.AdvancePeriodRequest(expected_period=expected_period),
+                player_token=self.owner_token,
+            )
+        with self.session_factory() as db:
+            from backend.app.models import ProjectRecord
+            progressing = db.get(ProjectRecord, project["id"])
+            self.assertEqual(progressing.progress_periods, 2)
+            self.assertEqual(progressing.version, 7)
+
         completed = projects_api.complete_project(
-            self.session_id, project["id"], VersionRequest(expected_version=5),
+            self.session_id, project["id"], VersionRequest(expected_version=7),
             self.owner_token,
         )
         self.assertEqual(completed["status"], "completed")
         self.assertEqual(completed["version"], 6)
 
         state = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(state["state"]["budget_credits"], 480.0)
+        self.assertEqual(state["state"]["budget_credits"], 430.0)
+        self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
+        self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
+        self.assertEqual(state["state"]["infrastructure"][0]["name"], "Резервная энергетическая линия")
+        self.assertEqual(state["state"]["infrastructure"][0]["commissioned_period"], 2)
         event_types = [event["type"] for event in state["events"]]
         self.assertIn("project.submitted", event_types)
         self.assertIn("project.approval_recorded", event_types)
+        self.assertIn("project.materials_consumed", event_types)
         self.assertIn("project.execution_started", event_types)
+        self.assertIn("project.progressed", event_types)
+        self.assertIn("project.commissioned", event_types)
         self.assertIn("project.completed", event_types)
         sequences = [event["sequence"] for event in state["events"]]
         self.assertEqual(sequences, sorted(set(sequences)))
@@ -322,6 +356,117 @@ class ProjectWorkflowTests(unittest.TestCase):
                 self.owner_token,
             )
         self.assertEqual(error.exception.status_code, 409)
+
+    def test_project_materials_are_consumed_at_execution_start(self):
+        lead = self.join("Руководитель добычи")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["geology"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Пробная выработка",
+                description="Проверка списания сырья при запуске.",
+                project_type="production",
+                domain_codes=["geology"],
+                budget_credits=10,
+                duration_periods=1,
+                resource_requirements={"raw_ice": 125},
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        approved = projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        self.assertEqual(approved["status"], "approved")
+        projects_api.execute_project(
+            self.session_id, project["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+        state = api.get_session(self.session_id, self.owner_token)
+        self.assertEqual(state["state"]["raw_ice_kg"], 6875.0)
+
+    def test_project_cannot_start_without_required_materials(self):
+        lead = self.join("Руководитель добычи")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["geology"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Невыполнимая выработка",
+                description="Потребность превышает складской запас.",
+                project_type="production",
+                domain_codes=["geology"],
+                budget_credits=10,
+                duration_periods=1,
+                resource_requirements={"raw_ice": 9000},
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        with self.assertRaises(HTTPException) as error:
+            projects_api.execute_project(
+                self.session_id, project["id"], VersionRequest(expected_version=3),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
+        state = api.get_session(self.session_id, self.owner_token)
+        self.assertEqual(state["state"]["raw_ice_kg"], 7000.0)
+
+    def test_project_progress_pauses_when_dispatch_cannot_supply_energy(self):
+        lead = self.join("Руководитель энергетики")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["energy"])
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Энергоёмкое строительство",
+                description="Проверка приостановки при недопоставке энергии.",
+                project_type="construction",
+                domain_codes=["energy"],
+                budget_credits=10,
+                duration_periods=1,
+                energy_kwh_per_period=100000,
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        projects_api.execute_project(
+            self.session_id, project["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+        api.advance_game_session(
+            self.session_id, api.AdvancePeriodRequest(expected_period=0),
+            player_token=self.owner_token,
+        )
+        with self.session_factory() as db:
+            from backend.app.models import ProjectRecord
+            saved = db.get(ProjectRecord, project["id"])
+            self.assertEqual(saved.progress_periods, 0)
+            self.assertEqual(saved.status, "executing")
+        state = api.get_session(self.session_id, self.owner_token)
+        self.assertIn(
+            "project.paused_power_shortfall",
+            [event["type"] for event in state["events"]],
+        )
 
 
 if __name__ == "__main__":
