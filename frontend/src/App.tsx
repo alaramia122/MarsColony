@@ -84,7 +84,7 @@ export default function App() {
       socket.onmessage = (message) => {
         const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown>; created_at?: string | null };
         if (data.type === "snapshot") {
-          setConnected(true); setReconnecting(false);
+          setConnected(true); setReconnecting(false); setError("");
           void refresh().catch((reason: Error) => setError(reason.message));
         } else if (data.type === "event" && typeof data.sequence === "number") {
           setEvents((previous) => [...previous, {
@@ -93,8 +93,16 @@ export default function App() {
           void refresh().catch((reason: Error) => setError(reason.message));
         }
       };
-      socket.onclose = () => {
-        setConnected(false); setReconnecting(true);
+      socket.onclose = (event) => {
+        setConnected(false);
+        if (event.code === 4401 || event.code === 4404) {
+          setReconnecting(false);
+          setError(event.code === 4401
+            ? "Сессионный токен недействителен. Войдите в игровую сессию заново."
+            : "Игровая сессия не найдена.");
+          return;
+        }
+        setReconnecting(true);
         if (active) reconnectTimer = window.setTimeout(() => setRetry((value) => value + 1), 1500);
       };
       socket.onerror = () => { setConnected(false); setReconnecting(true); };
