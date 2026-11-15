@@ -313,6 +313,16 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(restored["reserved_budget_credits"], 500.0)
         self.assertEqual(restored["available_budget_credits"], 75.0)
 
+    def test_last_commander_cannot_remove_own_authority(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.assign_roles(
+                self.session_id,
+                self.session["owner_player_id"],
+                RoleAssignment(roles=["player"]),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
+
 
 if __name__ == "__main__":
     unittest.main()
