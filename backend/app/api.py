@@ -11,6 +11,7 @@ from .db import SessionLocal
 from .domain.engine import DomainError, advance_period, initial_state
 from .models import GameEventRecord, GameSessionRecord, PlayerRecord, ProjectRecord
 from .scenarios import ScenarioValidationError, load_scenario
+from .presets import apply_starter_preset, load_starter_presets, serialize_preset_catalogue
 
 
 router = APIRouter(prefix="/api/v1")
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/api/v1")
 
 class CreateSessionRequest(BaseModel):
     scenario_id: str = Field(default="ares-01", min_length=1, max_length=100)
+    starter_preset_id: str = Field(default="balanced", min_length=1, max_length=100)
 
 
 class AdvancePeriodRequest(BaseModel):
@@ -60,6 +62,7 @@ def serialize_session(record: GameSessionRecord) -> dict:
         "id": record.id,
         "scenario_id": record.scenario_id,
         "scenario_version": record.scenario_version,
+        "starter_preset": (record.scenario_snapshot or {}).get("starter_preset"),
         "current_period": record.current_period,
         "settings": {
             "period_count": int((record.scenario_snapshot or {}).get("time", {}).get("period_count", 4)),
@@ -75,6 +78,23 @@ def serialize_session(record: GameSessionRecord) -> dict:
     }
 
 
+
+@router.get("/scenarios/{scenario_id}/starter-presets")
+def get_scenario_starter_presets(scenario_id: str) -> dict:
+    """List the available initial infrastructure profiles for a scenario."""
+    try:
+        catalogue = load_starter_presets(scenario_id)
+        return {
+            "scenario_id": scenario_id,
+            "version": catalogue.get("version"),
+            "presets": serialize_preset_catalogue(catalogue),
+        }
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except (ValueError, KeyError, TypeError) as error:
+        raise HTTPException(status_code=500, detail=f"Starter preset catalogue is invalid: {error}") from error
+
+
 @router.post("/sessions", status_code=201)
 def create_session(request: CreateSessionRequest) -> dict:
     try:
@@ -83,6 +103,15 @@ def create_session(request: CreateSessionRequest) -> dict:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ScenarioValidationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+    try:
+        scenario = apply_starter_preset(scenario, request.starter_preset_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except KeyError as error:
+        raise HTTPException(status_code=422, detail=f"Unknown starter preset: {request.starter_preset_id}.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=500, detail=f"Starter preset catalogue is invalid: {error}") from error
 
     join_code = secrets.token_urlsafe(24)
     owner_token = secrets.token_urlsafe(32)
@@ -117,7 +146,7 @@ def create_session(request: CreateSessionRequest) -> dict:
                 session_id=record.id,
                 sequence=0,
                 event_type="session.created",
-                payload={"scenario_id": scenario["scenario_id"], "version": scenario["version"]},
+                payload={"scenario_id": scenario["scenario_id"], "version": scenario["version"], "starter_preset_id": request.starter_preset_id},
             ))
         result = serialize_session(record)
         result["owner_player_id"] = owner.id
