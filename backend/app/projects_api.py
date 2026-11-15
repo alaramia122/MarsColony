@@ -324,7 +324,12 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
                 raise HTTPException(status_code=409, detail="Player has already voted on this project.")
             approval = ProjectApprovalRecord(
                 project_id=project.id, player_id=actor.id,
-                decision=request.decision, comment=request.comment.strip(),
+                decision=request.decision,
+                authority_snapshot={
+                    "roles": list(actor.roles or []),
+                    "responsibility_domains": list(actor.responsibility_domains or []),
+                },
+                comment=request.comment.strip(),
             )
             db.add(approval)
             db.flush()
@@ -342,7 +347,10 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
                 )).all()
                 context = [{
                     "decision": item.decision,
-                    "player": policy(db.get(PlayerRecord, item.player_id)),
+                    "player": {
+                        "roles": item.authority_snapshot["roles"],
+                        "responsibility_domains": item.authority_snapshot["responsibility_domains"],
+                    },
                 } for item in approvals]
                 if approvals_complete({
                     "domain_codes": project.domain_codes,
