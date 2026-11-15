@@ -50,7 +50,7 @@ PR #8 объединён 2026-11-15 методом squash. Merge commit: `e37b1f
 - Аудит, конкурентная защита, миграции 0003/0004, ADR-004/005.
 - Backend CI на PostgreSQL 16: 68 тестов, миграции, OpenAPI, Compose startup и recovery прошли на head PR #8.
 
-## Этап 3 — в разработке
+## Этап 3 — реализация завершена, ожидает LAN-приёмки
 
 Issue #9; PR #10; ветка `feat/stage3-web-clients-map`.
 
