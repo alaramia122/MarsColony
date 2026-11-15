@@ -33,6 +33,7 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
             {
                 "decision": "approve",
                 "player": {
+                    "id": "energy-lead",
                     "roles": ["domain_lead"],
                     "responsibility_domains": ["energy"],
                 },
@@ -40,6 +41,7 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
             {
                 "decision": "approve",
                 "player": {
+                    "id": "industry-lead",
                     "roles": ["domain_lead"],
                     "responsibility_domains": ["industry"],
                 },
@@ -48,7 +50,7 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
         self.assertFalse(approvals_complete(project, approvals))
         approvals.append({
             "decision": "approve",
-            "player": {"roles": ["finance_lead"], "responsibility_domains": []},
+            "player": {"id": "finance-lead", "roles": ["finance_lead"], "responsibility_domains": []},
         })
         self.assertTrue(approvals_complete(project, approvals))
 
@@ -57,6 +59,7 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
         approvals = [{
             "decision": "approve",
             "player": {
+                "id": "energy-lead",
                 "roles": ["domain_lead"],
                 "responsibility_domains": ["energy"],
             },
@@ -75,6 +78,28 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
             {"domain_codes": ["energy"], "budget_credits": 0},
             [{"decision": "approve", "player": engineer}],
         ))
+
+    def test_domain_and_finance_approval_require_independent_people(self):
+        project = {"domain_codes": ["energy"], "budget_credits": 100}
+        combined_role_player = {
+            "id": "same-person",
+            "roles": ["domain_lead", "finance_lead"],
+            "responsibility_domains": ["energy"],
+        }
+        approvals = [{
+            "decision": "approve",
+            "player": combined_role_player,
+        }]
+        self.assertFalse(approvals_complete(project, approvals))
+        approvals.append({
+            "decision": "approve",
+            "player": {
+                "id": "independent-finance",
+                "roles": ["finance_lead"],
+                "responsibility_domains": [],
+            },
+        })
+        self.assertTrue(approvals_complete(project, approvals))
 
 
 if __name__ == "__main__":
