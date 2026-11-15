@@ -123,6 +123,12 @@ class WebSocketStreamTests(unittest.TestCase):
         self.assertEqual(websocket.close_code, 4401)
         self.assertEqual(websocket.sent, [])
 
+    def test_stream_reports_unknown_session(self):
+        websocket = FakeWebSocket(self.session["owner_token"])
+        asyncio.run(realtime.session_stream(websocket, "missing-session"))
+        self.assertEqual(websocket.close_code, 4404)
+        self.assertEqual(websocket.sent, [])
+
 
 if __name__ == "__main__":
     unittest.main()
