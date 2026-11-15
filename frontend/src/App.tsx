@@ -395,7 +395,8 @@ function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
   };
   const validNumber = (value: string, maximum = 1000000) =>
     value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= maximum;
-  const invalidAsset = Boolean(assetName.trim()) !== Boolean(assetKind.trim());
+  const invalidAsset = Boolean(assetName.trim()) && !assetKind.trim();
+  const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
     <div className="project-toolbar">
       <div className="muted small">{projects.length} инициатив · сервер проверяет полномочия и доступность ресурсов</div>
@@ -422,7 +423,7 @@ function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
         <label>Тип объекта<input value={assetKind} onChange={(event) => setAssetKind(event.target.value)} maxLength={80} placeholder="Например, water_tank" /></label>
       </div>
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
-      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset} onClick={() => void createProject()}>Создать черновик</button></div>
+      <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}
     <div className="project-grid">{projects.length === 0 ? <div className="panel empty-state"><span>▤</span><strong>Проектов пока нет</strong><p>Создайте первую инициативу в проектном офисе.</p></div> : projects.map((project) =>
       <article className="panel project-card" key={project.id}>
