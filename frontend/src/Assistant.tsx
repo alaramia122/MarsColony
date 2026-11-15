@@ -104,6 +104,7 @@ const localizeError = (message: string) => {
     const match = message.match(pattern);
     if (match) return translate(match);
   }
+  if (/^[A-Za-z][A-Za-z .:'"0-9_\/-]*$/.test(message)) return "Операция не выполнена. Проверьте введённые данные, полномочия и состояние игровой сессии. Если ошибка повторяется, проверьте журнал сервера.";
   return message;
 };
 
@@ -310,16 +311,16 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
       <div className="panel-heading"><div><div className="eyebrow">ПРОВЕРКА ПРЕДЛОЖЕНИЙ</div><h2>Проектные предложения</h2></div><span className="count-chip">{proposals.length}</span></div>
       {proposals.length === 0 ? <p className="muted assistant-empty">Здесь будут появляться предложения, сформированные игроками.</p> :
         <div className="assistant-cards">{proposals.map((item) => <article className="assistant-card" key={item.id}>
-          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{projectTypeNames[item.proposal.project_type] || item.proposal.project_type}</span></div>
+          <div className="assistant-card-top"><span className={`status status-${item.status === "pending_review" ? "submitted" : item.status === "project_created" ? "approved" : "rejected"}`}>{item.status === "pending_review" ? "Ожидает проверки" : item.status === "project_created" ? "Черновик создан" : "Отклонено"}</span><span className="muted small">{projectTypeNames[item.proposal.project_type] || "Другой тип проекта"}</span></div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.description}</p>
           <div className="assistant-facts">
             <span>Бюджет <b>{money(item.proposal.budget_credits)} кр.</b></span>
             <span>Срок <b>{item.proposal.duration_periods} пер.</b></span>
             <span>Труд <b>{money(item.proposal.labor_fte)} FTE</b></span>
             <span>Энергия <b>{money(item.proposal.energy_kwh_per_period)} кВт·ч/пер.</b></span>
-            <span className="assistant-fact-wide">Направления <b>{item.proposal.domain_codes.map((code) => domainNames[code] || code).join(", ")}</b></span>
+            <span className="assistant-fact-wide">Направления <b>{item.proposal.domain_codes.map((code) => domainNames[code] || "Другое направление").join(", ")}</b></span>
           </div>
-          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${resourceNames[key] || key}: ${money(value)}`).join(" · ")}</p>}
+          {Object.keys(item.proposal.resource_requirements).length > 0 && <p className="assistant-note"><b>Ресурсные требования:</b> {Object.entries(item.proposal.resource_requirements).map(([key, value]) => `${resourceNames[key] || "Другой ресурс"}: ${money(value)}`).join(" · ")}</p>}
           {item.proposal.rationale && <p className="assistant-note"><b>Обоснование:</b> {item.proposal.rationale}</p>}
           {item.proposal.assumptions.length > 0 && <BriefingList title="Допущения" items={item.proposal.assumptions} />}
           {item.proposal.risks.length > 0 && <BriefingList title="Риски" items={item.proposal.risks} />}
@@ -350,7 +351,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
         <div className="assistant-cards">{events.map((item) => <article className="assistant-card" key={item.id}>
           <div className="assistant-card-top">
             <span className={`status status-${item.status === "published" ? "approved" : item.status === "pending_review" ? "submitted" : "rejected"}`}>{item.status === "published" ? "Опубликовано" : item.status === "pending_review" ? "На проверке" : "Отклонено"}</span>
-            <span className="muted small">Период {item.period_created} · {severityNames[item.proposal.severity] || item.proposal.severity} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
+            <span className="muted small">Период {item.period_created} · {severityNames[item.proposal.severity] || "Не указана"} · оценочная вероятность {Math.round(item.proposal.likelihood * 100)}%</span>
           </div>
           <h3>{item.proposal.title}</h3><p>{item.proposal.narrative}</p>
           <p className="assistant-note"><b>Условие:</b> {item.proposal.trigger}</p>
@@ -379,7 +380,7 @@ export default function Assistant({ sessionId, token, playerId, eventWatermark, 
         <div className="assistant-cards">{entities.map((entity) => <article className="assistant-card" key={entity.id}>
           <div className="assistant-card-top">
             <span className={`status status-${entity.status === "active" ? "approved" : entity.status === "pending_review" ? "submitted" : "rejected"}`}>{entity.status === "active" ? "Утверждена" : entity.status === "pending_review" ? "На проверке" : entity.status === "superseded" ? "Предыдущая версия" : "Отклонена"}</span>
-            <span className="muted small">v{entity.version} · {entity.entity_type}</span>
+            <span className="muted small">v{entity.version} · {({ technology: "Технология", infrastructure: "Инфраструктура", equipment: "Оборудование", vehicle: "Транспорт", process: "Процесс", procedure: "Процедура" } as Record<string, string>)[entity.entity_type] || "Другая сущность"}</span>
           </div>
           <h3>{entity.name}</h3><p>{entity.description}</p>
           <p className="assistant-note"><b>Идентификатор:</b> {entity.entity_key}</p>
