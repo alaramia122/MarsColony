@@ -90,7 +90,11 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
         if resource_id not in resource_catalog:
             raise EntityCatalogError(f"Unknown resource '{resource_id}' in entity requirements.")
         _finite_nonnegative(quantity, f"resource_requirements.{resource_id}")
+    if "build" in entity and "research" in entity:
+        raise EntityCatalogError("An entity must define either build requirements or research requirements, not both.")
     if entity["entity_type"] in {"infrastructure", "equipment", "vehicle", "process"}:
+        if "effects" in entity:
+            raise EntityCatalogError("Only technology entities may define technology effects.")
         operation = entity.get("operation", {})
         if not isinstance(operation, dict) or not set(operation).issubset(EFFECT_KEYS):
             raise EntityCatalogError("Operation contract contains unsupported effects.")
@@ -107,6 +111,8 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
                 if _finite_nonnegative(quantity, f"{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{key}.{resource_id} must be positive.")
     if entity["entity_type"] == "technology":
+        if "operation" in entity:
+            raise EntityCatalogError("Technology entities use research and effects, not infrastructure operation contracts.")
         effects = entity.get("effects", {})
         if not isinstance(effects, dict):
             raise EntityCatalogError("Technology effects must be an object.")
@@ -128,6 +134,8 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
         for key in ("labor_demand_multiplier", "asset_condition_loss_multiplier"):
             if key in effects and not 0 < _finite_nonnegative(effects[key], key) <= 1:
                 raise EntityCatalogError(f"{key} must be greater than zero and no more than one.")
+    if entity["entity_type"] == "procedure" and ("operation" in entity or "effects" in entity):
+        raise EntityCatalogError("Procedures cannot define infrastructure or technology economic effects.")
 
 
 def validate_catalog(catalogue: dict[str, Any], scenario_id: str) -> None:
