@@ -518,6 +518,2120 @@
         "water",
         "safety"
       ]
+    },
+    {
+      "id": "starter_drilling_rig",
+      "entity_type": "infrastructure",
+      "kind": "drilling_rig",
+      "name": "Буровая установка геологоразведки",
+      "description": "Мобильный комплекс для разведочного бурения и отбора керна.",
+      "domain_codes": [
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 1,
+        "resource_outputs_per_period": {
+          "raw_ice": 120
+        },
+        "operating_cost_credits_per_period": 1
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_survey_rover",
+      "entity_type": "vehicle",
+      "kind": "survey_rover",
+      "name": "Геологоразведочный ровер",
+      "description": "Платформа для картирования поверхности и доставки проб.",
+      "domain_codes": [
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_maintenance_workshop",
+      "entity_type": "infrastructure",
+      "kind": "maintenance_workshop",
+      "name": "Ремонтно-механическая мастерская",
+      "description": "Базовый комплект станков и инструмента для ремонта оборудования.",
+      "domain_codes": [
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "repair_work_orders_per_period": 10
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_solar_array",
+      "entity_type": "infrastructure",
+      "kind": "solar_array",
+      "name": "Солнечная энергетическая ферма",
+      "description": "Фотоэлектрические панели с силовой коммутацией.",
+      "domain_codes": [
+        "energy"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_generation_binding": true
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_battery_storage",
+      "entity_type": "infrastructure",
+      "kind": "battery_storage",
+      "name": "Стационарный аккумуляторный блок",
+      "description": "Накопитель для сглаживания нагрузки и кратковременного резерва.",
+      "domain_codes": [
+        "energy"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "battery_storage_binding": true
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_atmosphere_control",
+      "entity_type": "infrastructure",
+      "kind": "atmosphere_control",
+      "name": "Модуль контроля атмосферы",
+      "description": "Оборудование контроля состава, давления и циркуляции воздуха.",
+      "domain_codes": [
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "oxygen_isru"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_water_recycling",
+      "entity_type": "infrastructure",
+      "kind": "water_recycling",
+      "name": "Установка регенерации воды",
+      "description": "Комплекс очистки и повторного использования технической и бытовой воды.",
+      "domain_codes": [
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "ice_to_usable_water"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_habitat_module",
+      "entity_type": "infrastructure",
+      "kind": "habitat_module",
+      "name": "Жилой герметичный модуль",
+      "description": "Обитаемый модуль с инженерными подключениями.",
+      "domain_codes": [
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {},
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_construction_toolkit",
+      "entity_type": "infrastructure",
+      "kind": "construction_toolkit",
+      "name": "Комплект строительного оборудования",
+      "description": "Инструмент и монтажная оснастка для обслуживания базы.",
+      "domain_codes": [
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_hydroponic_greenhouse",
+      "entity_type": "infrastructure",
+      "kind": "hydroponic_greenhouse",
+      "name": "Гидропонная теплица",
+      "description": "Модуль выращивания растений в контролируемой среде.",
+      "domain_codes": [
+        "agriculture"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "food_growing"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_medical_module",
+      "entity_type": "infrastructure",
+      "kind": "medical_module",
+      "name": "Медицинский модуль",
+      "description": "Помещение первичной медицинской помощи и стабилизации пациентов.",
+      "domain_codes": [
+        "medicine"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.45,
+        "operating_cost_credits_per_period": 0.6,
+        "service_outputs_per_period": {
+          "medical_beds": 8
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_common_module",
+      "entity_type": "infrastructure",
+      "kind": "common_module",
+      "name": "Общественный модуль",
+      "description": "Общее пространство отдыха и бытовой активности экипажа.",
+      "domain_codes": [
+        "social"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_training_station",
+      "entity_type": "equipment",
+      "kind": "training_station",
+      "name": "Учебно-тренировочный класс",
+      "description": "Средства подготовки экипажа и отработки регламентов.",
+      "domain_codes": [
+        "education"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25,
+        "service_outputs_per_period": {
+          "training_seats": 12
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_research_lab",
+      "entity_type": "infrastructure",
+      "kind": "research_lab",
+      "name": "Многоцелевой исследовательский модуль",
+      "description": "Лабораторное оборудование для базовых исследований и испытаний.",
+      "domain_codes": [
+        "science"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.6,
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 20
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_weather_station",
+      "entity_type": "equipment",
+      "kind": "weather_station",
+      "name": "Метеорологический пост",
+      "description": "Датчики и аппаратура наблюдения за локальными условиями.",
+      "domain_codes": [
+        "planetary"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25,
+        "service_outputs_per_period": {
+          "remote_observations_per_period": 12
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_pressurized_rover",
+      "entity_type": "vehicle",
+      "kind": "pressurized_rover",
+      "name": "Герметичный транспортный ровер",
+      "description": "Транспортная платформа для перемещения экипажа и грузов.",
+      "domain_codes": [
+        "transport"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.35,
+        "operating_cost_credits_per_period": 0.5
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_command_center",
+      "entity_type": "infrastructure",
+      "kind": "command_center",
+      "name": "Центр управления колонией",
+      "description": "Рабочие места планирования, учёта и координации.",
+      "domain_codes": [
+        "administration"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "command_staff_capacity": 4
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_logistics_store",
+      "entity_type": "infrastructure",
+      "kind": "logistics_store",
+      "name": "Складской логистический модуль",
+      "description": "Учёт и размещение комплектующих и оборудования.",
+      "domain_codes": [
+        "administration"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1,
+        "service_outputs_per_period": {
+          "warehouse_capacity_kg": 10000
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_emergency_shelter",
+      "entity_type": "infrastructure",
+      "kind": "emergency_shelter",
+      "name": "Аварийный герметичный отсек",
+      "description": "Резервное укрытие на случай локальной разгерметизации.",
+      "domain_codes": [
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {},
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_fire_suppression",
+      "entity_type": "equipment",
+      "kind": "fire_suppression",
+      "name": "Система пожаротушения",
+      "description": "Средства обнаружения и локализации пожара в базовых модулях.",
+      "domain_codes": [
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1,
+        "service_outputs_per_period": {
+          "fire_response_capacity": 1
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_communications_mast",
+      "entity_type": "infrastructure",
+      "kind": "communications_mast",
+      "name": "Коммуникационная мачта",
+      "description": "Наземный узел радиосвязи и передачи телеметрии.",
+      "domain_codes": [
+        "communications"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 50
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_cargo_landing_zone",
+      "entity_type": "infrastructure",
+      "kind": "cargo_landing_zone",
+      "name": "Грузовая посадочная площадка",
+      "description": "Подготовленная зона приёма и первичной обработки грузов.",
+      "domain_codes": [
+        "external_relations"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.1,
+        "operating_cost_credits_per_period": 0.15
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_core_analysis_lab",
+      "entity_type": "infrastructure",
+      "kind": "core_analysis_lab",
+      "name": "Лаборатория анализа керна",
+      "description": "Специализированное оборудование для анализа геологических образцов.",
+      "domain_codes": [
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.7,
+        "operating_cost_credits_per_period": 0.8,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 30
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_precision_lab_tools",
+      "entity_type": "equipment",
+      "kind": "precision_lab_tools",
+      "name": "Комплект прецизионного оборудования",
+      "description": "Измерительные и экспериментальные средства для прототипирования.",
+      "domain_codes": [
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_power_monitoring_station",
+      "entity_type": "equipment",
+      "kind": "power_monitoring_station",
+      "name": "Стенд мониторинга энергосистем",
+      "description": "Аппаратура измерения параметров генерации и накопления.",
+      "domain_codes": [
+        "energy"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_biosensor_station",
+      "entity_type": "equipment",
+      "kind": "biosensor_station",
+      "name": "Стенд биомониторинга среды",
+      "description": "Датчики контроля параметров обитаемой среды.",
+      "domain_codes": [
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_plant_biology_lab",
+      "entity_type": "infrastructure",
+      "kind": "plant_biology_lab",
+      "name": "Лаборатория биологии растений",
+      "description": "Оборудование для исследований культур и питательных сред.",
+      "domain_codes": [
+        "agriculture"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.7
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_diagnostic_lab",
+      "entity_type": "infrastructure",
+      "kind": "diagnostic_lab",
+      "name": "Диагностическая лаборатория",
+      "description": "Дополнительные средства лабораторной диагностики.",
+      "domain_codes": [
+        "medicine"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.6,
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 15
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_simulation_classroom",
+      "entity_type": "infrastructure",
+      "kind": "simulation_classroom",
+      "name": "Тренажёрный учебный класс",
+      "description": "Симуляторы процедур эксплуатации и аварийного реагирования.",
+      "domain_codes": [
+        "education"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.35,
+        "service_outputs_per_period": {
+          "training_seats": 20
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_materials_lab",
+      "entity_type": "infrastructure",
+      "kind": "materials_lab",
+      "name": "Лаборатория материаловедения",
+      "description": "Оборудование для испытания материалов и технологических образцов.",
+      "domain_codes": [
+        "science"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.5,
+        "operating_cost_credits_per_period": 0.6
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_robotics_lab",
+      "entity_type": "infrastructure",
+      "kind": "robotics_lab",
+      "name": "Лаборатория робототехники",
+      "description": "Комплект разработки и испытаний автономных платформ.",
+      "domain_codes": [
+        "science"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.7,
+        "operating_cost_credits_per_period": 0.8
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_remote_sensing_station",
+      "entity_type": "infrastructure",
+      "kind": "remote_sensing_station",
+      "name": "Пункт дистанционного зондирования",
+      "description": "Приёмная аппаратура для наблюдений и картографирования.",
+      "domain_codes": [
+        "planetary"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3,
+        "service_outputs_per_period": {
+          "remote_observations_per_period": 20
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_autonomous_scout_rover",
+      "entity_type": "vehicle",
+      "kind": "autonomous_scout_rover",
+      "name": "Автономный разведывательный ровер",
+      "description": "Роботизированная платформа для обследования удалённых участков.",
+      "domain_codes": [
+        "transport"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_radiation_monitoring_station",
+      "entity_type": "equipment",
+      "kind": "radiation_monitoring_station",
+      "name": "Пост радиационного контроля",
+      "description": "Приборы контроля радиационной обстановки.",
+      "domain_codes": [
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_deep_space_terminal",
+      "entity_type": "infrastructure",
+      "kind": "deep_space_terminal",
+      "name": "Терминал дальней связи",
+      "description": "Оборудование связи с внешними центрами управления.",
+      "domain_codes": [
+        "communications"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.35,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 100
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_science_payload_storage",
+      "entity_type": "equipment",
+      "kind": "science_payload_storage",
+      "name": "Склад научных грузов",
+      "description": "Зона хранения образцов и научного оборудования.",
+      "domain_codes": [
+        "external_relations"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_ice_mining_rig",
+      "entity_type": "infrastructure",
+      "kind": "ice_mining_rig",
+      "name": "Комплекс добычи подповерхностного льда",
+      "description": "Механизированный комплекс извлечения ледяного сырья.",
+      "domain_codes": [
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 2,
+        "resource_outputs_per_period": {
+          "raw_ice": 240
+        },
+        "operating_cost_credits_per_period": 2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_regolith_processing_plant",
+      "entity_type": "infrastructure",
+      "kind": "regolith_processing_plant",
+      "name": "Установка переработки реголита",
+      "description": "Линия подготовки местного минерального сырья.",
+      "domain_codes": [
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 1.2,
+        "operating_cost_credits_per_period": 1,
+        "resource_inputs_per_period": {
+          "raw_regolith": 100
+        },
+        "resource_outputs_per_period": {
+          "regolith_bricks": 60
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_additive_manufacturing_cell",
+      "entity_type": "infrastructure",
+      "kind": "additive_manufacturing_cell",
+      "name": "Ячейка аддитивного производства",
+      "description": "Оборудование изготовления простых деталей и оснастки.",
+      "domain_codes": [
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.8,
+        "operating_cost_credits_per_period": 1,
+        "resource_inputs_per_period": {
+          "polymers": 8,
+          "steel": 2,
+          "electronics": 0.2
+        },
+        "resource_outputs_per_period": {
+          "spare_parts": 5
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_backup_power_unit",
+      "entity_type": "infrastructure",
+      "kind": "backup_power_unit",
+      "name": "Резервный энергетический модуль",
+      "description": "Дополнительный источник электропитания для критических потребителей.",
+      "domain_codes": [
+        "energy"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_generation_kw": 8,
+        "operating_cost_credits_per_period": 0
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_regolith_construction_unit",
+      "entity_type": "infrastructure",
+      "kind": "regolith_construction_unit",
+      "name": "Установка строительной переработки реголита",
+      "description": "Оборудование подготовки местного материала для строительных работ.",
+      "domain_codes": [
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_industrial_test_bench",
+      "entity_type": "infrastructure",
+      "kind": "industrial_test_bench",
+      "name": "Стенд испытания оборудования",
+      "description": "Средства стендовой проверки узлов и агрегатов.",
+      "domain_codes": [
+        "science"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_resource_mapping_rover",
+      "entity_type": "vehicle",
+      "kind": "resource_mapping_rover",
+      "name": "Ровер картирования ресурсов",
+      "description": "Мобильная платформа для обследования перспективных районов.",
+      "domain_codes": [
+        "planetary"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_cargo_hauler",
+      "entity_type": "vehicle",
+      "kind": "cargo_hauler",
+      "name": "Грузовой автономный тягач",
+      "description": "Платформа перемещения тяжёлых грузов по территории базы.",
+      "domain_codes": [
+        "transport"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.35,
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "transport_tonnes_per_period": 20
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_materials_accounting_terminal",
+      "entity_type": "equipment",
+      "kind": "materials_accounting_terminal",
+      "name": "Терминал учёта материалов",
+      "description": "Рабочее место складского и производственного учёта.",
+      "domain_codes": [
+        "administration"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_industrial_safety_station",
+      "entity_type": "infrastructure",
+      "kind": "industrial_safety_station",
+      "name": "Пост промышленной безопасности",
+      "description": "Средства контроля опасных зон и технологических процессов.",
+      "domain_codes": [
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_cargo_handling_crane",
+      "entity_type": "infrastructure",
+      "kind": "cargo_handling_crane",
+      "name": "Грузовой перегрузочный манипулятор",
+      "description": "Оборудование приёма и перемещения крупногабаритных грузов.",
+      "domain_codes": [
+        "external_relations"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3,
+        "service_outputs_per_period": {
+          "cargo_handling_tonnes_per_period": 100
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_autonomous_drill_rover",
+      "entity_type": "vehicle",
+      "kind": "autonomous_drill_rover",
+      "name": "Автономный буровой ровер",
+      "description": "Роботизированный комплекс разведки и отбора сырья.",
+      "domain_codes": [
+        "geology"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 1.2,
+        "resource_outputs_per_period": {
+          "raw_ice": 100
+        },
+        "operating_cost_credits_per_period": 1.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_spare_parts_workshop",
+      "entity_type": "infrastructure",
+      "kind": "spare_parts_workshop",
+      "name": "Мастерская изготовления запасных частей",
+      "description": "Оборудование ремонта и выпуска типовых компонентов.",
+      "domain_codes": [
+        "industry"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.5,
+        "operating_cost_credits_per_period": 0.6,
+        "resource_inputs_per_period": {
+          "steel": 4,
+          "electronics": 1,
+          "polymers": 1
+        },
+        "resource_outputs_per_period": {
+          "spare_parts": 8
+        },
+        "service_outputs_per_period": {
+          "repair_work_orders_per_period": 15
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_large_battery_bank",
+      "entity_type": "infrastructure",
+      "kind": "large_battery_bank",
+      "name": "Дополнительный аккумуляторный блок",
+      "description": "Расширение энергетического резерва колонии.",
+      "domain_codes": [
+        "energy"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "battery_capacity_kwh": 500
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_oxygen_backup_unit",
+      "entity_type": "infrastructure",
+      "kind": "oxygen_backup_unit",
+      "name": "Резервная установка получения кислорода",
+      "description": "Дублирующая линия обеспечения кислородом.",
+      "domain_codes": [
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "oxygen_isru"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_water_recovery_unit",
+      "entity_type": "infrastructure",
+      "kind": "water_recovery_unit",
+      "name": "Дополнительная установка регенерации воды",
+      "description": "Повышение устойчивости водного контура.",
+      "domain_codes": [
+        "life_support"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "ice_to_usable_water"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_spare_habitat_module",
+      "entity_type": "infrastructure",
+      "kind": "spare_habitat_module",
+      "name": "Резервный жилой модуль",
+      "description": "Дополнительный герметичный объём для размещения экипажа.",
+      "domain_codes": [
+        "construction"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.1,
+        "operating_cost_credits_per_period": 0.1
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_food_production_greenhouse",
+      "entity_type": "infrastructure",
+      "kind": "food_production_greenhouse",
+      "name": "Дополнительная теплица",
+      "description": "Расширение локального производства продовольствия.",
+      "domain_codes": [
+        "agriculture"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "process_bindings": [
+          "food_growing"
+        ]
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_medical_isolation_module",
+      "entity_type": "infrastructure",
+      "kind": "medical_isolation_module",
+      "name": "Изолятор медицинского наблюдения",
+      "description": "Отдельный модуль для изоляции и наблюдения за пациентами.",
+      "domain_codes": [
+        "medicine"
+      ],
+      "build": {
+        "budget_credits": 140,
+        "duration_periods": 3,
+        "labor_fte": 1.5,
+        "energy_kwh_per_period": 8,
+        "resource_requirements": {
+          "steel": 40,
+          "aluminium": 20,
+          "electronics": 5,
+          "polymers": 10,
+          "regolith_bricks": 40
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "isolation_beds": 4
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_recreation_module",
+      "entity_type": "infrastructure",
+      "kind": "recreation_module",
+      "name": "Модуль психологической разгрузки",
+      "description": "Дополнительное пространство отдыха и досуга экипажа.",
+      "domain_codes": [
+        "social"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_maintenance_training_station",
+      "entity_type": "equipment",
+      "kind": "maintenance_training_station",
+      "name": "Стенд подготовки техников",
+      "description": "Практическое обучение обслуживанию оборудования.",
+      "domain_codes": [
+        "education"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_systems_diagnostics_lab",
+      "entity_type": "infrastructure",
+      "kind": "systems_diagnostics_lab",
+      "name": "Лаборатория диагностики систем",
+      "description": "Средства анализа отказов и надёжности оборудования.",
+      "domain_codes": [
+        "science"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.65
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_hazard_monitoring_station",
+      "entity_type": "equipment",
+      "kind": "hazard_monitoring_station",
+      "name": "Пост мониторинга опасностей",
+      "description": "Наблюдение за пылевыми и погодными условиями.",
+      "domain_codes": [
+        "planetary"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_utility_rover",
+      "entity_type": "vehicle",
+      "kind": "utility_rover",
+      "name": "Универсальный сервисный ровер",
+      "description": "Платформа технического обслуживания удалённых объектов.",
+      "domain_codes": [
+        "transport"
+      ],
+      "build": {
+        "budget_credits": 110,
+        "duration_periods": 2,
+        "labor_fte": 1,
+        "energy_kwh_per_period": 3,
+        "resource_requirements": {
+          "steel": 25,
+          "aluminium": 15,
+          "electronics": 4,
+          "polymers": 5
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "vehicle"
+      ]
+    },
+    {
+      "id": "starter_spare_parts_store",
+      "entity_type": "infrastructure",
+      "kind": "spare_parts_store",
+      "name": "Склад запасных частей",
+      "description": "Дополнительный запас места для критических компонентов.",
+      "domain_codes": [
+        "administration"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_emergency_power_pack",
+      "entity_type": "infrastructure",
+      "kind": "emergency_power_pack",
+      "name": "Аварийный энергетический блок",
+      "description": "Локальный резерв электропитания аварийных систем.",
+      "domain_codes": [
+        "safety"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_generation_kw": 2,
+        "operating_cost_credits_per_period": 0
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "starter_backup_relay",
+      "entity_type": "equipment",
+      "kind": "backup_relay",
+      "name": "Резервный ретранслятор связи",
+      "description": "Дополнительный узел связи для резервирования канала.",
+      "domain_codes": [
+        "communications"
+      ],
+      "build": {
+        "budget_credits": 35,
+        "duration_periods": 1,
+        "labor_fte": 0.3,
+        "energy_kwh_per_period": 1,
+        "resource_requirements": {
+          "steel": 5,
+          "aluminium": 2,
+          "electronics": 1,
+          "polymers": 1
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 20
+        }
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "equipment"
+      ]
+    },
+    {
+      "id": "starter_cargo_reserve_platform",
+      "entity_type": "infrastructure",
+      "kind": "cargo_reserve_platform",
+      "name": "Резервная грузовая площадка",
+      "description": "Дополнительная зона временного размещения доставленного оборудования.",
+      "domain_codes": [
+        "external_relations"
+      ],
+      "build": {
+        "budget_credits": 75,
+        "duration_periods": 2,
+        "labor_fte": 0.8,
+        "energy_kwh_per_period": 4,
+        "resource_requirements": {
+          "steel": 15,
+          "aluminium": 5,
+          "electronics": 2,
+          "polymers": 2,
+          "regolith_bricks": 10
+        }
+      },
+      "operation": {
+        "power_load_kw": 0.05,
+        "operating_cost_credits_per_period": 0.1
+      },
+      "tags": [
+        "starter_catalogue",
+        "ares_01",
+        "infrastructure"
+      ]
     }
   ],
   "starter_kind_overrides": {
