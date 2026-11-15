@@ -1,5 +1,9 @@
 """Print the deterministic backend campaign result for a scenario."""
 import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.app.domain.engine import advance_period, initial_state
 from backend.app.scenarios import load_scenario
