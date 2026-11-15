@@ -415,7 +415,6 @@ def create_ai_event_proposal(
             context = _load_game_context(db, session)
             context_period = session.current_period
             context_sequence = _latest_event_sequence(db, session_id)
-            context_sequence = _latest_event_sequence(db, session_id)
         raw = provider.generate_json(
             "Ты — сценарный ИИ-ведущий настольной игры MarsColony. Предложи одно правдоподобное "
             "событие для текущего игрового периода, опираясь только на контекст сценария. "
@@ -703,6 +702,7 @@ def create_ai_entity(
             _reserve_ai_request(db, session_id, actor)
             context = _load_game_context(db, session)
             context_period = session.current_period
+            context_sequence = _latest_event_sequence(db, session_id)
         raw = provider.generate_json(
             "Ты — инженерный редактор реестра знаний игры MarsColony. Преобразуй описание "
             "в структурированную сущность одного типа: technology, infrastructure, process, "
