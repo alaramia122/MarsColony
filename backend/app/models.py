@@ -136,6 +136,9 @@ class AIProposalRecord(Base):
     )
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     proposal: Mapped[dict] = mapped_column(JSON, nullable=False)
+    dialogue: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    revision_history: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_review")
     created_project_id: Mapped[str | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
