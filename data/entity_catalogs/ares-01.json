@@ -472,5 +472,81 @@
         "safety"
       ]
     }
-  ]
+  ],
+  "starter_kind_overrides": {
+    "drilling_rig": {
+      "economic_effects": {
+        "power_load_kw": 1,
+        "resource_outputs_per_period": {
+          "raw_ice": 120
+        },
+        "operating_cost_credits_per_period": 1
+      }
+    },
+    "ice_mining_rig": {
+      "economic_effects": {
+        "power_load_kw": 2,
+        "resource_outputs_per_period": {
+          "raw_ice": 240
+        },
+        "operating_cost_credits_per_period": 2
+      }
+    },
+    "autonomous_drill_rover": {
+      "economic_effects": {
+        "power_load_kw": 1.2,
+        "resource_outputs_per_period": {
+          "raw_ice": 100
+        },
+        "operating_cost_credits_per_period": 1.2
+      }
+    },
+    "backup_power_unit": {
+      "economic_effects": {
+        "power_generation_kw": 8,
+        "operating_cost_credits_per_period": 1.5
+      }
+    },
+    "emergency_power_pack": {
+      "economic_effects": {
+        "power_generation_kw": 2,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "large_battery_bank": {
+      "economic_effects": {
+        "battery_capacity_kwh": 500
+      }
+    },
+    "atmosphere_control": {
+      "process_bindings": [
+        "oxygen_isru"
+      ]
+    },
+    "oxygen_backup_unit": {
+      "process_bindings": [
+        "oxygen_isru"
+      ]
+    },
+    "hydroponic_greenhouse": {
+      "process_bindings": [
+        "food_growing"
+      ]
+    },
+    "food_production_greenhouse": {
+      "process_bindings": [
+        "food_growing"
+      ]
+    },
+    "water_recycling": {
+      "process_bindings": [
+        "ice_to_usable_water"
+      ]
+    },
+    "water_recovery_unit": {
+      "process_bindings": [
+        "ice_to_usable_water"
+      ]
+    }
+  }
 }
