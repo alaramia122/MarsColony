@@ -67,7 +67,7 @@ class InfrastructureEconomyTests(unittest.TestCase):
                 "name": "Теплица",
                 "kind": "hydroponic_greenhouse",
                 "domain_codes": ["agriculture"],
-                "properties": {"condition": 1.0, "status": "commissioned"},
+                "properties": {"condition": 1.0, "status": "commissioned", "starter_asset": True, "process_bindings": ["food_growing"]},
             },
         ]
         state = initial_state(scenario)
