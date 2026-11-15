@@ -81,7 +81,7 @@ export default function App() {
       socket = new WebSocket(`${protocol}//${window.location.host}${API}/sessions/${auth.sessionId}/stream`);
       socket.onopen = () => socket?.send(JSON.stringify({ type: "authenticate", player_token: auth.token }));
       socket.onmessage = (message) => {
-        const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown> };
+        const data = JSON.parse(message.data) as { type: string; last_sequence?: number; sequence?: number; event_type?: string; payload?: Record<string, unknown>; created_at?: string | null };
         if (data.type === "snapshot") {
           setConnected(true);
           void refresh().catch((reason: Error) => setError(reason.message));
@@ -211,7 +211,7 @@ export default function App() {
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
           {view === "map" && <ColonyMap assets={infrastructure} />}
-          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} onRefresh={refresh} />}
+          {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
 
           {auth.joinCode && <div className="invite-strip"><div><span>КОД ПРИГЛАШЕНИЯ</span><strong>{auth.joinCode}</strong></div><button className="button button-quiet" onClick={() => navigator.clipboard.writeText(auth.joinCode || "")}>Копировать</button></div>}
@@ -325,8 +325,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
 }
 
 function ProjectList({ projects, auth, player, infrastructure, onRefresh }: {
-  projects: Project[]; auth: Auth; player: Player | undefined;
-  infrastructure: Array<Record<string, unknown>>; onRefresh: () => Promise<void>;
+  projects: Project[]; auth: Auth; player: Player | undefined; onRefresh: () => Promise<void>;
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
