@@ -31,18 +31,19 @@ class ProposalRequest(BaseModel):
     text: str = Field(min_length=5, max_length=8000)
 
 
-def _append_event(db, session_id: str, event_type: str, payload: dict) -> None:
-    sequence = db.scalar(select(func.max(GameEventRecord.sequence)).where(
+def _append_event(db, session_id: str, event_type: str, payload: dict) -> int:
+    last_sequence = db.scalar(select(func.max(GameEventRecord.sequence)).where(
         GameEventRecord.session_id == session_id
     ))
+    next_sequence = 0 if last_sequence is None else int(last_sequence) + 1
     db.add(GameEventRecord(
         session_id=session_id,
-        sequence=0 if sequence is None else int(sequence) + 1,
+        sequence=next_sequence,
         event_type=event_type,
         payload=payload,
     ))
     db.flush()
-    return sequence
+    return next_sequence
 
 
 def _validate_proposal(proposal: ProjectProposal, session, actor: PlayerRecord) -> None:
