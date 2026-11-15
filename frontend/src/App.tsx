@@ -716,6 +716,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
   const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
   const [catalogError, setCatalogError] = useState("");
+  const [catalogSearch, setCatalogSearch] = useState("");
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [entityFormOpen, setEntityFormOpen] = useState(false);
   const [newEntityType, setNewEntityType] = useState("infrastructure");
@@ -760,6 +761,10 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     spare_parts: "Запасные части, шт."
   };
   const existingAssetKinds = Array.from(new Set(infrastructure.map((asset) => String(asset.kind || "")).filter(Boolean))).sort();
+  const filteredCatalogEntities = catalogEntities.filter((entity) =>
+    `${entity.name} ${entity.entity_type} ${entity.description} ${entity.domain_codes.join(" ")}`
+      .toLocaleLowerCase("ru-RU").includes(catalogSearch.trim().toLocaleLowerCase("ru-RU"))
+  );
   const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
@@ -981,8 +986,12 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <strong>Готовые объекты и технологии из каталога</strong>
         <p className="field-help">Выберите типовые сущности, которые проект должен построить, установить или исследовать. Сервер автоматически добавит их характеристики и экономические эффекты в результат проекта. Для каждого типа учитываются минимальные бюджет, срок, труд и энергия.</p>
         {catalogError && <p className="field-help">Каталог недоступен: {catalogError}</p>}
+        <label className="catalog-search">Поиск по каталогу
+          <input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Название, тип или назначение" />
+        </label>
+        <p className="field-help">Показано {filteredCatalogEntities.length} из {catalogEntities.length} типов.</p>
         <div className="catalog-entity-list">
-          {catalogEntities.map((entity) => {
+          {filteredCatalogEntities.map((entity) => {
             const build = entity.build || entity.research || {};
             const selected = selectedCatalogIds.includes(entity.id);
             return <label className="catalog-entity-option" key={entity.id}>
