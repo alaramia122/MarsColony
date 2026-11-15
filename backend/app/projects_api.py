@@ -16,9 +16,10 @@ from .domain.projects import (
     can_manage_project, can_propose_project,
 )
 from .models import (
-    GameEventRecord, GameSessionRecord, PlayerRecord,
+    GameEntityRecord, GameEventRecord, GameSessionRecord, PlayerRecord,
     ProjectApprovalRecord, ProjectRecord,
 )
+from .entity_catalog import EntityCatalogError, load_entity_catalog, validate_entity
 
 router = APIRouter(prefix="/api/v1")
 MAX_SESSION_PLAYERS = 20
@@ -104,6 +105,7 @@ class ProjectCreate(BaseModel):
     energy_kwh_per_period: float = Field(default=0.0, ge=0.0, le=1_000_000.0)
     resource_requirements: dict = Field(default_factory=dict)
     expected_result: dict = Field(default_factory=dict)
+    catalog_entity_ids: list[str] = Field(default_factory=list, max_length=20)
 
 
 class VersionRequest(BaseModel):
@@ -263,6 +265,84 @@ def create_project(session_id: str, request: ProjectCreate,
                     or quantity < 0
                 ):
                     raise HTTPException(status_code=422, detail=f"Invalid quantity for resource: {resource_id}.")
+            expected_result = deepcopy(request.expected_result)
+            selected_ids = list(request.catalog_entity_ids)
+            if len(selected_ids) != len(set(selected_ids)):
+                raise HTTPException(status_code=422, detail="Catalogue entity selections must be unique.")
+            if selected_ids:
+                try:
+                    entity_catalog = load_entity_catalog(session.scenario_id)
+                except FileNotFoundError as error:
+                    raise HTTPException(status_code=404, detail=str(error)) from error
+                available_entities = {item["id"]: item for item in entity_catalog["entities"]}
+                custom_records = db.scalars(select(GameEntityRecord).where(
+                    GameEntityRecord.session_id == session_id,
+                    GameEntityRecord.status == "approved",
+                )).all()
+                for item in custom_records:
+                    available_entities[item.entity_key] = {
+                        "id": item.entity_key, "entity_type": item.entity_type,
+                        "name": item.name, "description": item.description,
+                        "domain_codes": item.domain_codes or [],
+                        **(item.definition or {}),
+                    }
+                total_catalog_budget = 0.0
+                total_catalog_labor = 0.0
+                total_catalog_energy = 0.0
+                required_duration = 1
+                catalog_requirements = {}
+                infrastructure = list(expected_result.get("infrastructure", []))
+                technologies = list(expected_result.get("technology_unlocks", []))
+                for entity_id in selected_ids:
+                    entity = available_entities.get(entity_id)
+                    if entity is None:
+                        raise HTTPException(status_code=422, detail=f"Unknown or unapproved catalogue entity: {entity_id}.")
+                    try:
+                        validate_entity(entity, catalog, session.scenario_id)
+                    except EntityCatalogError as error:
+                        raise HTTPException(status_code=422, detail=str(error)) from error
+                    if not set(entity.get("domain_codes", [])).issubset(set(domains)):
+                        raise HTTPException(status_code=422, detail=f"Project domains do not cover all domains of catalogue entity '{entity_id}'.")
+                    build = entity.get("build", entity.get("research", {}))
+                    total_catalog_budget += float(build.get("budget_credits", 0))
+                    total_catalog_labor += float(build.get("labor_fte", 0))
+                    total_catalog_energy += float(build.get("energy_kwh_per_period", 0))
+                    required_duration = max(required_duration, int(build.get("duration_periods", 1)))
+                    for resource_id, quantity in build.get("resource_requirements", {}).items():
+                        catalog_requirements[resource_id] = catalog_requirements.get(resource_id, 0.0) + float(quantity)
+                    if entity["entity_type"] == "technology":
+                        technologies.append({
+                            "id": entity_id, "name": entity["name"],
+                            "description": entity["description"], "level": 1,
+                            "catalog_entity_id": entity_id, "effects": entity.get("effects", {}),
+                        })
+                    else:
+                        infrastructure.append({
+                            "name": entity["name"],
+                            "kind": entity.get("kind", entity["entity_type"]),
+                            "catalog_entity_id": entity_id,
+                            "properties": {
+                                "condition": 1.0,
+                                "economic_effects": entity.get("operation", {}),
+                                "catalog_entity_id": entity_id,
+                            },
+                        })
+                if request.budget_credits + 1e-9 < total_catalog_budget:
+                    raise HTTPException(status_code=422, detail=f"Project budget is below selected entities' minimum ({total_catalog_budget:g} credits).")
+                if request.labor_fte + 1e-9 < total_catalog_labor:
+                    raise HTTPException(status_code=422, detail=f"Project labor is below selected entities' minimum ({total_catalog_labor:g} FTE).")
+                if request.energy_kwh_per_period + 1e-9 < total_catalog_energy:
+                    raise HTTPException(status_code=422, detail=f"Project energy is below selected entities' minimum ({total_catalog_energy:g} kWh per period).")
+                if request.duration_periods < required_duration:
+                    raise HTTPException(status_code=422, detail=f"Project duration is below selected entities' minimum ({required_duration} periods).")
+                for resource_id, quantity in catalog_requirements.items():
+                    if float(request.resource_requirements.get(resource_id, 0)) + 1e-9 < quantity:
+                        raise HTTPException(status_code=422, detail=f"Project does not reserve required '{resource_id}' for selected entities.")
+                if infrastructure:
+                    expected_result["infrastructure"] = infrastructure
+                if technologies:
+                    expected_result["technology_unlocks"] = technologies
+
             project = ProjectRecord(
                 session_id=session_id, author_player_id=actor.id,
                 title=request.title.strip(), description=request.description.strip(),
@@ -271,7 +351,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 resource_requirements=request.resource_requirements,
                 labor_fte=request.labor_fte,
                 energy_kwh_per_period=request.energy_kwh_per_period,
-                expected_result=request.expected_result, version=1,
+                expected_result=expected_result, version=1,
             )
             if not project.title or not project.description:
                 raise HTTPException(status_code=422, detail="Project title and description are required.")
@@ -280,9 +360,9 @@ def create_project(session_id: str, request: ProjectCreate,
                 "power_load_kw_delta", "infrastructure",
                 "infrastructure_repairs", "technology_unlocks"
             }
-            if not set(request.expected_result).issubset(allowed_effects):
+            if not set(expected_result).issubset(allowed_effects):
                 raise HTTPException(status_code=422, detail="Project result contains an unsupported effect.")
-            resource_outputs = request.expected_result.get("resource_outputs_per_period", {})
+            resource_outputs = expected_result.get("resource_outputs_per_period", {})
             if not isinstance(resource_outputs, dict):
                 raise HTTPException(status_code=422, detail="Resource outputs must be an object.")
             for resource_id, quantity in resource_outputs.items():
@@ -293,7 +373,7 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not math.isfinite(float(quantity)) or quantity <= 0
                 ):
                     raise HTTPException(status_code=422, detail=f"Invalid output quantity for: {resource_id}.")
-            generation_delta = request.expected_result.get("power_generation_kw_delta", 0.0)
+            generation_delta = expected_result.get("power_generation_kw_delta", 0.0)
             if (
                 isinstance(generation_delta, bool)
                 or not isinstance(generation_delta, (int, float))
@@ -301,7 +381,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 or generation_delta < 0
             ):
                 raise HTTPException(status_code=422, detail="Power generation effect must be finite and non-negative.")
-            load_delta = request.expected_result.get("power_load_kw_delta", 0.0)
+            load_delta = expected_result.get("power_load_kw_delta", 0.0)
             if (
                 isinstance(load_delta, bool)
                 or not isinstance(load_delta, (int, float))
@@ -309,7 +389,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 or load_delta < 0
             ):
                 raise HTTPException(status_code=422, detail="Power load effect must be finite and non-negative.")
-            infrastructure = request.expected_result.get("infrastructure", [])
+            infrastructure = expected_result.get("infrastructure", [])
             if not isinstance(infrastructure, list):
                 raise HTTPException(status_code=422, detail="Infrastructure result must be a list.")
             for item in infrastructure:
@@ -330,7 +410,7 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not 0.0 <= float(condition) <= 1.0
                 ):
                     raise HTTPException(status_code=422, detail="Infrastructure condition must be between zero and one.")
-            repairs = request.expected_result.get("infrastructure_repairs", [])
+            repairs = expected_result.get("infrastructure_repairs", [])
             if not isinstance(repairs, list):
                 raise HTTPException(status_code=422, detail="Infrastructure repairs must be a list.")
             for repair in repairs:
@@ -345,7 +425,7 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not 0 < float(delta) <= 1
                 ):
                     raise HTTPException(status_code=422, detail="Each repair requires an infrastructure ID and a condition delta in (0, 1].")
-            technology_unlocks = request.expected_result.get("technology_unlocks", [])
+            technology_unlocks = expected_result.get("technology_unlocks", [])
             if not isinstance(technology_unlocks, list):
                 raise HTTPException(status_code=422, detail="Technology unlocks must be a list.")
             technology_ids = set()
