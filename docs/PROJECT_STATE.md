@@ -4,7 +4,7 @@
 **Основная ветка:** main  
 **Последний интегрированный коммит main:** 2a81c8ff421d4664ecb4dcf194944f0cb9b6bf66  
 **Рабочая ветка этапа 2:** feat/stage2-players-projects  
-**Последний коммит этапа 2:** 818adeecf2b2eb3e7d62b5b98075d3479d423b34  
+**Последний коммит этапа 2:** 061f5701ff33105a0c030114e78fa6e77c851cc1  
 **PR этапа 2:** https://github.com/alaramia122/MarsColony/pull/8  
 **Issue этапа 2:** https://github.com/alaramia122/MarsColony/issues/7
 
