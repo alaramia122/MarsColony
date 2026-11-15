@@ -1,6 +1,7 @@
 """Deterministic scenario-driven period calculation for the colony economy."""
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from .energy import BatterySpec, PowerLoad, dispatch_power, operate_battery
@@ -42,7 +43,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
     stocks = scenario["stocks"]
     state = {
         "period": 0,
-        "infrastructure": [dict(item) for item in scenario.get("initial_infrastructure", [])],
+        "infrastructure": deepcopy(scenario.get("initial_infrastructure", [])),
         "technologies": [],
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
