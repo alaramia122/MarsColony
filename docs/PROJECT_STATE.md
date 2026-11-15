@@ -4,7 +4,8 @@
 **Основная ветка:** main  
 **Последний интегрированный коммит main:** 2a81c8ff421d4664ecb4dcf194944f0cb9b6bf66  
 **Рабочая ветка этапа 2:** feat/stage2-players-projects  
-**Последний коммит этапа 2:** ae8e8b15f049404ac1a39acb3db7e20615e45500  
+**Последний коммит этапа 2:** 818adeecf2b2eb3e7d62b5b98075d3479d423b34  
+**PR этапа 2:** https://github.com/alaramia122/MarsColony/pull/8  
 **Issue этапа 2:** https://github.com/alaramia122/MarsColony/issues/7
 
 ## Назначение
@@ -100,7 +101,7 @@ MarsColony — многопользовательская настольная �
 - Репозиторий: https://github.com/alaramia122/MarsColony
 - PR #1 и PR #5 — merged.
 - PR #6 — merged; Stage 0 и Stage 1 CI прошли.
-- Issue #4 — остаётся открытой до интеграции PR #6.
+- Issue #4 — закрыта после интеграции PR #6.
 - Issue #3 — плейтест после локального развёртывания.
 
 ## Этап 2 — в разработке
@@ -123,7 +124,7 @@ MarsColony — многопользовательская настольная �
 - Доступ к чтению состояния и продвижению периода защищён токеном; период продвигает командир.
 - Добавлены API/unit/integration tests и расширена проверка OpenAPI в CI.
 
-Подробности: `docs/STAGE2_DESIGN.md`, ADR-004. Код находится в feature-ветке; CI для PR ещё должен подтвердить проверки.
+Подробности: `docs/STAGE2_DESIGN.md`, ADR-004. Код находится в PR #8. CI проверяет PostgreSQL, API, unit tests, OpenAPI и Docker Compose; результаты текущего head ожидаются.
 
 ### Оставшаяся работа этапа 2
 
