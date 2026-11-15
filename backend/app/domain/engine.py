@@ -69,10 +69,19 @@ def _asset_economic_effects(asset: dict[str, Any]) -> dict[str, Any]:
     return STARTER_ASSET_ECONOMICS.get(str(asset.get("kind", "")), {})
 
 
-def _battery_spec(power: dict[str, Any]) -> BatterySpec:
+def _battery_spec(
+    power: dict[str, Any],
+    infrastructure: list[dict[str, Any]] | None = None,
+) -> BatterySpec:
     battery = power["battery"]
+    extra_capacity_kwh = sum(
+        float(_asset_economic_effects(asset).get("battery_capacity_kwh", 0.0))
+        * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
+        for asset in (infrastructure or [])
+        if asset.get("status", asset.get("properties", {}).get("status", "commissioned")) in {"commissioned", "operational"}
+    )
     return BatterySpec(
-        capacity_kwh=float(battery["capacity_kwh"]),
+        capacity_kwh=float(battery["capacity_kwh"]) + extra_capacity_kwh,
         minimum_charge_kwh=float(battery["minimum_charge_kwh"]),
         maximum_charge_kw=float(battery["maximum_charge_kw"]),
         maximum_discharge_kw=float(battery["maximum_discharge_kw"]),
@@ -248,7 +257,7 @@ def advance_period(
         + asset_generation_kw
     )
     normal_duration_hours = period_hours - service_duration_hours
-    battery_spec = _battery_spec(power)
+    battery_spec = _battery_spec(power, infrastructure)
     battery_soc = float(state["battery_soc_kwh"])
     interval_reports = []
     active_loads = list(additional_loads or [])
