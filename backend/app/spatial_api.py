@@ -139,6 +139,13 @@ def propose_placement(
                 raise HTTPException(status_code=422, detail="Для этого типа проекта согласование строительной площадки не требуется.")
             if project.status not in {"draft", "submitted", "approved"}:
                 raise HTTPException(status_code=409, detail="Площадку нельзя менять после запуска или завершения проекта.")
+            existing_site = db.scalar(select(MapPlacementRecord.id).where(
+                MapPlacementRecord.session_id == session_id,
+                MapPlacementRecord.project_id == project.id,
+                MapPlacementRecord.status == "placed",
+            ))
+            if existing_site is not None:
+                raise HTTPException(status_code=409, detail="Для проекта уже утверждена строительная площадка.")
             if actor.id != project.author_player_id and "colony_commander" not in (actor.roles or []) and not (
                 "engineer" in (actor.roles or [])
                 and bool(set(project.domain_codes or []).intersection(actor.responsibility_domains or []))
@@ -246,9 +253,38 @@ def decide_placement(
             if request.decision == "reject":
                 placement.status = "rejected"
             elif set(item["domain_code"] for item in approvals if item["decision"] == "approve") >= set(placement.required_approvals or []):
-                placement.status = "placed"
                 state = dict(session.state or {})
-                state["map_version"] = int(state.get("map_version", 0)) + 1
+                current_version = int(state.get("map_version", 0))
+                if placement.map_version != current_version:
+                    occupied: set[tuple[int, int]] = set()
+                    other_records = db.scalars(select(MapPlacementRecord).where(
+                        MapPlacementRecord.session_id == session_id,
+                        MapPlacementRecord.id != placement.id,
+                        MapPlacementRecord.status.in_(ACTIVE_STATUSES),
+                    )).all()
+                    for other in other_records:
+                        occupied.update(_cells(other))
+                    for asset in (state.get("infrastructure") or []):
+                        properties = asset.get("properties", {})
+                        x, y = properties.get("x"), properties.get("y")
+                        if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                            try:
+                                occupied.add(legacy_percent_to_axial(float(x), float(y)))
+                            except ValueError:
+                                pass
+                    if occupied.intersection(_cells(placement)):
+                        raise HTTPException(status_code=409, detail="Карта изменилась: площадка стала недоступна. Предложите новое место.")
+                    placement.map_version = current_version
+                alternatives = db.scalars(select(MapPlacementRecord).where(
+                    MapPlacementRecord.session_id == session_id,
+                    MapPlacementRecord.project_id == placement.project_id,
+                    MapPlacementRecord.id != placement.id,
+                    MapPlacementRecord.status == "pending_approval",
+                )).all()
+                for alternative in alternatives:
+                    alternative.status = "superseded"
+                placement.status = "placed"
+                state["map_version"] = current_version + 1
                 session.state = state
                 placement.map_version = int(state["map_version"])
             append_event(db, session_id, "map.placement_decided", {
