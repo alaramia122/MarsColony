@@ -17,6 +17,7 @@ EFFECT_KEYS = {
     "operating_cost_credits_per_period", "battery_capacity_kwh", "service_outputs_per_period",
 }
 BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements"}
+OPERATION_KEYS = EFFECT_KEYS | {"process_bindings", "power_generation_binding", "battery_storage_binding"}
 SERVICE_CODES = {
     "medical_beds", "isolation_beds", "lab_samples_per_period",
     "communications_bandwidth_mbps", "cargo_handling_tonnes_per_period",
@@ -103,7 +104,7 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
         if "effects" in entity:
             raise EntityCatalogError("Only technology entities may define technology effects.")
         operation = entity.get("operation", {})
-        if not isinstance(operation, dict) or not set(operation).issubset(EFFECT_KEYS):
+        if not isinstance(operation, dict) or not set(operation).issubset(OPERATION_KEYS):
             raise EntityCatalogError("Operation contract contains unsupported effects.")
         for key in ("power_generation_kw", "power_load_kw", "operating_cost_credits_per_period", "battery_capacity_kwh"):
             if key in operation:
@@ -117,6 +118,16 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
                     raise EntityCatalogError(f"Unknown resource '{resource_id}' in {key}.")
                 if _finite_nonnegative(quantity, f"{key}.{resource_id}") <= 0:
                     raise EntityCatalogError(f"{key}.{resource_id} must be positive.")
+        process_bindings = operation.get("process_bindings", [])
+        if (
+            not isinstance(process_bindings, list)
+            or len(process_bindings) != len(set(process_bindings))
+            or not set(process_bindings).issubset({"oxygen_isru", "food_growing", "ice_to_usable_water"})
+        ):
+            raise EntityCatalogError("Operation contract contains invalid process bindings.")
+        for binding_key in ("power_generation_binding", "battery_storage_binding"):
+            if binding_key in operation and not isinstance(operation[binding_key], bool):
+                raise EntityCatalogError(f"{binding_key} must be boolean.")
         service_outputs = operation.get("service_outputs_per_period", {})
         if not isinstance(service_outputs, dict) or not set(service_outputs).issubset(SERVICE_CODES):
             raise EntityCatalogError("Operation contract contains an unsupported service output.")
