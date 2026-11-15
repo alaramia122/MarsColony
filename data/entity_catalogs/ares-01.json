@@ -618,7 +618,10 @@
     "backup_relay": {
       "economic_effects": {
         "power_load_kw": 0.12,
-        "operating_cost_credits_per_period": 0.15
+        "operating_cost_credits_per_period": 0.15,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 20
+        }
       }
     },
     "biosensor_station": {
@@ -630,13 +633,19 @@
     "cargo_handling_crane": {
       "economic_effects": {
         "power_load_kw": 0.25,
-        "operating_cost_credits_per_period": 0.3
+        "operating_cost_credits_per_period": 0.3,
+        "service_outputs_per_period": {
+          "cargo_handling_tonnes_per_period": 100
+        }
       }
     },
     "cargo_hauler": {
       "economic_effects": {
         "power_load_kw": 0.35,
-        "operating_cost_credits_per_period": 0.5
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "transport_tonnes_per_period": 20
+        }
       }
     },
     "cargo_landing_zone": {
@@ -654,7 +663,10 @@
     "command_center": {
       "economic_effects": {
         "power_load_kw": 0.4,
-        "operating_cost_credits_per_period": 0.5
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "command_staff_capacity": 4
+        }
       }
     },
     "common_module": {
@@ -666,7 +678,10 @@
     "communications_mast": {
       "economic_effects": {
         "power_load_kw": 0.15,
-        "operating_cost_credits_per_period": 0.2
+        "operating_cost_credits_per_period": 0.2,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 50
+        }
       }
     },
     "construction_toolkit": {
@@ -678,25 +693,37 @@
     "core_analysis_lab": {
       "economic_effects": {
         "power_load_kw": 0.7,
-        "operating_cost_credits_per_period": 0.8
+        "operating_cost_credits_per_period": 0.8,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 30
+        }
       }
     },
     "deep_space_terminal": {
       "economic_effects": {
         "power_load_kw": 0.25,
-        "operating_cost_credits_per_period": 0.35
+        "operating_cost_credits_per_period": 0.35,
+        "service_outputs_per_period": {
+          "communications_bandwidth_mbps": 100
+        }
       }
     },
     "diagnostic_lab": {
       "economic_effects": {
         "power_load_kw": 0.6,
-        "operating_cost_credits_per_period": 0.7
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 15
+        }
       }
     },
     "fire_suppression": {
       "economic_effects": {
         "power_load_kw": 0.08,
-        "operating_cost_credits_per_period": 0.1
+        "operating_cost_credits_per_period": 0.1,
+        "service_outputs_per_period": {
+          "fire_response_capacity": 1
+        }
       }
     },
     "hazard_monitoring_station": {
@@ -720,7 +747,10 @@
     "logistics_store": {
       "economic_effects": {
         "power_load_kw": 0.08,
-        "operating_cost_credits_per_period": 0.1
+        "operating_cost_credits_per_period": 0.1,
+        "service_outputs_per_period": {
+          "warehouse_capacity_kg": 10000
+        }
       }
     },
     "maintenance_training_station": {
@@ -732,7 +762,10 @@
     "maintenance_workshop": {
       "economic_effects": {
         "power_load_kw": 0.55,
-        "operating_cost_credits_per_period": 0.7
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "repair_work_orders_per_period": 10
+        }
       }
     },
     "materials_accounting_terminal": {
@@ -750,13 +783,19 @@
     "medical_isolation_module": {
       "economic_effects": {
         "power_load_kw": 0.4,
-        "operating_cost_credits_per_period": 0.5
+        "operating_cost_credits_per_period": 0.5,
+        "service_outputs_per_period": {
+          "isolation_beds": 4
+        }
       }
     },
     "medical_module": {
       "economic_effects": {
         "power_load_kw": 0.45,
-        "operating_cost_credits_per_period": 0.6
+        "operating_cost_credits_per_period": 0.6,
+        "service_outputs_per_period": {
+          "medical_beds": 8
+        }
       }
     },
     "plant_biology_lab": {
@@ -816,13 +855,19 @@
     "remote_sensing_station": {
       "economic_effects": {
         "power_load_kw": 0.25,
-        "operating_cost_credits_per_period": 0.3
+        "operating_cost_credits_per_period": 0.3,
+        "service_outputs_per_period": {
+          "remote_observations_per_period": 20
+        }
       }
     },
     "research_lab": {
       "economic_effects": {
         "power_load_kw": 0.6,
-        "operating_cost_credits_per_period": 0.7
+        "operating_cost_credits_per_period": 0.7,
+        "service_outputs_per_period": {
+          "lab_samples_per_period": 20
+        }
       }
     },
     "resource_mapping_rover": {
@@ -846,7 +891,10 @@
     "simulation_classroom": {
       "economic_effects": {
         "power_load_kw": 0.3,
-        "operating_cost_credits_per_period": 0.35
+        "operating_cost_credits_per_period": 0.35,
+        "service_outputs_per_period": {
+          "training_seats": 20
+        }
       }
     },
     "spare_habitat_module": {
@@ -872,6 +920,9 @@
         },
         "resource_outputs_per_period": {
           "spare_parts": 8
+        },
+        "service_outputs_per_period": {
+          "repair_work_orders_per_period": 15
         }
       }
     },
@@ -890,7 +941,10 @@
     "training_station": {
       "economic_effects": {
         "power_load_kw": 0.2,
-        "operating_cost_credits_per_period": 0.25
+        "operating_cost_credits_per_period": 0.25,
+        "service_outputs_per_period": {
+          "training_seats": 12
+        }
       }
     },
     "utility_rover": {
@@ -902,7 +956,10 @@
     "weather_station": {
       "economic_effects": {
         "power_load_kw": 0.2,
-        "operating_cost_credits_per_period": 0.25
+        "operating_cost_credits_per_period": 0.25,
+        "service_outputs_per_period": {
+          "remote_observations_per_period": 12
+        }
       }
     },
     "solar_array": {
@@ -910,6 +967,44 @@
     },
     "battery_storage": {
       "battery_storage_binding": true
+    }
+  },
+  "service_catalog": {
+    "medical_beds": {
+      "unit": "койко-мест"
+    },
+    "isolation_beds": {
+      "unit": "изолятор-мест"
+    },
+    "lab_samples_per_period": {
+      "unit": "проб/период"
+    },
+    "communications_bandwidth_mbps": {
+      "unit": "Мбит/с"
+    },
+    "cargo_handling_tonnes_per_period": {
+      "unit": "т/период"
+    },
+    "transport_tonnes_per_period": {
+      "unit": "т/период"
+    },
+    "repair_work_orders_per_period": {
+      "unit": "заказов/период"
+    },
+    "fire_response_capacity": {
+      "unit": "одновременных инцидентов"
+    },
+    "training_seats": {
+      "unit": "мест"
+    },
+    "remote_observations_per_period": {
+      "unit": "наблюдений/период"
+    },
+    "command_staff_capacity": {
+      "unit": "операторов"
+    },
+    "warehouse_capacity_kg": {
+      "unit": "кг"
     }
   }
 }
