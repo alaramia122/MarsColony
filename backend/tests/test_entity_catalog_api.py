@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from backend.app import api, entity_catalog_api, projects_api
 from backend.app.db import Base
 from backend.app.api import CreateSessionRequest
-from backend.app.entity_catalog_api import EntityProposalRequest
+from backend.app.entity_catalog_api import EntityApprovalRequest, EntityProposalRequest
 
 
 class EntityCatalogApiTests(unittest.TestCase):
@@ -100,6 +100,35 @@ class EntityCatalogApiTests(unittest.TestCase):
             if item["id"] == proposal["catalog_id"]
         )
         self.assertEqual(custom["operation"]["power_generation_kw"], 2)
+
+    def test_commander_can_approve_own_definition_only_with_written_justification(self):
+        proposal = entity_catalog_api.propose_catalog_entity(
+            self.session_id,
+            EntityProposalRequest(
+                entity_type="infrastructure",
+                name="Резервный энергомодуль",
+                description="Дополнительная резервная генерация.",
+                domain_codes=["energy"],
+                definition={
+                    "kind": "custom_backup_generator",
+                    "build": {"budget_credits": 20, "duration_periods": 1, "labor_fte": 0.2, "energy_kwh_per_period": 0.1, "resource_requirements": {}},
+                    "operation": {"power_generation_kw": 1, "power_load_kw": 0, "resource_inputs_per_period": {}, "resource_outputs_per_period": {}, "operating_cost_credits_per_period": 0},
+                },
+            ),
+            self.owner_token,
+        )
+        with self.assertRaises(HTTPException) as missing_reason:
+            entity_catalog_api.approve_catalog_entity(
+                self.session_id, proposal["id"], self.owner_token
+            )
+        self.assertEqual(missing_reason.exception.status_code, 422)
+        approved = entity_catalog_api.approve_catalog_entity(
+            self.session_id,
+            proposal["id"],
+            self.owner_token,
+            EntityApprovalRequest(comment="Резервный энергомодуль необходим для повышения устойчивости энергоснабжения."),
+        )
+        self.assertEqual(approved["status"], "approved")
 
     def test_player_cannot_propose_definition_outside_assigned_domains(self):
         with self.assertRaises(HTTPException) as unauthorized:
