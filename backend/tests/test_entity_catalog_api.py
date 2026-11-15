@@ -9,6 +9,7 @@ from backend.app import api, entity_catalog_api, projects_api
 from backend.app.db import Base
 from backend.app.api import CreateSessionRequest
 from backend.app.entity_catalog_api import EntityApprovalRequest, EntityProposalRequest
+from backend.app.projects_api import ProjectCreate
 
 
 class EntityCatalogApiTests(unittest.TestCase):
@@ -100,6 +101,25 @@ class EntityCatalogApiTests(unittest.TestCase):
             if item["id"] == proposal["catalog_id"]
         )
         self.assertEqual(custom["operation"]["power_generation_kw"], 2)
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Строительство компактного генератора",
+                description="Использовать утверждённый пользовательский тип из каталога.",
+                project_type="infrastructure",
+                domain_codes=["energy"],
+                budget_credits=50,
+                duration_periods=1,
+                labor_fte=0.5,
+                energy_kwh_per_period=1,
+                catalog_entity_ids=[proposal["catalog_id"]],
+            ),
+            self.owner_token,
+        )
+        self.assertEqual(
+            project["expected_result"]["infrastructure"][0]["catalog_entity_id"],
+            proposal["catalog_id"],
+        )
 
     def test_commander_can_approve_own_definition_only_with_written_justification(self):
         proposal = entity_catalog_api.propose_catalog_entity(
