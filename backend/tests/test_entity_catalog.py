@@ -26,6 +26,13 @@ class EntityCatalogTests(unittest.TestCase):
         self.assertIn("vehicle", types)
         self.assertIn("technology", types)
 
+    def test_unknown_top_level_definition_field_is_rejected(self):
+        catalogue = load_entity_catalog("ares-01")
+        entity = deepcopy(catalogue["entities"][0])
+        entity["arbitrary_state_write"] = {"budget_credits": 0}
+        with self.assertRaises(ValueError):
+            validate_entity(entity, SCENARIO["resource_catalog"], "ares-01")
+
     def test_unsupported_technology_effect_is_rejected(self):
         catalogue = load_entity_catalog("ares-01")
         technology = deepcopy(next(
