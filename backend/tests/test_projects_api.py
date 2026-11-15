@@ -56,6 +56,7 @@ class ProjectWorkflowTests(unittest.TestCase):
     def test_full_project_approval_execution_and_audit_flow(self):
         domain_lead = self.join("Инженер энергетики")
         finance_lead = self.join("Финансовый координатор")
+        project_author = self.join("Инженер проекта")
         self.assign(
             domain_lead["player_id"], self.owner_token,
             ["domain_lead"], ["energy"],
@@ -63,6 +64,10 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assign(
             finance_lead["player_id"], self.owner_token,
             ["finance_lead"],
+        )
+        self.assign(
+            project_author["player_id"], self.owner_token,
+            ["engineer"], ["energy"],
         )
 
         project = projects_api.create_project(
@@ -86,7 +91,7 @@ class ProjectWorkflowTests(unittest.TestCase):
                     ],
                 },
             ),
-            self.owner_token,
+            project_author["player_token"],
         )
         self.assertEqual(project["status"], "draft")
 
@@ -101,7 +106,7 @@ class ProjectWorkflowTests(unittest.TestCase):
             projects_api.approve_project(
                 self.session_id, project["id"],
                 ApprovalRequest(decision="approve", expected_version=2),
-                self.owner_token,
+                project_author["player_token"],
             )
         self.assertEqual(self_approval.exception.status_code, 403)
 
@@ -761,6 +766,50 @@ class ProjectWorkflowTests(unittest.TestCase):
         technologies = api.get_session(self.session_id, self.owner_token)["state"]["technologies"]
         self.assertEqual(technologies[0]["id"], "water-electrolysis-v2")
         self.assertEqual(technologies[0]["level"], 2)
+
+    def test_commander_can_issue_documented_command_order_for_own_project(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Резервный контур энергетики",
+                description="Создание учебной резервной линии.",
+                project_type="infrastructure",
+                domain_codes=["energy"],
+                budget_credits=25,
+                duration_periods=1,
+            ),
+            self.owner_token,
+        )
+        submitted = projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            self.owner_token,
+        )
+        with self.assertRaises(HTTPException) as missing_reason:
+            projects_api.approve_project(
+                self.session_id, project["id"],
+                ApprovalRequest(decision="approve", expected_version=submitted["version"]),
+                self.owner_token,
+            )
+        self.assertEqual(missing_reason.exception.status_code, 422)
+
+        approved = projects_api.approve_project(
+            self.session_id, project["id"],
+            ApprovalRequest(
+                decision="approve",
+                expected_version=submitted["version"],
+                comment="Приоритетное решение командира для устойчивости энергоснабжения.",
+            ),
+            self.owner_token,
+        )
+        self.assertEqual(approved["status"], "approved")
+        self.assertEqual(approved["approvals"][0]["approval_mode"], "commander_order")
+        session = api.get_session(self.session_id, self.owner_token)
+        command_event = next(
+            event for event in session["events"]
+            if event["type"] == "project.approval_recorded"
+            and event["payload"]["project_id"] == project["id"]
+        )
+        self.assertEqual(command_event["payload"]["approval_mode"], "commander_order")
 
     def test_session_enforces_twenty_player_capacity(self):
         for index in range(19):
