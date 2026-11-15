@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .db import SessionLocal
 from .domain.engine import DomainError, advance_period, initial_state
-from .models import GameEventRecord, GameSessionRecord, PlayerRecord
+from .models import GameEventRecord, GameSessionRecord, PlayerRecord, ProjectRecord
 from .scenarios import ScenarioValidationError, load_scenario
 
 
@@ -180,23 +180,86 @@ def advance_game_session(
                 )
             scenario = record.scenario_snapshot or load_scenario(record.scenario_id)
             next_period = record.current_period + 1
+            period_hours = (
+                float(scenario["time"]["period_sols"])
+                * float(scenario["time"]["hours_per_sol"])
+            )
+            active_projects = db.scalars(select(ProjectRecord).where(
+                ProjectRecord.session_id == session_id,
+                ProjectRecord.status == "executing",
+            ).with_for_update()).all()
+            allocated_fte = sum(float(item.labor_fte) for item in active_projects)
+            available_fte = float(scenario.get("population", {}).get("available_fte", 0))
+            if allocated_fte > available_fte + 1e-9:
+                raise DomainError("Active project labor exceeds available workforce.")
+            additional_loads = [
+                {
+                    "load_id": f"project:{item.id}",
+                    "requested_kw": float(item.energy_kwh_per_period) / period_hours,
+                    "priority": 4,
+                    "minimum_kw": 0.0,
+                }
+                for item in active_projects
+                if float(item.energy_kwh_per_period) > 0
+            ]
             reserved_budget = float(record.reserved_budget_credits)
             engine_state = dict(record.state)
             engine_state["budget_credits"] = max(
                 0.0, float(engine_state["budget_credits"]) - reserved_budget
             )
-            new_state, report = advance_period(scenario, engine_state, next_period)
+            new_state, report = advance_period(
+                scenario, engine_state, next_period, additional_loads=additional_loads
+            )
             new_state["budget_credits"] = round(
                 float(new_state["budget_credits"]) + reserved_budget, 6
             )
             record.current_period = next_period
             record.state = new_state
+            sequence = _next_event_sequence(db, record.id)
             db.add(GameEventRecord(
                 session_id=record.id,
-                sequence=_next_event_sequence(db, record.id),
+                sequence=sequence,
                 event_type="period.completed",
                 payload=report,
             ))
+            sequence += 1
+            project_execution = []
+            for project in active_projects:
+                load_id = f"project:{project.id}"
+                delivered_kwh = sum(
+                    float(load["allocated_kw"]) * float(interval["duration_hours"])
+                    for interval in report["power_intervals"]
+                    for load in interval["dispatch"]["loads"]
+                    if load["load_id"] == load_id
+                )
+                required_kwh = float(project.energy_kwh_per_period)
+                fully_powered = delivered_kwh + 1e-6 >= required_kwh
+                if fully_powered:
+                    project.progress_periods += 1
+                    project.version += 1
+                    event_type = "project.progressed"
+                else:
+                    event_type = "project.paused_power_shortfall"
+                progress_event = {
+                    "project_id": project.id,
+                    "period": next_period,
+                    "progress_periods": project.progress_periods,
+                    "duration_periods": project.duration_periods,
+                    "energy_required_kwh": required_kwh,
+                    "energy_delivered_kwh": round(delivered_kwh, 6),
+                    "fully_powered": fully_powered,
+                    "ready_to_complete": project.progress_periods >= project.duration_periods,
+                    "version": project.version,
+                }
+                db.add(GameEventRecord(
+                    session_id=record.id,
+                    sequence=sequence,
+                    event_type=event_type,
+                    payload=progress_event,
+                ))
+                sequence += 1
+                project_execution.append(progress_event)
+            report["project_execution"] = project_execution
             db.flush()
             result = serialize_session(record)
             result["report"] = report
