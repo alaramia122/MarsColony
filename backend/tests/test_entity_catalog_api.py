@@ -1,4 +1,8 @@
+import base64
 import unittest
+from io import BytesIO
+
+from PIL import Image
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -144,10 +148,9 @@ class EntityCatalogApiTests(unittest.TestCase):
         )
 
     def test_custom_entity_photo_is_sanitized_persisted_and_inherited_by_project_asset(self):
-        tiny_png = (
-            "data:image/png;base64,"
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p1sAAAAASUVORK5CYII="
-        )
+        image_buffer = BytesIO()
+        Image.new("RGB", (2, 2), (180, 80, 40)).save(image_buffer, format="PNG")
+        tiny_png = "data:image/png;base64," + base64.b64encode(image_buffer.getvalue()).decode("ascii")
         proposal = entity_catalog_api.propose_catalog_entity(
             self.session_id,
             EntityProposalRequest(
