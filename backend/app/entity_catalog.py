@@ -166,7 +166,7 @@ def validate_entity_catalogue_resources(
     for kind, definition in overrides.items():
         if not isinstance(kind, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", kind):
             raise EntityCatalogError("Starter override kind must be a stable lowercase identifier.")
-        if not isinstance(definition, dict) or not set(definition).issubset({"economic_effects", "process_bindings"}):
+        if not isinstance(definition, dict) or not set(definition).issubset({"economic_effects", "process_bindings", "power_generation_binding", "battery_storage_binding"}):
             raise EntityCatalogError(f"Starter override '{kind}' contains unsupported fields.")
         effects = definition.get("economic_effects", {})
         if not isinstance(effects, dict) or not set(effects).issubset(EFFECT_KEYS):
@@ -190,6 +190,9 @@ def validate_entity_catalogue_resources(
             or not set(bindings).issubset(allowed_processes)
         ):
             raise EntityCatalogError(f"Starter override '{kind}' has invalid process bindings.")
+        for binding_key in ("power_generation_binding", "battery_storage_binding"):
+            if binding_key in definition and not isinstance(definition[binding_key], bool):
+                raise EntityCatalogError(f"Starter override '{kind}' has an invalid {binding_key} flag.")
 
 
 def resolve_catalogue_entity(catalogue: dict[str, Any], entity_id: str) -> dict[str, Any]:
