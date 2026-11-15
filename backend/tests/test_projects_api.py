@@ -470,6 +470,65 @@ class ProjectWorkflowTests(unittest.TestCase):
             [event["type"] for event in state["events"]],
         )
 
+    def test_active_projects_cannot_overallocate_colony_workforce(self):
+        lead = self.join("Руководитель строительства")
+        self.assign(lead["player_id"], self.owner_token, ["domain_lead"], ["construction"])
+        first = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Первый трудоёмкий проект",
+                description="Занимает весь доступный FTE.",
+                project_type="construction",
+                domain_codes=["construction"],
+                budget_credits=0,
+                duration_periods=1,
+                labor_fte=16,
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, first["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, first["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        projects_api.execute_project(
+            self.session_id, first["id"], VersionRequest(expected_version=3),
+            self.owner_token,
+        )
+
+        second = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Второй трудоёмкий проект",
+                description="Не должен превысить доступную численность.",
+                project_type="construction",
+                domain_codes=["construction"],
+                budget_credits=0,
+                duration_periods=1,
+                labor_fte=1,
+            ),
+            lead["player_token"],
+        )
+        projects_api.submit_project(
+            self.session_id, second["id"], VersionRequest(expected_version=1),
+            lead["player_token"],
+        )
+        projects_api.approve_project(
+            self.session_id, second["id"],
+            ApprovalRequest(decision="approve", expected_version=2),
+            self.owner_token,
+        )
+        with self.assertRaises(HTTPException) as error:
+            projects_api.execute_project(
+                self.session_id, second["id"], VersionRequest(expected_version=3),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
+
 
 if __name__ == "__main__":
     unittest.main()
