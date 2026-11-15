@@ -690,7 +690,7 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
             project.status = "completed"
             project.completed_period = session.current_period
             project.version += 1
-            append_event(db, session_id, "project.commissioned", {
+            result_payload = {
                 "project_id": project.id,
                 "resource_outputs_per_period": expected.get("resource_outputs_per_period", {}),
                 "power_generation_kw_delta": expected.get("power_generation_kw_delta", 0.0),
@@ -698,7 +698,12 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                 "infrastructure": commissioned,
                 "infrastructure_repairs": repaired_assets,
                 "technology_unlocks": unlocked_technologies,
-            })
+            }
+            append_event(db, session_id, "project.result_applied", result_payload)
+            if commissioned:
+                append_event(db, session_id, "project.infrastructure_commissioned", {
+                    "project_id": project.id, "assets": commissioned,
+                })
             append_event(db, session_id, "project.completed", {
                 "project_id": project.id, "completed_by": actor.id,
                 "completed_period": project.completed_period,
