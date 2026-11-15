@@ -547,6 +547,300 @@
       "process_bindings": [
         "ice_to_usable_water"
       ]
+    },
+    "additive_manufacturing_cell": {
+      "economic_effects": {
+        "power_load_kw": 0.8,
+        "operating_cost_credits_per_period": 1
+      }
+    },
+    "autonomous_scout_rover": {
+      "economic_effects": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      }
+    },
+    "backup_relay": {
+      "economic_effects": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      }
+    },
+    "biosensor_station": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "cargo_handling_crane": {
+      "economic_effects": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      }
+    },
+    "cargo_hauler": {
+      "economic_effects": {
+        "power_load_kw": 0.35,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "cargo_landing_zone": {
+      "economic_effects": {
+        "power_load_kw": 0.1,
+        "operating_cost_credits_per_period": 0.15
+      }
+    },
+    "cargo_reserve_platform": {
+      "economic_effects": {
+        "power_load_kw": 0.05,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "command_center": {
+      "economic_effects": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "common_module": {
+      "economic_effects": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      }
+    },
+    "communications_mast": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "construction_toolkit": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "core_analysis_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.7,
+        "operating_cost_credits_per_period": 0.8
+      }
+    },
+    "deep_space_terminal": {
+      "economic_effects": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.35
+      }
+    },
+    "diagnostic_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.6,
+        "operating_cost_credits_per_period": 0.7
+      }
+    },
+    "fire_suppression": {
+      "economic_effects": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "hazard_monitoring_station": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "industrial_safety_station": {
+      "economic_effects": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      }
+    },
+    "industrial_test_bench": {
+      "economic_effects": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "logistics_store": {
+      "economic_effects": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "maintenance_training_station": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "maintenance_workshop": {
+      "economic_effects": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.7
+      }
+    },
+    "materials_accounting_terminal": {
+      "economic_effects": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      }
+    },
+    "materials_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.5,
+        "operating_cost_credits_per_period": 0.6
+      }
+    },
+    "medical_isolation_module": {
+      "economic_effects": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "medical_module": {
+      "economic_effects": {
+        "power_load_kw": 0.45,
+        "operating_cost_credits_per_period": 0.6
+      }
+    },
+    "plant_biology_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.7
+      }
+    },
+    "power_monitoring_station": {
+      "economic_effects": {
+        "power_load_kw": 0.12,
+        "operating_cost_credits_per_period": 0.15
+      }
+    },
+    "precision_lab_tools": {
+      "economic_effects": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      }
+    },
+    "pressurized_rover": {
+      "economic_effects": {
+        "power_load_kw": 0.35,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "radiation_monitoring_station": {
+      "economic_effects": {
+        "power_load_kw": 0.15,
+        "operating_cost_credits_per_period": 0.2
+      }
+    },
+    "recreation_module": {
+      "economic_effects": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25
+      }
+    },
+    "regolith_construction_unit": {
+      "economic_effects": {
+        "power_load_kw": 0.4,
+        "operating_cost_credits_per_period": 0.5
+      }
+    },
+    "regolith_processing_plant": {
+      "economic_effects": {
+        "power_load_kw": 0.8,
+        "operating_cost_credits_per_period": 1
+      }
+    },
+    "remote_sensing_station": {
+      "economic_effects": {
+        "power_load_kw": 0.25,
+        "operating_cost_credits_per_period": 0.3
+      }
+    },
+    "research_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.6,
+        "operating_cost_credits_per_period": 0.7
+      }
+    },
+    "resource_mapping_rover": {
+      "economic_effects": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      }
+    },
+    "robotics_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.7,
+        "operating_cost_credits_per_period": 0.8
+      }
+    },
+    "science_payload_storage": {
+      "economic_effects": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "simulation_classroom": {
+      "economic_effects": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.35
+      }
+    },
+    "spare_habitat_module": {
+      "economic_effects": {
+        "power_load_kw": 0.1,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "spare_parts_store": {
+      "economic_effects": {
+        "power_load_kw": 0.08,
+        "operating_cost_credits_per_period": 0.1
+      }
+    },
+    "spare_parts_workshop": {
+      "economic_effects": {
+        "power_load_kw": 0.5,
+        "operating_cost_credits_per_period": 0.6
+      }
+    },
+    "survey_rover": {
+      "economic_effects": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      }
+    },
+    "systems_diagnostics_lab": {
+      "economic_effects": {
+        "power_load_kw": 0.55,
+        "operating_cost_credits_per_period": 0.65
+      }
+    },
+    "training_station": {
+      "economic_effects": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25
+      }
+    },
+    "utility_rover": {
+      "economic_effects": {
+        "power_load_kw": 0.3,
+        "operating_cost_credits_per_period": 0.4
+      }
+    },
+    "weather_station": {
+      "economic_effects": {
+        "power_load_kw": 0.2,
+        "operating_cost_credits_per_period": 0.25
+      }
+    },
+    "solar_array": {
+      "power_generation_binding": true
+    },
+    "battery_storage": {
+      "battery_storage_binding": true
     }
   }
 }
