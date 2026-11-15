@@ -50,6 +50,26 @@ class WebSocketStreamTests(unittest.TestCase):
             self.assertEqual(message["player"]["id"], self.session["owner_player_id"])
             self.assertEqual(message["last_sequence"], 0)
 
+    def test_stream_delivers_event_after_database_commit(self):
+        with self.client.websocket_connect(
+            f"/api/v1/sessions/{self.session['id']}/stream"
+        ) as websocket:
+            websocket.send_json({
+                "type": "authenticate",
+                "player_token": self.session["owner_token"],
+            })
+            snapshot = websocket.receive_json()
+            self.assertEqual(snapshot["type"], "snapshot")
+            api.advance_game_session(
+                self.session["id"],
+                api.AdvancePeriodRequest(expected_period=0),
+                player_token=self.session["owner_token"],
+            )
+            event = websocket.receive_json()
+            self.assertEqual(event["type"], "event")
+            self.assertEqual(event["sequence"], 1)
+            self.assertEqual(event["event_type"], "period.completed")
+
     def test_stream_rejects_invalid_session_token(self):
         with self.client.websocket_connect(
             f"/api/v1/sessions/{self.session['id']}/stream"
