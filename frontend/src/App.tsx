@@ -52,6 +52,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [events, setEvents] = useState<EventMessage[]>([]);
   const [view, setView] = useState<View>("overview");
+  const [tutorialStep, setTutorialStep] = useState(0);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState("");
@@ -148,6 +149,7 @@ export default function App() {
         displayName: "Командир колонии", joinCode: result.join_code
       };
       sessionStorage.setItem("marscolony.auth", JSON.stringify(next));
+      setTutorialStep(0);
       setAuth(next);
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(false); }
@@ -225,7 +227,7 @@ export default function App() {
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} onRefresh={refresh} />}
           {view === "people" && <People players={players} technologies={technologies} auth={auth} onRefresh={refresh} />}
           {view === "assistant" && <Assistant sessionId={auth.sessionId} token={auth.token} playerId={auth.playerId} eventWatermark={events[events.length - 1]?.sequence ?? 0} isCommander={Boolean(commander?.roles.includes("colony_commander"))} canProposeEntity={Boolean(commander?.roles.some((role) => ["colony_commander", "domain_lead", "engineer"].includes(role)))} onRefresh={refresh} />}
-          {view === "tutorial" && <Tutorial onNavigate={setView} onCreateTrainingSession={createSession} busy={busy} />}
+          {view === "tutorial" && <Tutorial step={tutorialStep} onStepChange={setTutorialStep} onNavigate={setView} onCreateTrainingSession={createSession} busy={busy} />}
 
           {auth.joinCode && <div className="invite-strip">
             <div className="invite-values">
@@ -320,8 +322,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
   </>;
 }
 
-function Tutorial({ onNavigate, onCreateTrainingSession, busy }: { onNavigate: (view: View) => void; onCreateTrainingSession: () => void; busy: boolean }) {
-  const [step, setStep] = useState(0);
+function Tutorial({ step, onStepChange, onNavigate, onCreateTrainingSession, busy }: { step: number; onStepChange: (step: number) => void; onNavigate: (view: View) => void; onCreateTrainingSession: () => void; busy: boolean }) {
   const steps: Array<{ title: string; explanation: string; task: string; view: View; action: string }> = [
     { title: "Осмотрите колонию", explanation: "Обзор — оперативная панель командира. Здесь видны запасы кислорода, воды и пищи, доступный бюджет, состояние инфраструктуры и активные проекты.", task: "Сравните запасы с рисками и определите, какая система требует внимания в первую очередь.", view: "overview", action: "Открыть обзор" },
     { title: "Познакомьтесь с экипажем", explanation: "Командир распределяет роли и зоны ответственности. Руководитель направления готовит проекты в своей области, финансовый руководитель проверяет бюджет, инженер помогает разрабатывать и исполнять проекты.", task: "Если играете с другими участниками, откройте список экипажа и назначьте хотя бы одному игроку направление. Для одиночного обучения этот шаг можно пропустить.", view: "people", action: "Открыть экипаж" },
@@ -343,9 +344,9 @@ function Tutorial({ onNavigate, onCreateTrainingSession, busy }: { onNavigate: (
     <h3>{current.title}</h3><p>{current.explanation}</p>
     <div className="tutorial-task"><strong>Ваше задание</strong><p>{current.task}</p></div>
     <div className="tutorial-actions">
-      <button className="button button-quiet" disabled={step === 0} title={step === 0 ? "Это первый шаг учебной миссии." : undefined} onClick={() => setStep((value) => Math.max(0, value - 1))}>Назад</button>
+      <button className="button button-quiet" disabled={step === 0} title={step === 0 ? "Это первый шаг учебной миссии." : undefined} onClick={() => onStepChange(Math.max(0, step - 1))}>Назад</button>
       <button className="button button-secondary" onClick={() => onNavigate(current.view)}>{current.action}</button>
-      <button className="button button-primary" disabled={step === steps.length - 1} title={step === steps.length - 1 ? "Учебная миссия завершена." : undefined} onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>{step === steps.length - 1 ? "Завершено" : "Следующий шаг"}</button>
+      <button className="button button-primary" disabled={step === steps.length - 1} title={step === steps.length - 1 ? "Учебная миссия завершена." : undefined} onClick={() => onStepChange(Math.min(steps.length - 1, step + 1))}>{step === steps.length - 1 ? "Завершено" : "Следующий шаг"}</button>
     </div>
     <p className="muted tutorial-foot">Подсказка: в обычной партии команда планирует проекты, согласует межведомственные решения, запускает исполнение и только затем завершает период. ИИ-ведущий — дополнительный помощник; базовый игровой цикл работает без внешней модели.</p>
   </section>;
