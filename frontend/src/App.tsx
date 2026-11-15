@@ -902,7 +902,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         const metadata = item.metadata as Record<string, unknown> | undefined;
         const properties = metadata?.properties as Record<string, unknown> | undefined;
         const image = typeof properties?.image_data_url === "string" ? properties.image_data_url : "";
-        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: String(metadata?.kind || "placed_infrastructure"), properties: properties || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name}`}>
+        return <button type="button" className="map-marker selected" key={String(item.id)} style={position} onClick={() => setSelectedAsset({ ...item, kind: String(metadata?.kind || "placed_infrastructure"), properties: properties || {} })} title={String(item.name)} aria-label={`Размещённый объект: ${String(item.name)}`}>
           {image.startsWith("data:image/") ? <img className="map-marker-image" src={image} alt="" /> : <i className="map-marker-fallback" />}
           <span className="map-marker-name">{String(item.name)}</span>
         </button>;
