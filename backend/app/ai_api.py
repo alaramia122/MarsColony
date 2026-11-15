@@ -117,6 +117,7 @@ def _serialize(record: AIProposalRecord) -> dict:
         "source_text": record.source_text,
         "proposal": record.proposal,
         "dialogue": record.dialogue or [],
+        "revision_history": record.revision_history or [],
         "version": record.version,
         "status": record.status,
         "created_project_id": record.created_project_id,
