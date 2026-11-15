@@ -139,14 +139,57 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
 
 
 def validate_catalog(catalogue: dict[str, Any], scenario_id: str) -> None:
-    if catalogue.get("scenario_id") != scenario_id or not isinstance(catalogue.get("entities"), list):
-        raise EntityCatalogError("Catalogue scenario_id or entities list is invalid.")
+    allowed_catalogue_keys = {"scenario_id", "version", "entities", "starter_kind_overrides"}
+    if (
+        not isinstance(catalogue, dict)
+        or not set(catalogue).issubset(allowed_catalogue_keys)
+        or catalogue.get("scenario_id") != scenario_id
+        or not isinstance(catalogue.get("entities"), list)
+    ):
+        raise EntityCatalogError("Catalogue scenario_id, fields or entities list are invalid.")
     ids = set()
     # Resource validation is completed by the caller using the scenario resource catalogue.
     for entity in catalogue["entities"]:
         if entity.get("id") in ids:
             raise EntityCatalogError("Entity catalogue IDs must be unique.")
         ids.add(entity.get("id"))
+
+
+def validate_entity_catalogue_resources(
+    catalogue: dict[str, Any],
+    resource_catalog: dict[str, Any],
+) -> None:
+    allowed_processes = {"oxygen_isru", "food_growing", "ice_to_usable_water"}
+    overrides = catalogue.get("starter_kind_overrides", {})
+    if not isinstance(overrides, dict):
+        raise EntityCatalogError("starter_kind_overrides must be an object.")
+    for kind, definition in overrides.items():
+        if not isinstance(kind, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", kind):
+            raise EntityCatalogError("Starter override kind must be a stable lowercase identifier.")
+        if not isinstance(definition, dict) or not set(definition).issubset({"economic_effects", "process_bindings"}):
+            raise EntityCatalogError(f"Starter override '{kind}' contains unsupported fields.")
+        effects = definition.get("economic_effects", {})
+        if not isinstance(effects, dict) or not set(effects).issubset(EFFECT_KEYS):
+            raise EntityCatalogError(f"Starter override '{kind}' has an invalid economic contract.")
+        for key in ("power_generation_kw", "power_load_kw", "operating_cost_credits_per_period", "battery_capacity_kwh"):
+            if key in effects:
+                _finite_nonnegative(effects[key], f"{kind}.{key}")
+        for key in ("resource_inputs_per_period", "resource_outputs_per_period"):
+            values = effects.get(key, {})
+            if not isinstance(values, dict):
+                raise EntityCatalogError(f"{kind}.{key} must be an object.")
+            for resource_id, quantity in values.items():
+                if resource_id not in resource_catalog:
+                    raise EntityCatalogError(f"Starter override '{kind}' references unknown resource '{resource_id}'.")
+                if _finite_nonnegative(quantity, f"{kind}.{key}.{resource_id}") <= 0:
+                    raise EntityCatalogError(f"{kind}.{key}.{resource_id} must be positive.")
+        bindings = definition.get("process_bindings", [])
+        if (
+            not isinstance(bindings, list)
+            or len(bindings) != len(set(bindings))
+            or not set(bindings).issubset(allowed_processes)
+        ):
+            raise EntityCatalogError(f"Starter override '{kind}' has invalid process bindings.")
 
 
 def resolve_catalogue_entity(catalogue: dict[str, Any], entity_id: str) -> dict[str, Any]:
