@@ -53,7 +53,8 @@
         "power_load_kw": 0.4,
         "resource_inputs_per_period": {},
         "resource_outputs_per_period": {},
-        "operating_cost_credits_per_period": 0.5
+        "operating_cost_credits_per_period": 0.5,
+        "battery_capacity_kwh": 500
       },
       "tags": [
         "storage",
