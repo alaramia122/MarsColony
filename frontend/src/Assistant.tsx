@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 type AIProposal = {
   id: string;
   status: string;
+  version: number;
   proposal: {
     title: string; description: string; project_type: string; domain_codes: string[];
     budget_credits: number; duration_periods: number; labor_fte: number;
@@ -51,6 +52,7 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
   sessionId: string; token: string; isCommander: boolean; onRefresh: () => Promise<void>;
 }) {
   const [requestText, setRequestText] = useState("");
+  const [clarifications, setClarifications] = useState<Record<string, string>>({});
   const [eventFocus, setEventFocus] = useState("");
   const [proposals, setProposals] = useState<AIProposal[]>([]);
   const [events, setEvents] = useState<AIEvent[]>([]);
@@ -108,6 +110,21 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
         await onRefresh();
         setNotice("Создан черновик проекта. Для запуска он должен пройти обычное согласование.");
       } else setNotice("Предложение отклонено.");
+    }
+  );
+
+
+  const clarifyProposal = (proposal: AIProposal) => run(
+    `${proposal.id}-clarify`, async () => {
+      const text = (clarifications[proposal.id] || "").trim();
+      if (text.length < 2) throw new Error("Добавьте уточнение длиной не менее двух символов.");
+      await aiRequest(
+        `${API}/sessions/${sessionId}/ai/proposals/${proposal.id}/clarify`,
+        token, { method: "POST", body: JSON.stringify({ text }) }
+      );
+      setClarifications((current) => ({ ...current, [proposal.id]: "" }));
+      await load();
+      setNotice("Предложение обновлено. Предыдущая версия и история уточнений сохранены.");
     }
   );
 
@@ -181,6 +198,14 @@ export default function Assistant({ sessionId, token, isCommander, onRefresh }: 
           {item.proposal.assumptions.length > 0 && <BriefingList title="Допущения" items={item.proposal.assumptions} />}
           {item.proposal.risks.length > 0 && <BriefingList title="Риски" items={item.proposal.risks} />}
           {item.proposal.questions.length > 0 && <BriefingList title="Нужно уточнить" items={item.proposal.questions} />}
+          {item.status === "pending_review" && <div className="assistant-clarify">
+            <label>Уточнить предложение
+              <textarea value={clarifications[item.id] || ""} onChange={(event) => setClarifications((current) => ({ ...current, [item.id]: event.target.value }))}
+                placeholder="Ответьте на вопросы ИИ или скорректируйте параметры проекта…" rows={2} maxLength={4000} />
+            </label>
+            <button className="button button-secondary small-button" disabled={Boolean(busy) || (clarifications[item.id] || "").trim().length < 2}
+              onClick={() => void clarifyProposal(item)}>{busy === `${item.id}-clarify` ? "Уточнение…" : `Уточнить предложение · v${item.version}`}</button>
+          </div>}
           {item.status === "pending_review" && <div className="assistant-actions">
             <button className="button button-primary small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "create-project")}>{busy === `${item.id}-create-project` ? "Создание…" : "Создать черновик проекта"}</button>
             <button className="button button-quiet small-button" disabled={Boolean(busy)} onClick={() => void proposalAction(item, "reject")}>Отклонить</button>
