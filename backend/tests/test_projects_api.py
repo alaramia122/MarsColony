@@ -164,8 +164,11 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
         self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
         self.assertEqual(state["state"]["power_load_kw_delta"], 0.5)
-        self.assertIn("Резервная энергетическая линия", [asset["name"] for asset in state["state"]["infrastructure"]])
-        self.assertEqual(state["state"]["infrastructure"][0]["commissioned_period"], 3)
+        commissioned_asset = next(
+            asset for asset in state["state"]["infrastructure"]
+            if asset["name"] == "Резервная энергетическая линия"
+        )
+        self.assertEqual(commissioned_asset["commissioned_period"], 3)
         event_types = [event["type"] for event in state["events"]]
         self.assertIn("project.submitted", event_types)
         self.assertIn("project.approval_recorded", event_types)
