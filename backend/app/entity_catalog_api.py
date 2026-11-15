@@ -84,6 +84,10 @@ def get_entity_catalog(
                 GameEntityRecord.status == "pending_review",
                 GameEntityRecord.author_player_id == actor.id,
             ).order_by(GameEntityRecord.created_at.desc())).all()
+            pending = db.scalars(select(GameEntityRecord).where(
+                GameEntityRecord.session_id == session_id,
+                GameEntityRecord.status == "pending_review",
+            ).order_by(GameEntityRecord.created_at)).all()
             return {
                 "scenario_id": session.scenario_id,
                 "version": catalogue.get("version"),
@@ -101,6 +105,7 @@ def get_entity_catalog(
                     for item in custom
                 ],
                 "my_pending_proposals": [_serialize_entity(item) for item in own_pending],
+                "pending_proposals": [_serialize_entity(item) for item in pending],
             }
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
