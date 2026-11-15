@@ -59,6 +59,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.String(length=36), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
         sa.Column("player_id", sa.String(length=36), sa.ForeignKey("players.id", ondelete="RESTRICT"), nullable=False),
         sa.Column("decision", sa.String(length=12), nullable=False),
+        sa.Column("authority_snapshot", sa.JSON(), nullable=False),
         sa.Column("comment", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("project_id", "player_id", name="uq_project_approval_player"),
