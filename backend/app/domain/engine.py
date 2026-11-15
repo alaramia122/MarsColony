@@ -370,7 +370,7 @@ def advance_period(
                     quantity=float(state[resource["state_key"]]),
                     capacity=_storage_capacity(scenario, resource_id),
                 )
-            energy_per_cycle = requested_kw * period_hours
+            energy_per_cycle = float(effects.get("power_load_kw", 0.0)) * period_hours
             updated_stocks, process_report = execute_process(
                 stocks, inputs, outputs, operation_fraction,
                 energy_kwh_per_cycle=energy_per_cycle,
