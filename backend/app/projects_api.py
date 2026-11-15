@@ -51,6 +51,7 @@ def append_event(db, session_id: str, event_type: str, payload: dict) -> None:
         event_type=event_type,
         payload=payload,
     ))
+    db.flush()
 
 
 def serialize_project(project: ProjectRecord, approvals=None) -> dict:
