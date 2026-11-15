@@ -835,6 +835,26 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(asset["kind"], "power_unit")
         self.assertEqual(asset["properties"]["economic_effects"]["power_generation_kw"], 18)
 
+    def test_project_can_unlock_a_catalogue_procedure(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Регламент аварийного водоснабжения",
+                description="Разработать и утвердить порядок ограничения расхода воды.",
+                project_type="research",
+                domain_codes=["life_support", "safety", "administration"],
+                budget_credits=25,
+                duration_periods=1,
+                labor_fte=0.2,
+                energy_kwh_per_period=0.1,
+                catalog_entity_ids=["emergency_water_contingency"],
+            ),
+            self.owner_token,
+        )
+        procedure = project["expected_result"]["procedure_unlocks"][0]
+        self.assertEqual(procedure["id"], "emergency_water_contingency")
+        self.assertIsNone(project["expected_result"].get("infrastructure"))
+
     def test_project_cannot_select_catalogue_asset_outside_its_domains(self):
         with self.assertRaises(HTTPException) as error:
             projects_api.create_project(
