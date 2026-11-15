@@ -135,7 +135,7 @@ class ProjectWorkflowTests(unittest.TestCase):
             )
         self.assertEqual(early_completion.exception.status_code, 409)
 
-        for expected_period in (0, 1):
+        for expected_period in (0, 1, 2):
             api.advance_game_session(
                 self.session_id,
                 api.AdvancePeriodRequest(expected_period=expected_period),
@@ -155,18 +155,19 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(completed["version"], 6)
 
         state = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(state["state"]["budget_credits"], 430.0)
+        self.assertEqual(state["state"]["budget_credits"], 405.0)
         self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
         self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
         self.assertEqual(state["state"]["power_load_kw_delta"], 0.5)
         self.assertEqual(state["state"]["infrastructure"][0]["name"], "Резервная энергетическая линия")
-        self.assertEqual(state["state"]["infrastructure"][0]["commissioned_period"], 2)
+        self.assertEqual(state["state"]["infrastructure"][0]["commissioned_period"], 3)
         event_types = [event["type"] for event in state["events"]]
         self.assertIn("project.submitted", event_types)
         self.assertIn("project.approval_recorded", event_types)
         self.assertIn("project.materials_consumed", event_types)
         self.assertIn("project.execution_started", event_types)
         self.assertIn("project.progressed", event_types)
+        self.assertIn("project.paused_power_shortfall", event_types)
         self.assertIn("project.commissioned", event_types)
         self.assertIn("project.completed", event_types)
         sequences = [event["sequence"] for event in state["events"]]
