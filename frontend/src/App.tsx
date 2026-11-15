@@ -758,24 +758,35 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   };
   const selectedCatalogEntities = catalogEntities.filter((entity) => selectedCatalogIds.includes(entity.id));
   const toggleCatalogEntity = (entity: CatalogEntity, checked: boolean) => {
-    setSelectedCatalogIds((current) => checked
-      ? [...current, entity.id]
-      : current.filter((id) => id !== entity.id));
+    const nextIds = checked
+      ? [...selectedCatalogIds, entity.id]
+      : selectedCatalogIds.filter((id) => id !== entity.id);
+    setSelectedCatalogIds(nextIds);
+    const selected = catalogEntities.filter((item) => nextIds.includes(item.id));
+    const builds = selected.map((item) => item.build || item.research || {});
+    const minimumBudget = builds.reduce((sum, build) => sum + (Number(build.budget_credits) || 0), 0);
+    const minimumLabor = builds.reduce((sum, build) => sum + (Number(build.labor_fte) || 0), 0);
+    const minimumEnergy = builds.reduce((sum, build) => sum + (Number(build.energy_kwh_per_period) || 0), 0);
+    const minimumDuration = builds.reduce((max, build) => Math.max(max, Number(build.duration_periods) || 1), 1);
+    setBudget((current) => String(Math.max(Number(current) || 0, minimumBudget)));
+    setDuration((current) => String(Math.max(Number(current) || 1, minimumDuration)));
+    setLaborFte((current) => String(Math.max(Number(current) || 0, minimumLabor)));
+    setEnergy((current) => String(Math.max(Number(current) || 0, minimumEnergy)));
+    const requirements: Record<string, number> = {};
+    builds.forEach((build) => {
+      Object.entries((build.resource_requirements || {}) as Record<string, number>).forEach(([key, value]) => {
+        requirements[key] = (requirements[key] || 0) + (Number(value) || 0);
+      });
+    });
+    setResourceInputs((current) => {
+      const next = { ...current };
+      Object.entries(requirements).forEach(([key, value]) => {
+        next[key] = String(Math.max(Number(next[key]) || 0, value));
+      });
+      return next;
+    });
     if (checked) {
       setDomains((current) => Array.from(new Set([...current, ...entity.domain_codes])));
-      const build = entity.build || entity.research || {};
-      setBudget((current) => String(Math.max(Number(current) || 0, Number(build.budget_credits) || 0)));
-      setDuration((current) => String(Math.max(Number(current) || 1, Number(build.duration_periods) || 1)));
-      setLaborFte((current) => String(Math.max(Number(current) || 0, Number(build.labor_fte) || 0)));
-      setEnergy((current) => String(Math.max(Number(current) || 0, Number(build.energy_kwh_per_period) || 0)));
-      const requirements = (build.resource_requirements || {}) as Record<string, number>;
-      setResourceInputs((current) => {
-        const next = { ...current };
-        Object.entries(requirements).forEach(([key, value]) => {
-          next[key] = String(Math.max(Number(next[key]) || 0, Number(value) || 0));
-        });
-        return next;
-      });
     }
   };
   const proposeNewEntity = async () => {
