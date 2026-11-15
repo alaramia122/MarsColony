@@ -42,7 +42,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
     stocks = scenario["stocks"]
     state = {
         "period": 0,
-        "infrastructure": [],
+        "infrastructure": [dict(item) for item in scenario.get("initial_infrastructure", [])],
         "technologies": [],
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
