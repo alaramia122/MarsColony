@@ -590,6 +590,7 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
+        <div className="system-row"><div className="system-icon">≡</div><div className="system-info"><strong>Процедуры</strong><span>Утверждённые регламенты и методики</span></div><div className="system-value">{Array.isArray(state.procedures) ? state.procedures.length : 0} <small>ед.</small></div></div>
         <div className="system-row"><div className="system-icon">♙</div><div className="system-info"><strong>Активные проекты</strong><span>Проекты в стадии исполнения</span></div><div className="system-value">{activeProjects.length} <small>из {projects.length}</small></div></div>
       </section>
       <section className="panel side-panel">
@@ -941,7 +942,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
             const selected = selectedCatalogIds.includes(entity.id);
             return <label className="catalog-entity-option" key={entity.id}>
               <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
-              <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+              <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : entity.entity_type === "procedure" ? "Процедура" : entity.entity_type === "process" ? "Процесс" : entity.entity_type === "equipment" ? "Оборудование" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
             </label>;
           })}
         </div>
