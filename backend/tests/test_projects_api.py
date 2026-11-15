@@ -688,9 +688,17 @@ class ProjectWorkflowTests(unittest.TestCase):
             self.session_id, api.AdvancePeriodRequest(expected_period=0),
             player_token=self.owner_token,
         )
-        projects_api.complete_project(
+        self.assertEqual(
+            project["expected_result"]["infrastructure_repairs"][0]["infrastructure_id"],
+            "facility-1",
+        )
+        completed = projects_api.complete_project(
             self.session_id, project["id"], VersionRequest(expected_version=5),
             self.owner_token,
+        )
+        self.assertEqual(
+            completed["expected_result"]["infrastructure_repairs"][0]["condition_delta"],
+            0.35,
         )
         state = api.get_session(self.session_id, self.owner_token)["state"]
         self.assertAlmostEqual(state["infrastructure"][0]["condition"], 0.75)
