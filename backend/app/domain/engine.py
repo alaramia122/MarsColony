@@ -40,7 +40,14 @@ def _battery_spec(power: dict[str, Any]) -> BatterySpec:
 def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
     """Create the first game-state snapshot from a validated scenario."""
     stocks = scenario["stocks"]
-    state = {"period": 0}
+    state = {
+        "period": 0,
+        "infrastructure": [],
+        "technologies": [],
+        "production_bonuses_per_period": {},
+        "power_generation_kw_delta": 0.0,
+        "power_load_kw_delta": 0.0,
+    }
     for resource in scenario["resource_catalog"].values():
         state[resource["state_key"]] = float(stocks[resource["state_key"]])
     state["budget_credits"] = float(scenario["finance"]["starting_credits"])
@@ -81,6 +88,7 @@ def _power_loads(
     scenario: dict[str, Any],
     average_load_kw: float,
     process_multipliers: dict[str, float],
+    additional_loads: list[dict[str, Any]] | None = None,
 ) -> list[PowerLoad]:
     power = scenario["power"]
     loads = []
@@ -104,6 +112,13 @@ def _power_loads(
             priority=int(group["priority"]),
             minimum_kw=float(group["minimum_kw"]),
         ))
+    for item in additional_loads or []:
+        loads.append(PowerLoad(
+            load_id=str(item["load_id"]),
+            requested_kw=float(item["requested_kw"]),
+            priority=int(item.get("priority", 4)),
+            minimum_kw=float(item.get("minimum_kw", item["requested_kw"])),
+        ))
     return loads
 
 
@@ -111,6 +126,7 @@ def advance_period(
     scenario: dict[str, Any],
     state: dict[str, Any],
     period_number: int,
+    additional_loads: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Calculate one period and return a new state and a detailed report."""
     state = dict(state)
@@ -154,6 +170,7 @@ def advance_period(
         int(power["module_count"])
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        + float(state.get("power_generation_kw_delta", 0.0))
     )
     service_duration_hours = float(event.get("duration_hours", 0.0))
     if service_duration_hours < 0 or service_duration_hours > period_hours:
@@ -165,11 +182,21 @@ def advance_period(
         modules_online
         * float(power["module_nominal_kw"])
         * float(power["availability_factor"])
+        + float(state.get("power_generation_kw_delta", 0.0))
     )
     normal_duration_hours = period_hours - service_duration_hours
     battery_spec = _battery_spec(power)
     battery_soc = float(state["battery_soc_kwh"])
     interval_reports = []
+    active_loads = list(additional_loads or [])
+    commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
+    if commissioned_load_kw > 0:
+        active_loads.append({
+            "load_id": "commissioned_infrastructure",
+            "requested_kw": commissioned_load_kw,
+            "priority": 4,
+            "minimum_kw": 0.0,
+        })
     process_energy_budgets = {
         process_id: 0.0 for process_id in scenario["processes"]
     }
@@ -208,7 +235,7 @@ def advance_period(
                     else 0.0
                 )
                 for process_id in scenario["processes"]
-            }),
+            }, active_loads),
             duration_hours=duration,
         )
         battery_charge_report = None
@@ -222,9 +249,14 @@ def advance_period(
             battery_soc = battery_charge_report["state_of_charge_end_kwh"]
         for allocation in dispatch["loads"]:
             group = next(
-                item for item in power["dispatch_groups"]
-                if item["id"] == allocation["load_id"]
+                (
+                    item for item in power["dispatch_groups"]
+                    if item["id"] == allocation["load_id"]
+                ),
+                None,
             )
+            if group is None:
+                continue
             process_id = group.get("process_id")
             if process_id:
                 process_energy_budgets[process_id] += (
@@ -266,6 +298,43 @@ def advance_period(
             scenario, state, process_id, requested_cycles, energy_budget
         )
         process_reports[process_id] = process_report
+
+    commissioned_power_fraction = 1.0
+    commissioned_load_kw = float(state.get("power_load_kw_delta", 0.0))
+    if commissioned_load_kw > 0:
+        requested_commissioned_kwh = commissioned_load_kw * period_hours
+        delivered_commissioned_kwh = sum(
+            float(load["allocated_kw"]) * float(interval["duration_hours"])
+            for interval in interval_reports
+            for load in interval["dispatch"]["loads"]
+            if load["load_id"] == "commissioned_infrastructure"
+        )
+        commissioned_power_fraction = min(
+            1.0, delivered_commissioned_kwh / requested_commissioned_kwh
+        )
+
+    production_bonus_report = {}
+    for resource_id, quantity in state.get("production_bonuses_per_period", {}).items():
+        if resource_id not in scenario["resource_catalog"]:
+            raise DomainError(f"Unknown production bonus resource '{resource_id}'.")
+        resource = scenario["resource_catalog"][resource_id]
+        state_key = resource["state_key"]
+        current = float(state[state_key])
+        capacity = _storage_capacity(scenario, resource_id)
+        requested_quantity = float(quantity)
+        powered_quantity = requested_quantity * commissioned_power_fraction
+        produced_quantity = powered_quantity
+        if capacity is not None:
+            produced_quantity = min(powered_quantity, max(0.0, capacity - current))
+        state[state_key] = _round_resource(
+            current + produced_quantity, scenario, resource_id
+        )
+        production_bonus_report[resource_id] = {
+            "requested": requested_quantity,
+            "power_limited": requested_quantity - powered_quantity,
+            "produced": produced_quantity,
+            "curtailed": powered_quantity - produced_quantity,
+        }
 
     allocated_process_energy_kwh = sum(process_energy_budgets.values())
     actual_process_energy_kwh = sum(
@@ -377,6 +446,8 @@ def advance_period(
         "raw_ice_used_kg": ice_used,
         "raw_ice_shortfall_kg": ice_shortfall,
         "material_processes": process_reports,
+        "project_production_bonuses": production_bonus_report,
+        "commissioned_power_fraction": commissioned_power_fraction,
         "power_intervals": interval_reports,
         "available_generation_kw": generation_kw,
         "average_load_kw": average_load_kw,

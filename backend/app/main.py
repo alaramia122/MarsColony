@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .api import router
+from .projects_api import router as projects_router
 from .db import SessionLocal
 
 
@@ -13,6 +14,7 @@ app = FastAPI(
     description="Authoritative game-state API for MarsColony.",
 )
 app.include_router(router)
+app.include_router(projects_router)
 
 
 @app.get("/health")

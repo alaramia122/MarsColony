@@ -184,6 +184,20 @@ class PeriodEngineTests(unittest.TestCase):
         with self.assertRaises(DomainError):
             advance_period(scenario, state, 2)
 
+    def test_commissioned_output_is_limited_by_dispatched_power(self):
+        state = initial_state(SCENARIO)
+        state["production_bonuses_per_period"] = {"oxygen": 50.0}
+        state["power_load_kw_delta"] = 1000.0
+        _, report = advance_period(SCENARIO, state, 1)
+        oxygen_output = report["project_production_bonuses"]["oxygen"]
+        self.assertLess(report["commissioned_power_fraction"], 1.0)
+        self.assertGreater(report["commissioned_power_fraction"], 0.0)
+        self.assertLess(oxygen_output["produced"], 50.0)
+        self.assertAlmostEqual(
+            oxygen_output["power_limited"],
+            50.0 * (1.0 - report["commissioned_power_fraction"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

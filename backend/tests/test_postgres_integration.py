@@ -19,12 +19,14 @@ class PostgreSQLSessionTests(unittest.TestCase):
     def test_concurrent_advance_commands_cannot_skip_a_period(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
         try:
             def advance_once(_index):
                 try:
                     api.advance_game_session(
                         session_id,
                         AdvancePeriodRequest(expected_period=0),
+                        player_token=owner_token,
                     )
                     return "advanced"
                 except HTTPException as error:
@@ -35,7 +37,7 @@ class PostgreSQLSessionTests(unittest.TestCase):
 
             self.assertEqual(outcomes.count("advanced"), 1)
             self.assertEqual(outcomes.count(409), 1)
-            restored = api.get_session(session_id)
+            restored = api.get_session(session_id, owner_token)
             self.assertEqual(restored["current_period"], 1)
             self.assertEqual(len(restored["events"]), 2)
         finally:
@@ -50,16 +52,18 @@ class PostgreSQLSessionTests(unittest.TestCase):
     def test_session_survives_database_round_trip_and_full_campaign(self):
         created = api.create_session(CreateSessionRequest(scenario_id="ares-01"))
         session_id = created["id"]
+        owner_token = created["owner_token"]
         try:
             self.assertEqual(created["current_period"], 0)
             for expected_period in range(1, 5):
                 advanced = api.advance_game_session(
                     session_id,
                     AdvancePeriodRequest(expected_period=expected_period - 1),
+                    player_token=owner_token,
                 )
                 self.assertEqual(advanced["current_period"], expected_period)
 
-            restored = api.get_session(session_id)
+            restored = api.get_session(session_id, owner_token)
             self.assertEqual(restored["current_period"], 4)
             self.assertEqual(len(restored["events"]), 5)
             self.assertEqual(restored["events"][0]["type"], "session.created")
