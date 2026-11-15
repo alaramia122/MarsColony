@@ -75,6 +75,7 @@ def initial_state(scenario: dict[str, Any]) -> dict[str, Any]:
         "technologies": [],
         "procedures": [],
         "service_capacity_per_period": {},
+        "service_delivery_per_period": {},
         "production_bonuses_per_period": {},
         "power_generation_kw_delta": 0.0,
         "power_load_kw_delta": 0.0,
@@ -493,6 +494,18 @@ def advance_period(
         service_id: round(capacity, 6)
         for service_id, capacity in service_capacity.items()
     }
+    service_delivery = {}
+    for service_id, requested in scenario.get("service_demand_per_period", {}).items():
+        requested = float(requested)
+        capacity = float(service_capacity.get(service_id, 0.0))
+        served = min(requested, capacity)
+        service_delivery[service_id] = {
+            "requested": round(requested, 6),
+            "capacity": round(capacity, 6),
+            "served": round(served, 6),
+            "unmet": round(max(0.0, requested - served), 6),
+        }
+    state["service_delivery_per_period"] = service_delivery
     asset_operating_cost_requested = sum(
         float(_asset_economic_effects(asset).get("operating_cost_credits_per_period", 0.0))
         * max(0.0, min(1.0, float(asset.get("condition", asset.get("properties", {}).get("condition", 1.0)))))
@@ -684,6 +697,7 @@ def advance_period(
         "infrastructure_process_capacity": process_asset_capacity,
         "infrastructure_operations": asset_operation_reports,
         "service_capacity_per_period": state["service_capacity_per_period"],
+        "service_delivery_per_period": state["service_delivery_per_period"],
         "infrastructure_condition_changes": condition_reports,
         "project_production_bonuses": production_bonus_report,
         "commissioned_power_fraction": commissioned_power_fraction,
