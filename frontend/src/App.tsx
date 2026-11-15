@@ -724,7 +724,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       .then((result) => { if (active) { setCatalogEntities(result.entities); setPendingEntityProposals(result.pending_proposals || []); setCatalogError(""); } })
       .catch((reason: Error) => { if (active) setCatalogError(reason.message); });
     return () => { active = false; };
-  }, [auth.sessionId, auth.token]);
+  }, [auth.sessionId, auth.token, projects]);
   const labels: Record<string, string> = { draft: "Черновик", submitted: "На согласовании", approved: "Согласован", executing: "В исполнении", completed: "Завершён", rejected: "Отклонён", cancelled: "Отменён" };
   const domainLabels: Record<string, string> = {
     geology: "Геология", industry: "Промышленность", energy: "Энергетика",
