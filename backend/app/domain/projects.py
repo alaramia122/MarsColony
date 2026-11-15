@@ -49,20 +49,29 @@ def approvals_complete(project: dict, approvals: list[dict]) -> bool:
     required = approval_requirements(project)
     approved = [item for item in approvals if item["decision"] == "approve"]
     domain_approved = set()
-    finance_approved = False
+    domain_approvers = set()
+    finance_approvers = set()
+    commander_approved = False
     for approval in approved:
         player = approval["player"]
+        player_id = player.get("id")
         roles = set(player["roles"])
         if "colony_commander" in roles:
+            commander_approved = True
             domain_approved.update(required["domains"])
-            finance_approved = True
         if "domain_lead" in roles:
             domain_approved.update(
                 set(player["responsibility_domains"]).intersection(required["domains"])
             )
+            domain_approvers.add(player_id)
         if "finance_lead" in roles:
-            finance_approved = True
+            finance_approvers.add(player_id)
+    independent_finance_approval = bool(finance_approvers - domain_approvers)
     return (
         set(required["domains"]).issubset(domain_approved)
-        and (not required["finance"] or finance_approved)
+        and (
+            not required["finance"]
+            or commander_approved
+            or independent_finance_approval
+        )
     )
