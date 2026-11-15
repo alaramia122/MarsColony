@@ -74,7 +74,7 @@ class ProjectWorkflowTests(unittest.TestCase):
                 domain_codes=["energy"],
                 budget_credits=120,
                 duration_periods=2,
-                resource_requirements={"copper_kg": 50},
+                resource_requirements={"raw_ice": 50},
                 expected_result={"availability_factor": 0.95},
             ),
             self.owner_token,
@@ -222,6 +222,67 @@ class ProjectWorkflowTests(unittest.TestCase):
                 self.owner_token,
             )
         self.assertEqual(error.exception.status_code, 409)
+
+    def test_reserved_budget_prevents_competing_projects_from_overspending(self):
+        project_ids = []
+        for title in ("Первый проект", "Второй проект"):
+            project = projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title=title,
+                    description="Конкурирующая заявка на бюджет.",
+                    project_type="infrastructure",
+                    domain_codes=["energy"],
+                    budget_credits=400,
+                    duration_periods=1,
+                ),
+                self.owner_token,
+            )
+            project_ids.append(project["id"])
+
+        projects_api.submit_project(
+            self.session_id, project_ids[0], VersionRequest(expected_version=1),
+            self.owner_token,
+        )
+        with self.assertRaises(HTTPException) as error:
+            projects_api.submit_project(
+                self.session_id, project_ids[1], VersionRequest(expected_version=1),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 409)
+        with self.session_factory() as db:
+            from backend.app.models import GameSessionRecord
+            session = db.get(GameSessionRecord, self.session_id)
+            self.assertEqual(session.reserved_budget_credits, 400.0)
+            self.assertEqual(session.state["budget_credits"], 600.0)
+
+    def test_cancelled_submitted_project_releases_budget(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Отменяемая заявка",
+                description="Проверка возврата зарезервированных средств.",
+                project_type="repair",
+                domain_codes=["energy"],
+                budget_credits=150,
+                duration_periods=1,
+            ),
+            self.owner_token,
+        )
+        submitted = projects_api.submit_project(
+            self.session_id, project["id"], VersionRequest(expected_version=1),
+            self.owner_token,
+        )
+        cancelled = projects_api.cancel_project(
+            self.session_id, project["id"],
+            VersionRequest(expected_version=submitted["version"]),
+            self.owner_token,
+        )
+        self.assertEqual(cancelled["status"], "cancelled")
+        with self.session_factory() as db:
+            from backend.app.models import GameSessionRecord
+            session = db.get(GameSessionRecord, self.session_id)
+            self.assertEqual(session.reserved_budget_credits, 0.0)
 
 
 if __name__ == "__main__":
