@@ -70,7 +70,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
             self.session_id,
             PlacementCreateRequest(
                 project_id=self.project_id, name="Жилой модуль № 2",
-                q=4, r=-2, expected_map_version=0,
+                q=4000, r=-2000, expected_map_version=0,
             ),
             token=self.owner_token,
         )
@@ -94,7 +94,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
     def test_author_cannot_approve_own_placement(self):
         proposal = propose_placement(
             self.session_id,
-            PlacementCreateRequest(project_id=self.project_id, name="Модуль", q=0, r=0),
+            PlacementCreateRequest(project_id=self.project_id, name="Модуль", q=5000, r=5000),
             token=self.owner_token,
         )
         with self.assertRaises(HTTPException) as error:
@@ -108,7 +108,7 @@ class SpatialPlacementApiTests(unittest.TestCase):
     def test_occupied_pending_placement_cannot_be_overlapped(self):
         propose_placement(
             self.session_id,
-            PlacementCreateRequest(project_id=self.project_id, name="Модуль A", q=2, r=3),
+            PlacementCreateRequest(project_id=self.project_id, name="Модуль A", q=6000, r=6000),
             token=self.owner_token,
         )
         with self.assertRaises(HTTPException) as error:
