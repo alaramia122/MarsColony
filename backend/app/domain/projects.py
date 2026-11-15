@@ -33,7 +33,7 @@ def can_manage_project(player: dict, domains: list[str]) -> bool:
         return True
     return (
         has_role(player, "domain_lead")
-        and bool(set(domains).intersection(player["responsibility_domains"]))
+        and set(domains).issubset(player["responsibility_domains"])
     )
 
 
