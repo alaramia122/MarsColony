@@ -4,6 +4,12 @@ import Assistant from "./Assistant";
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
 type StarterAsset = { name: string; kind: string; description: string; quantity?: number };
 type StarterPreset = { id: string; name: string; tagline: string; description: string; strategy: string; tradeoffs: string; domain_packs: Record<string, StarterAsset[]> };
+type CatalogEntity = {
+  id: string; entity_type: string; name: string; description: string; domain_codes: string[];
+  kind?: string; build?: Record<string, unknown>; research?: Record<string, unknown>;
+  operation?: Record<string, unknown>; effects?: Record<string, unknown>; image_data_url?: string | null;
+};
+type EntityProposal = { id: string; name: string; description: string; domain_codes: string[]; author_player_id: string; status: string; image_data_url?: string | null };
 type SessionData = {
   id: string;
   scenario_id: string;
@@ -578,12 +584,28 @@ function Overview({ session, state, projects, events, isCommander, busy, onAdvan
       <Metric label="ПИЩЕВЫЕ ЗАПАСЫ" value={quantity(numberAt(state, "dry_food_kg"))} unit="кг" detail="Сухие пищевые вещества" />
       <Metric label="БЮДЖЕТ" value={money(numberAt(state, "budget_credits"))} unit="кр." detail={`Свободно: ${money(session?.available_budget_credits || 0)} кр.`} />
     </div>
+    {session?.resource_catalog && <section className="panel inventory-panel">
+      <div className="panel-heading"><div><div className="eyebrow">MATERIALS / INVENTORY</div><h2>Материальные запасы</h2></div></div>
+      <div className="inventory-grid">{Object.entries(session.resource_catalog).filter(([id]) => !["oxygen","food_solids","usable_water","raw_ice"].includes(id)).map(([id, resource]) => {
+        const label: Record<string,string> = {raw_regolith:"Исходный реголит",regolith_bricks:"Реголитовые блоки",steel:"Сталь",aluminium:"Алюминиевые сплавы",electronics:"Электронные компоненты",polymers:"Полимеры и герметики",spare_parts:"Запасные части"};
+        return <div className="inventory-item" key={id}><span>{label[id] || id}</span><strong>{quantity(numberAt(state, resource.state_key || ""), 2)} <small>{resource.unit || "ед."}</small></strong></div>;
+      })}</div>
+    </section>}
+    {Object.keys((state.service_delivery_per_period || {}) as Record<string, unknown>).length > 0 && <section className="panel inventory-panel">
+      <div className="panel-heading"><div><div className="eyebrow">OPERATIONAL SERVICES</div><h2>Обеспечение служб</h2></div><span className="muted small">мощность и спрос за период</span></div>
+      <div className="inventory-grid">{Object.entries(state.service_delivery_per_period as Record<string, {requested:number;capacity:number;served:number;unmet:number}>).map(([id, item]) => {
+        const names: Record<string,string> = {medical_beds:"Медицинские койки",isolation_beds:"Изоляторы",lab_samples_per_period:"Лабораторные пробы",communications_bandwidth_mbps:"Пропускная способность связи",cargo_handling_tonnes_per_period:"Обработка грузов",transport_tonnes_per_period:"Перевозка грузов",repair_work_orders_per_period:"Ремонтные заказы",fire_response_capacity:"Пожарное реагирование",training_seats:"Учебные места",remote_observations_per_period:"Дистанционные наблюдения",command_staff_capacity:"Операторы управления",warehouse_capacity_kg:"Складская ёмкость"};
+        const units: Record<string,string> = {medical_beds:"мест",isolation_beds:"мест",lab_samples_per_period:"проб/пер.",communications_bandwidth_mbps:"Мбит/с",cargo_handling_tonnes_per_period:"т/пер.",transport_tonnes_per_period:"т/пер.",repair_work_orders_per_period:"заказов/пер.",fire_response_capacity:"инцид.",training_seats:"мест",remote_observations_per_period:"набл./пер.",command_staff_capacity:"чел.",warehouse_capacity_kg:"кг"};
+        return <div className="inventory-item" key={id}><span>{names[id] || id}</span><strong>{quantity(item.served, 2)} / {quantity(item.requested, 2)} <small>{units[id] || ""}</small></strong><small>Мощность {quantity(item.capacity, 2)} · дефицит {quantity(item.unmet, 2)}</small></div>;
+      })}</div>
+    </section>}
     <div className="section-grid">
       <section className="panel main-panel">
         <div className="panel-heading"><div><div className="eyebrow">COLONY STATUS</div><h2>Состояние систем</h2></div><div className="panel-actions"><span className="live-tag"><i /> LIVE</span>{isCommander && <button className="button button-primary small-button" disabled={busy || (session?.current_period || 0) >= (session?.settings?.period_count ?? 4)} title={busy ? "Дождитесь завершения текущего запроса." : (session?.current_period || 0) >= (session?.settings?.period_count ?? 4) ? "Все периоды кампании завершены." : undefined} onClick={() => void onAdvance()}>Завершить период →</button>}</div></div>
         <div className="system-row"><div className="system-icon">◈</div><div className="system-info"><strong>Энергетика</strong><span>Генерация и распределение мощности</span></div><div className="system-value">{quantity(numberAt(state, "power_generation_kw") || 72)} <small>кВт</small></div></div>
         <div className="system-row"><div className="system-icon">⌁</div><div className="system-info"><strong>Инфраструктура</strong><span>Введённые объекты колонии</span></div><div className="system-value">{Array.isArray(state.infrastructure) ? state.infrastructure.length : 0} <small>объектов</small></div></div>
         <div className="system-row"><div className="system-icon">⌬</div><div className="system-info"><strong>Технологии</strong><span>Освоенные технологические решения</span></div><div className="system-value">{Array.isArray(state.technologies) ? state.technologies.length : 0} <small>ед.</small></div></div>
+        <div className="system-row"><div className="system-icon">≡</div><div className="system-info"><strong>Процедуры</strong><span>Утверждённые регламенты и методики</span></div><div className="system-value">{Array.isArray(state.procedures) ? state.procedures.length : 0} <small>ед.</small></div></div>
         <div className="system-row"><div className="system-icon">♙</div><div className="system-info"><strong>Активные проекты</strong><span>Проекты в стадии исполнения</span></div><div className="system-value">{activeProjects.length} <small>из {projects.length}</small></div></div>
       </section>
       <section className="panel side-panel">
@@ -648,7 +670,7 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
   const visible = positioned.filter(matchesLayer);
   const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Стартовая комплектация отображается в реестре и на схеме по зонам ответственности. Экономические эффекты отдельных стартовых объектов пока не рассчитываются движком; это учтённые объекты, а не уже подключённые производственные модели.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">WORLD MODEL / SURFACE PLAN</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
     <div className="map-layers" aria-label="Слои карты">
       <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
       {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)}>{kind}</button>)}
@@ -658,12 +680,33 @@ function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
       <button className="map-base" type="button" title="Центральный узел колонии Ares-1" onClick={() => setSelectedAsset({ name: "Базовый модуль Ares-1", kind: "base", properties: { description: "Центральный узел сценария. Подробная геометрия базы пока не задана." } })}><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></button>
       {visible.map((asset, index) => {
         const properties = asset.properties as Record<string, unknown>;
-        return <button type="button" className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"} key={String(asset.id)} style={{ left: `${properties.x}%`, top: `${properties.y}%` }} onClick={() => setSelectedAsset(asset)}><i />{String(asset.name || `Объект ${index + 1}`)}</button>;
+        const rawImage = properties?.image_data_url || asset.image_data_url;
+        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/")
+          ? rawImage : null;
+        const name = String(asset.name || `Объект ${index + 1}`);
+        return <button
+          type="button"
+          className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"}
+          key={String(asset.id)}
+          style={{ left: `${properties.x}%`, top: `${properties.y}%` }}
+          onClick={() => setSelectedAsset(asset)}
+          title={name}
+          aria-label={`Выбрать объект: ${name}`}
+        >
+          {image
+            ? <><img className="map-marker-image" src={image} alt="" onError={(event) => {
+                event.currentTarget.style.display = "none";
+                const fallback = event.currentTarget.nextElementSibling;
+                if (fallback instanceof HTMLElement) fallback.hidden = false;
+              }} /><i className="map-marker-fallback" hidden /></>
+            : <i className="map-marker-fallback" />}
+          <span className="map-marker-name">{name}</span>
+        </button>;
       })}
       <div className="map-coordinate">SURFACE GRID · SCHEMATIC VIEW</div>
     </div>
     <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
-    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3><p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
+    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
     {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {String(asset.kind || "other")}</span>)}</div>}
     {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
   </div>;
@@ -689,13 +732,38 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [loadDelta, setLoadDelta] = useState("0");
   const [assetName, setAssetName] = useState("");
   const [assetKind, setAssetKind] = useState("infrastructure");
-  const [customAssetKind, setCustomAssetKind] = useState("");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
+  const [assetImageDataUrl, setAssetImageDataUrl] = useState("");
+  const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
+  const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [entityFormOpen, setEntityFormOpen] = useState(false);
+  const [newEntityType, setNewEntityType] = useState("infrastructure");
+  const [newEntityDomains, setNewEntityDomains] = useState<string[]>(player?.responsibility_domains?.length ? player.responsibility_domains : ["life_support"]);
+  const [newEntityName, setNewEntityName] = useState("");
+  const [newEntityDescription, setNewEntityDescription] = useState("");
+  const [newEntityImage, setNewEntityImage] = useState<string>("");
+  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+  const [entityProposalError, setEntityProposalError] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const roleSet = new Set(player?.roles || []);
   const canPropose = ["colony_commander", "domain_lead", "engineer"].some((role) => roleSet.has(role));
+  useEffect(() => {
+    if (player?.responsibility_domains?.length) {
+      setNewEntityDomains(player.responsibility_domains);
+    }
+  }, [player?.id]);
+  useEffect(() => {
+    let active = true;
+    request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token)
+      .then((result) => { if (active) { setCatalogEntities(result.entities); setPendingEntityProposals(result.pending_proposals || []); setCatalogError(""); } })
+      .catch((reason: Error) => { if (active) setCatalogError(reason.message); });
+    return () => { active = false; };
+  }, [auth.sessionId, auth.token, projects]);
   const labels: Record<string, string> = { draft: "Черновик", submitted: "На согласовании", approved: "Согласован", executing: "В исполнении", completed: "Завершён", rejected: "Отклонён", cancelled: "Отменён" };
   const domainLabels: Record<string, string> = {
     geology: "Геология", industry: "Промышленность", energy: "Энергетика",
@@ -708,9 +776,17 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const resourceLabels: Record<string, string> = {
     ...Object.fromEntries(Object.entries(resourceCatalog).map(([key, item]) => [key, `${key} (${item.unit || "ед."})`])),
     oxygen: "Кислород, кг", food_solids: "Сухие пищевые вещества, кг",
-    usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг"
+    usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг",
+    raw_regolith: "Исходный реголит, кг", regolith_bricks: "Реголитовые блоки, кг",
+    steel: "Конструкционная сталь, кг", aluminium: "Алюминиевые сплавы, кг",
+    electronics: "Электронные компоненты, шт.", polymers: "Полимеры и герметики, кг",
+    spare_parts: "Запасные части, шт."
   };
   const existingAssetKinds = Array.from(new Set(infrastructure.map((asset) => String(asset.kind || "")).filter(Boolean))).sort();
+  const filteredCatalogEntities = catalogEntities.filter((entity) =>
+    `${entity.name} ${entity.entity_type} ${entity.description} ${entity.domain_codes.join(" ")}`
+      .toLocaleLowerCase("ru-RU").includes(catalogSearch.trim().toLocaleLowerCase("ru-RU"))
+  );
   const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
     checked ? [...current, code] : current.filter((item) => item !== code)
   );
@@ -733,6 +809,103 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
   };
+  const selectedCatalogEntities = catalogEntities.filter((entity) => selectedCatalogIds.includes(entity.id));
+  const toggleCatalogEntity = (entity: CatalogEntity, checked: boolean) => {
+    const nextIds = checked
+      ? [...selectedCatalogIds, entity.id]
+      : selectedCatalogIds.filter((id) => id !== entity.id);
+    setSelectedCatalogIds(nextIds);
+    const selected = catalogEntities.filter((item) => nextIds.includes(item.id));
+    const builds = selected.map((item) => item.build || item.research || {});
+    const minimumBudget = builds.reduce((sum, build) => sum + (Number(build.budget_credits) || 0), 0);
+    const minimumLabor = builds.reduce((sum, build) => sum + (Number(build.labor_fte) || 0), 0);
+    const minimumEnergy = builds.reduce((sum, build) => sum + (Number(build.energy_kwh_per_period) || 0), 0);
+    const minimumDuration = builds.reduce((max, build) => Math.max(max, Number(build.duration_periods) || 1), 1);
+    setBudget((current) => String(Math.max(Number(current) || 0, minimumBudget)));
+    setDuration((current) => String(Math.max(Number(current) || 1, minimumDuration)));
+    setLaborFte((current) => String(Math.max(Number(current) || 0, minimumLabor)));
+    setEnergy((current) => String(Math.max(Number(current) || 0, minimumEnergy)));
+    const requirements: Record<string, number> = {};
+    builds.forEach((build) => {
+      Object.entries((build.resource_requirements || {}) as Record<string, number>).forEach(([key, value]) => {
+        requirements[key] = (requirements[key] || 0) + (Number(value) || 0);
+      });
+    });
+    setResourceInputs((current) => {
+      const next = { ...current };
+      Object.entries(requirements).forEach(([key, value]) => {
+        next[key] = String(Math.max(Number(next[key]) || 0, value));
+      });
+      return next;
+    });
+    if (checked) {
+      setDomains((current) => Array.from(new Set([...current, ...entity.domain_codes])));
+    }
+  };
+  const proposeNewEntity = async () => {
+    setEntityProposalError("");
+    let definition: Record<string, unknown>;
+    try {
+      definition = JSON.parse(newEntityDefinition) as Record<string, unknown>;
+    } catch {
+      setEntityProposalError("Определение сущности должно быть корректным JSON-объектом.");
+      return;
+    }
+    if (newEntityDomains.length === 0) {
+      setEntityProposalError("Выберите хотя бы одну зону ответственности.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals", auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          entity_type: newEntityType, name: newEntityName,
+          description: newEntityDescription, domain_codes: newEntityDomains,
+          definition, source_text: "Создано игроком через проектный офис.",
+          image_data_url: newEntityImage || null
+        })
+      });
+      setNewEntityName("");
+      setNewEntityDescription("");
+      setNewEntityImage("");
+      setEntityFormOpen(false);
+      const latestCatalog = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
+      setCatalogEntities(latestCatalog.entities);
+      setPendingEntityProposals(latestCatalog.pending_proposals || []);
+      setEntityProposalError("Предложение отправлено на согласование. После одобрения оно появится в каталоге.");
+    } catch (reason) {
+      setEntityProposalError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const approveEntityProposal = async (proposal: EntityProposal) => {
+    let approvalComment = "";
+    if (proposal.author_player_id === auth.playerId && roleSet.has("colony_commander")) {
+      const entered = window.prompt("Командирское распоряжение по собственной сущности. Укажите обоснование (не менее 10 символов):");
+      if (!entered || entered.trim().length < 10) {
+        setEntityProposalError("Согласование не отправлено: требуется обоснование не короче 10 символов.");
+        return;
+      }
+      approvalComment = entered.trim();
+    }
+    setSaving(true);
+    try {
+      await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals/" + proposal.id + "/approve", auth.token, {
+        method: "POST",
+        body: JSON.stringify(approvalComment ? { comment: approvalComment } : {})
+      });
+      const result = await request<{ entities: CatalogEntity[]; pending_proposals: EntityProposal[] }>(API + "/sessions/" + auth.sessionId + "/entity-catalog", auth.token);
+      setCatalogEntities(result.entities);
+      setPendingEntityProposals(result.pending_proposals || []);
+      setEntityProposalError("Новая сущность добавлена в общий каталог.");
+    } catch (reason) {
+      setEntityProposalError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const createProject = async () => {
     const requirements = Object.fromEntries(Object.entries(resourceInputs)
       .filter(([, value]) => value.trim() !== "" && Number(value) > 0)
@@ -744,7 +917,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (Object.keys(outputs).length) expected.resource_outputs_per_period = outputs;
     if (Number(generationDelta) > 0) expected.power_generation_kw_delta = Number(generationDelta);
     if (Number(loadDelta) > 0) expected.power_load_kw_delta = Number(loadDelta);
-    const selectedKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+    const selectedKind = assetKind.trim();
     if (assetName.trim() && selectedKind) {
       const properties: Record<string, unknown> = { condition: 1 };
       if (assetX.trim() !== "" && assetY.trim() !== "") { properties.x = Number(assetX); properties.y = Number(assetY); }
@@ -758,12 +931,15 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           title, description, project_type: projectType, domain_codes: domains,
           budget_credits: Number(budget), duration_periods: Number(duration),
           labor_fte: Number(laborFte), energy_kwh_per_period: Number(energy),
-          resource_requirements: requirements, expected_result: expected
+          resource_requirements: requirements, expected_result: expected,
+          catalog_entity_ids: selectedCatalogIds,
+          asset_image_data_url: assetImageDataUrl || null
         })
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setCustomAssetKind(""); setAssetX(""); setAssetY("");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetImageDataUrl("");
+      setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
     finally { setSaving(false); }
@@ -776,11 +952,27 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (outputs) Object.entries(outputs).forEach(([key, value]) => details.push(`${resourceLabels[key] || key}: +${quantity(value, 2)}/период`));
     if (Number(effect.power_generation_kw_delta) > 0) details.push(`Генерация +${quantity(Number(effect.power_generation_kw_delta), 2)} кВт`);
     if (Number(effect.power_load_kw_delta) > 0) details.push(`Нагрузка +${quantity(Number(effect.power_load_kw_delta), 2)} кВт`);
-    const assets = effect.infrastructure as Array<{ name?: string }> | undefined;
-    if (assets) assets.forEach((asset) => details.push(`Объект: ${asset.name || "без названия"}`));
+    const assets = effect.infrastructure as Array<{ name?: string; properties?: Record<string, unknown> }> | undefined;
+    if (assets) assets.forEach((asset) => {
+      const operation = (asset.properties?.economic_effects || {}) as Record<string, unknown>;
+      const outputs = (operation.resource_outputs_per_period || {}) as Record<string, number>;
+      const outputsText = Object.entries(outputs).map(([key, value]) => `${resourceLabels[key] || key}: +${quantity(Number(value), 2)}/период`);
+      const generation = Number(operation.power_generation_kw) || 0;
+      const load = Number(operation.power_load_kw) || 0;
+      const operationText = [
+        generation > 0 ? `генерация ${quantity(generation, 2)} кВт` : "",
+        load > 0 ? `нагрузка ${quantity(load, 2)} кВт` : "",
+        ...outputsText
+      ].filter(Boolean).join(", ");
+      details.push(`Объект: ${asset.name || "без названия"}${operationText ? ` (${operationText})` : ""}`);
+    });
+    const technologies = effect.technology_unlocks as Array<{ name?: string }> | undefined;
+    if (technologies) technologies.forEach((item) => details.push(`Технология: ${item.name || "без названия"}`));
+    const procedures = effect.procedure_unlocks as Array<{ name?: string }> | undefined;
+    if (procedures) procedures.forEach((item) => details.push(`Процедура: ${item.name || "без названия"}`));
     return details.join(" · ") || "Не задан";
   };
-  const selectedAssetKind = assetKind === "__custom__" ? customAssetKind.trim() : assetKind.trim();
+  const selectedAssetKind = assetKind.trim();
   const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))));
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
@@ -789,6 +981,19 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       {canPropose && <button className="button button-primary" onClick={() => setFormOpen((value) => !value)}>{formOpen ? "Закрыть форму" : "＋ Новый проект"}</button>}
     </div>
     {actionError && <div className="alert">{actionError}<button onClick={() => setActionError("")}>×</button></div>}
+    {entityProposalError && <div className="alert">{entityProposalError}<button onClick={() => setEntityProposalError("")}>×</button></div>}
+    {pendingEntityProposals.length > 0 && <section className="panel project-form">
+      <div className="eyebrow">ENTITY CATALOG REVIEW</div><h2>Новые типы на согласовании</h2>
+      {pendingEntityProposals.map((proposal) => {
+        const canReview = roleSet.has("colony_commander") || (roleSet.has("domain_lead") && proposal.domain_codes.every((domain) => (player?.responsibility_domains || []).includes(domain)));
+        return <div className="approval-history" key={proposal.id}>
+          {proposal.image_data_url && <img className="entity-reference-image approval-image" src={proposal.image_data_url} alt={`Внешний вид: ${proposal.name}`} />}
+          <strong>{proposal.name}</strong><p>{proposal.description}</p>
+          <small>{proposal.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small>
+          <button className="button button-secondary" disabled={saving || !canReview || (proposal.author_player_id === auth.playerId && !roleSet.has("colony_commander"))} title={!canReview ? "Нужны полномочия по всем затронутым направлениям." : proposal.author_player_id === auth.playerId ? "Командирское распоряжение потребует письменного обоснования." : undefined} onClick={() => void approveEntityProposal(proposal)}>Одобрить тип</button>
+        </div>;
+      })}
+    </section>}
     {formOpen && <section className="panel project-form">
       <div className="eyebrow">NEW PROJECT PROPOSAL</div><h2>Новая инициатива</h2>
       <div className="form-grid">
@@ -800,16 +1005,108 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <label>Энергия за период, кВт·ч<input type="number" min="0" max="1000000" step="0.1" value={energy} onChange={(event) => setEnergy(event.target.value)} /><small>Электроэнергия, которую проект должен получить за каждый период выполнения.</small></label>
       </div>
       <div className="form-section"><strong>Направления проекта</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={domains.includes(code)} onChange={(event) => changeDomain(code, event.target.checked)} />{label}</label>)}</div></div>
+      <div className="form-section">
+        <strong>Готовые объекты и технологии из каталога</strong>
+        <p className="field-help">Выберите типовые сущности, которые проект должен построить, установить или исследовать. Сервер автоматически добавит их характеристики и экономические эффекты в результат проекта. Для каждого типа учитываются минимальные бюджет, срок, труд и энергия.</p>
+        {catalogError && <p className="field-help">Каталог недоступен: {catalogError}</p>}
+        <label className="catalog-search">Поиск по каталогу
+          <input value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} placeholder="Название, тип или назначение" />
+        </label>
+        <p className="field-help">Показано {filteredCatalogEntities.length} из {catalogEntities.length} типов.</p>
+        <div className="catalog-entity-list">
+          {filteredCatalogEntities.map((entity) => {
+            const build = entity.build || entity.research || {};
+            const selected = selectedCatalogIds.includes(entity.id);
+            return <label className="catalog-entity-option" key={entity.id}>
+              <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
+              {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
+              <span><strong>{entity.name}</strong><small>{entity.entity_type === "technology" ? "Технология" : entity.entity_type === "vehicle" ? "Транспорт" : entity.entity_type === "procedure" ? "Процедура" : entity.entity_type === "process" ? "Процесс" : entity.entity_type === "equipment" ? "Оборудование" : "Инфраструктура"} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+            </label>;
+          })}
+        </div>
+        {selectedCatalogEntities.length > 0 && <p className="field-help">Выбрано сущностей: {selectedCatalogEntities.length}. Их зоны ответственности добавлены к проекту; параметры проекта должны покрывать суммарные требования.</p>}
+        <button type="button" className="button button-secondary" onClick={() => setEntityFormOpen((value) => !value)}>{entityFormOpen ? "Закрыть создание типа" : "＋ Предложить новый тип сущности"}</button>
+        {entityFormOpen && <div className="entity-proposal-form">
+          <label>Категория<select value={newEntityType} onChange={(event) => {
+            const nextType = event.target.value;
+            setNewEntityType(nextType);
+            if (nextType === "technology") {
+              setNewEntityDefinition('{"research":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":2,"resource_requirements":{}},"effects":{}}');
+            } else if (nextType === "procedure") {
+              setNewEntityDefinition('{"research":{"budget_credits":20,"duration_periods":1,"labor_fte":0.2,"energy_kwh_per_period":0,"resource_requirements":{}}}');
+            } else {
+              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+            }
+          }}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
+          <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
+          <label>Описание<textarea value={newEntityDescription} onChange={(event) => setNewEntityDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Назначение, ограничения и принцип работы" /></label>
+          <label>Фотография или изображение объекта
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+                setEntityProposalError("Поддерживаются изображения JPEG, PNG и WebP.");
+                event.target.value = "";
+                return;
+              }
+              if (file.size > 4 * 1024 * 1024) {
+                setEntityProposalError("Размер исходного изображения не должен превышать 4 МиБ.");
+                event.target.value = "";
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === "string") {
+                  setNewEntityImage(reader.result);
+                  setEntityProposalError("");
+                }
+              };
+              reader.onerror = () => setEntityProposalError("Не удалось прочитать выбранное изображение.");
+              reader.readAsDataURL(file);
+            }} />
+            <small>JPEG, PNG или WebP, до 4 МиБ. Сервер удалит метаданные и сохранит оптимизированную копию.</small>
+          </label>
+          {newEntityImage && <div className="entity-image-preview"><img className="entity-reference-image" src={newEntityImage} alt="Предпросмотр внешнего вида новой сущности" /><button type="button" className="button button-quiet small-button" onClick={() => setNewEntityImage("")}>Убрать изображение</button></div>}
+          <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
+          <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
+          <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
+          <button type="button" className="button button-primary" disabled={saving || newEntityName.trim().length < 2 || !newEntityDescription.trim()} onClick={() => void proposeNewEntity()}>Отправить тип на согласование</button>
+        </div>}
+      </div>
       <div className="form-section"><strong>Материальные требования на старте проекта</strong><p className="field-help">Количество ресурсов, которое будет списано со складов при запуске проекта. Указывайте значения в единицах, показанных рядом с ресурсом. Пустое поле означает, что ресурс не требуется.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceInputs[code] || ""} onChange={(event) => setResourceInputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
-      <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><p className="field-help">Дополнительное количество ресурса, которое проект начнёт производить за каждый игровой период после завершения. Это эффект проекта, а не выпуск во время строительства.</p><div className="form-grid">{Object.entries(resourceLabels).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
+      <div className="form-section"><strong>Ожидаемый дополнительный выпуск за период</strong><p className="field-help">Дополнительное количество базового ресурса, которое проект начнёт производить за каждый игровой период после завершения. Строительные материалы производятся только действующими объектами с утверждёнными входными и выходными потоками.</p><div className="form-grid">{Object.entries(resourceLabels).filter(([code]) => !["raw_regolith","regolith_bricks","steel","aluminium","electronics","polymers","spare_parts"].includes(code)).map(([code, label]) => <label key={code}>{label}<input type="number" min="0" step="0.01" value={resourceOutputs[code] || ""} onChange={(event) => setResourceOutputs((current) => ({ ...current, [code]: event.target.value }))} placeholder="0" /></label>)}</div></div>
       <div className="form-grid">
         <label>Дополнительная генерация, кВт<input type="number" min="0" step="0.1" value={generationDelta} onChange={(event) => setGenerationDelta(event.target.value)} /></label>
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
-        <label>Новый объект инфраструктуры<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный резервуар" /><small>Конкретный экземпляр, который появится на карте после завершения проекта.</small></label>
-        <label>Тип объекта<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}<option value="__custom__">＋ Добавить новый тип…</option></select>{assetKind === "__custom__" && <input value={customAssetKind} onChange={(event) => setCustomAssetKind(event.target.value)} maxLength={80} placeholder="Новый идентификатор типа, например water_recycler" />}<small>Выберите существующий тип или добавьте новый. Тип — категория; название выше — отдельный объект.</small></label>
+        <label>Дополнительная инвентарная запись<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный контейнер" /><small>Создаёт только запись об экземпляре без самостоятельной экономической модели. Для работающего оборудования выберите тип из каталога выше; для нового типа отправьте предложение на согласование.</small></label>
+        <label>Тип инвентарной записи<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select><small>Это не создаёт новый тип в каталоге и не добавляет производительность.</small></label>
+        <label>Фотография создаваемого объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+            setActionError("Поддерживаются изображения JPEG, PNG и WebP.");
+            event.target.value = "";
+            return;
+          }
+          if (file.size > 4 * 1024 * 1024) {
+            setActionError("Размер исходного изображения не должен превышать 4 МиБ.");
+            event.target.value = "";
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") {
+              setAssetImageDataUrl(reader.result);
+              setActionError("");
+            }
+          };
+          reader.onerror = () => setActionError("Не удалось прочитать изображение объекта.");
+          reader.readAsDataURL(file);
+        }} /><small>Можно заменить фотографию типа из каталога для этого экземпляра. Один проект с фотографией должен создавать ровно один инфраструктурный объект.</small></label>
         <label>Координата X, % от ширины карты<input type="number" min="0" max="100" step="0.1" value={assetX} onChange={(event) => setAssetX(event.target.value)} placeholder="Не задана" /></label>
         <label>Координата Y, % от высоты карты<input type="number" min="0" max="100" step="0.1" value={assetY} onChange={(event) => setAssetY(event.target.value)} placeholder="Не задана" /><small>Обе координаты необязательны. Если не заданы, объект останется в списке «без координат».</small></label>
       </div>
+      {assetImageDataUrl && <div className="entity-image-preview"><img className="entity-reference-image" src={assetImageDataUrl} alt="Предпросмотр фотографии создаваемого объекта" /><button type="button" className="button button-quiet small-button" onClick={() => setAssetImageDataUrl("")}>Убрать фотографию объекта</button></div>}
       <label className="form-wide">Описание<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={3} placeholder="Опишите цель, ограничения и ожидаемый результат проекта." /></label>
       <div className="form-foot"><span className="muted">Материалы списываются при запуске. Труд и энергия резервируются на период исполнения. Эффекты вводятся после подтверждения завершения.</span><button className="button button-primary" disabled={saving || title.trim().length < 3 || !description.trim() || domains.length === 0 || !validNumber(budget, 1000000000) || !validNumber(duration, 100) || !Number.isInteger(Number(duration)) || Number(duration) < 1 || !validNumber(laborFte) || !validNumber(energy) || !validNumber(generationDelta) || !validNumber(loadDelta) || invalidAsset || invalidResourceValues} title={saving ? "Сохраняется другой проектный запрос." : "Заполните название, описание и направление; проверьте бюджет, длительность, труд, энергию и материальные значения."} onClick={() => void createProject()}>Создать черновик</button></div>
     </section>}

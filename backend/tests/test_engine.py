@@ -150,6 +150,50 @@ class PeriodEngineTests(unittest.TestCase):
         advance_period(SCENARIO, state, 1)
         self.assertEqual(state, before)
 
+    def test_construction_materials_are_consumed_and_locally_manufactured(self):
+        scenario = json.loads(json.dumps(SCENARIO))
+        state = initial_state(scenario)
+        state["infrastructure"] = [
+            {
+                "id": "REGOLITH-1", "name": "Реголитовый завод",
+                "kind": "regolith_processing_plant", "domain_codes": ["construction"],
+                "properties": {
+                    "condition": 1.0, "status": "commissioned",
+                    "economic_effects": {
+                        "power_generation_kw": 0, "power_load_kw": 0,
+                        "resource_inputs_per_period": {"raw_regolith": 100},
+                        "resource_outputs_per_period": {"regolith_bricks": 60},
+                        "operating_cost_credits_per_period": 0,
+                    },
+                },
+            },
+            {
+                "id": "PARTS-1", "name": "Мастерская запчастей",
+                "kind": "spare_parts_workshop", "domain_codes": ["industry"],
+                "properties": {
+                    "condition": 1.0, "status": "commissioned",
+                    "economic_effects": {
+                        "power_generation_kw": 0, "power_load_kw": 0,
+                        "resource_inputs_per_period": {"steel": 4, "electronics": 1, "polymers": 1},
+                        "resource_outputs_per_period": {"spare_parts": 8},
+                        "operating_cost_credits_per_period": 0,
+                        "service_outputs_per_period": {"repair_work_orders_per_period": 15},
+                    },
+                },
+            },
+        ]
+        updated, report = advance_period(scenario, state, 1)
+        self.assertAlmostEqual(updated["raw_regolith_kg"], 49900)
+        self.assertAlmostEqual(updated["regolith_bricks_kg"], 560)
+        self.assertAlmostEqual(updated["steel_kg"], 496)
+        self.assertAlmostEqual(updated["electronics_units"], 99)
+        self.assertAlmostEqual(updated["polymers_kg"], 299)
+        self.assertAlmostEqual(updated["spare_parts_units"], 88)
+        self.assertAlmostEqual(report["service_capacity_per_period"]["repair_work_orders_per_period"], 15)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["requested"], 2)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["served"], 2)
+        self.assertAlmostEqual(report["service_delivery_per_period"]["repair_work_orders_per_period"]["unmet"], 0)
+
     def test_periods_must_be_advanced_sequentially(self):
         with self.assertRaises(DomainError):
             advance_period(SCENARIO, initial_state(SCENARIO), 2)

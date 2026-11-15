@@ -7,6 +7,7 @@ from .api import router
 from .projects_api import router as projects_router
 from .realtime import router as realtime_router
 from .ai_api import router as ai_router
+from .entity_catalog_api import router as entity_catalog_router
 from .db import SessionLocal
 
 
@@ -19,6 +20,7 @@ app.include_router(router)
 app.include_router(projects_router)
 app.include_router(realtime_router)
 app.include_router(ai_router)
+app.include_router(entity_catalog_router)
 
 
 @app.get("/health")

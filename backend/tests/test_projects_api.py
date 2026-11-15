@@ -140,12 +140,14 @@ class ProjectWorkflowTests(unittest.TestCase):
             )
         self.assertEqual(early_completion.exception.status_code, 409)
 
+        period_reports = []
         for expected_period in (0, 1, 2):
-            api.advance_game_session(
+            period_result = api.advance_game_session(
                 self.session_id,
                 api.AdvancePeriodRequest(expected_period=expected_period),
                 player_token=self.owner_token,
             )
+            period_reports.append(period_result["report"])
         with self.session_factory() as db:
             from backend.app.models import ProjectRecord
             progressing = db.get(ProjectRecord, project["id"])
@@ -160,7 +162,11 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(completed["version"], 8)
 
         state = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(state["state"]["budget_credits"], 405.0)
+        self.assertAlmostEqual(
+            state["state"]["budget_credits"],
+            600.0 - 120.0 - sum(report["budget_cost_credits"] for report in period_reports),
+            places=5,
+        )
         self.assertEqual(state["state"]["production_bonuses_per_period"]["oxygen"], 10.0)
         self.assertEqual(state["state"]["power_generation_kw_delta"], 2.0)
         self.assertEqual(state["state"]["power_load_kw_delta"], 0.5)
@@ -359,15 +365,23 @@ class ProjectWorkflowTests(unittest.TestCase):
             self.session_id, project["id"], VersionRequest(expected_version=1),
             self.owner_token,
         )
-        api.advance_game_session(
+        period_result = api.advance_game_session(
             self.session_id,
             api.AdvancePeriodRequest(expected_period=0),
             player_token=self.owner_token,
         )
         restored = api.get_session(self.session_id, self.owner_token)
-        self.assertEqual(restored["state"]["budget_credits"], 575.0)
+        self.assertAlmostEqual(
+            restored["state"]["budget_credits"],
+            600.0 - period_result["report"]["budget_cost_credits"],
+            places=5,
+        )
         self.assertEqual(restored["reserved_budget_credits"], 500.0)
-        self.assertEqual(restored["available_budget_credits"], 75.0)
+        self.assertAlmostEqual(
+            restored["available_budget_credits"],
+            restored["state"]["budget_credits"] - 500.0,
+            places=5,
+        )
 
     def test_last_commander_cannot_remove_own_authority(self):
         with self.assertRaises(HTTPException) as error:
@@ -813,6 +827,112 @@ class ProjectWorkflowTests(unittest.TestCase):
             and event["payload"]["project_id"] == project["id"]
         )
         self.assertEqual(command_event["payload"]["approval_mode"], "commander_order")
+
+    def test_project_can_select_and_instantiate_a_catalogue_asset(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Дополнительная солнечная ферма",
+                description="Развернуть типовой энергетический объект из каталога.",
+                project_type="construction",
+                domain_codes=["energy", "construction"],
+                budget_credits=180,
+                duration_periods=2,
+                labor_fte=1.5,
+                energy_kwh_per_period=12,
+                resource_requirements={"steel": 80, "aluminium": 60, "electronics": 15},
+                catalog_entity_ids=["solar_array"],
+            ),
+            self.owner_token,
+        )
+        asset = project["expected_result"]["infrastructure"][0]
+        self.assertEqual(asset["catalog_entity_id"], "solar_array")
+        self.assertEqual(asset["kind"], "power_unit")
+        self.assertEqual(asset["properties"]["economic_effects"]["power_generation_kw"], 18)
+
+    def test_project_cannot_create_construction_materials_as_a_free_bonus(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Бесплатная сталь",
+                    description="Попытка обойти материальный баланс.",
+                    project_type="production",
+                    domain_codes=["industry"],
+                    budget_credits=0,
+                    duration_periods=1,
+                    labor_fte=0,
+                    energy_kwh_per_period=0,
+                    expected_result={"resource_outputs_per_period": {"steel": 1000}},
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
+    def test_project_cannot_inject_unapproved_infrastructure_economic_effects(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Несогласованный генератор",
+                    description="Попытка обойти каталог экономических характеристик.",
+                    project_type="infrastructure",
+                    domain_codes=["energy"],
+                    budget_credits=0,
+                    duration_periods=1,
+                    expected_result={
+                        "infrastructure": [{
+                            "name": "Генератор",
+                            "kind": "power_unit",
+                            "properties": {
+                                "condition": 1.0,
+                                "economic_effects": {"power_generation_kw": 9999},
+                            },
+                        }]
+                    },
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+
+    def test_project_can_unlock_a_catalogue_procedure(self):
+        project = projects_api.create_project(
+            self.session_id,
+            ProjectCreate(
+                title="Регламент аварийного водоснабжения",
+                description="Разработать и утвердить порядок ограничения расхода воды.",
+                project_type="research",
+                domain_codes=["life_support", "safety", "administration"],
+                budget_credits=25,
+                duration_periods=1,
+                labor_fte=0.2,
+                energy_kwh_per_period=0.1,
+                catalog_entity_ids=["emergency_water_contingency"],
+            ),
+            self.owner_token,
+        )
+        procedure = project["expected_result"]["procedure_unlocks"][0]
+        self.assertEqual(procedure["id"], "emergency_water_contingency")
+        self.assertIsNone(project["expected_result"].get("infrastructure"))
+
+    def test_project_cannot_select_catalogue_asset_outside_its_domains(self):
+        with self.assertRaises(HTTPException) as error:
+            projects_api.create_project(
+                self.session_id,
+                ProjectCreate(
+                    title="Неверная зона ответственности",
+                    description="Попытка создать объект без включения всех его направлений.",
+                    project_type="construction",
+                    domain_codes=["energy"],
+                    budget_credits=180,
+                    duration_periods=2,
+                    labor_fte=1.5,
+                    energy_kwh_per_period=12,
+                    catalog_entity_ids=["solar_array"],
+                ),
+                self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
 
     def test_session_enforces_twenty_player_capacity(self):
         for index in range(19):
