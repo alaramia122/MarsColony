@@ -266,6 +266,7 @@ def create_project(session_id: str, request: ProjectCreate,
                 ):
                     raise HTTPException(status_code=422, detail=f"Invalid quantity for resource: {resource_id}.")
             expected_result = deepcopy(request.expected_result)
+            available_entities = {}
             selected_ids = list(request.catalog_entity_ids)
             if len(selected_ids) != len(set(selected_ids)):
                 raise HTTPException(status_code=422, detail="Catalogue entity selections must be unique.")
@@ -329,6 +330,7 @@ def create_project(session_id: str, request: ProjectCreate,
                         infrastructure.append({
                             "name": entity["name"],
                             "kind": entity.get("kind", entity["entity_type"]),
+                            "domain_codes": list(entity.get("domain_codes", [])),
                             "catalog_entity_id": entity_id,
                             "properties": {
                                 "condition": 1.0,
@@ -413,7 +415,22 @@ def create_project(session_id: str, request: ProjectCreate,
                     or not isinstance(item.get("properties", {}), dict)
                 ):
                     raise HTTPException(status_code=422, detail="Each infrastructure item requires a name and kind.")
-                condition = item.get("properties", {}).get("condition", 1.0)
+                properties = item.get("properties", {})
+                item_domains = item.get("domain_codes", domains)
+                if not isinstance(item_domains, list) or not set(item_domains).issubset(set(domains)):
+                    raise HTTPException(status_code=422, detail="Infrastructure item domains must be covered by the project.")
+                catalog_entity_id = item.get("catalog_entity_id") or properties.get("catalog_entity_id")
+                if catalog_entity_id and catalog_entity_id not in selected_ids:
+                    raise HTTPException(status_code=422, detail="An infrastructure catalogue type must be selected explicitly for this project.")
+                if "economic_effects" in properties:
+                    entity = available_entities.get(catalog_entity_id)
+                    if entity is None or entity.get("entity_type") not in {"infrastructure", "equipment", "vehicle", "process"}:
+                        raise HTTPException(status_code=422, detail="Economic effects can only come from an approved infrastructure catalogue definition.")
+                    if properties.get("economic_effects") != entity.get("operation", {}):
+                        raise HTTPException(status_code=422, detail="Infrastructure economic effects must exactly match the approved catalogue definition.")
+                    if item.get("kind") != entity.get("kind", entity["entity_type"]):
+                        raise HTTPException(status_code=422, detail="Infrastructure kind does not match the selected catalogue definition.")
+                condition = properties.get("condition", 1.0)
                 if (
                     isinstance(condition, bool)
                     or not isinstance(condition, (int, float))
@@ -455,6 +472,20 @@ def create_project(session_id: str, request: ProjectCreate,
                 ):
                     raise HTTPException(status_code=422, detail="Each technology unlock requires a unique ID, name and positive integer level.")
                 technology_ids.add(technology["id"])
+                catalog_entity_id = technology.get("catalog_entity_id")
+                technology_effects = technology.get("effects", {})
+                if catalog_entity_id:
+                    entity = available_entities.get(catalog_entity_id)
+                    if (
+                        catalog_entity_id not in selected_ids
+                        or entity is None
+                        or entity.get("entity_type") != "technology"
+                        or technology.get("id") != catalog_entity_id
+                        or technology_effects != entity.get("effects", {})
+                    ):
+                        raise HTTPException(status_code=422, detail="Technology effects must match an explicitly selected approved catalogue definition.")
+                elif technology_effects:
+                    raise HTTPException(status_code=422, detail="Non-catalogue technology unlocks cannot define economic modifiers.")
             procedure_unlocks = expected_result.get("procedure_unlocks", [])
             if not isinstance(procedure_unlocks, list):
                 raise HTTPException(status_code=422, detail="Procedure unlocks must be a list.")
@@ -776,7 +807,8 @@ def complete_project(session_id: str, project_id: str, request: VersionRequest,
                     "id": str(uuid4()),
                     "name": item["name"].strip(),
                     "kind": item["kind"].strip(),
-                    "domain_codes": list(project.domain_codes),
+                    "domain_codes": list(item.get("domain_codes", project.domain_codes)),
+                    "catalog_entity_id": item.get("catalog_entity_id"),
                     "commissioned_period": session.current_period,
                     "project_id": project.id,
                     "properties": item.get("properties", {}),
