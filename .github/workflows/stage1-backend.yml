@@ -55,6 +55,8 @@ jobs:
         run: alembic -c backend/alembic.ini upgrade head
       - name: Run domain and PostgreSQL integration tests
         run: python -m unittest discover -s backend/tests -v
+      - name: Print backend campaign acceptance report
+        run: python tools/backend_campaign_report.py
       - name: Validate scenario JSON
         run: python -m json.tool data/scenarios/ares-01.json > /dev/null
       - name: Validate Compose configuration
@@ -64,9 +66,16 @@ jobs:
       - name: Verify database and API recovery
         run: |
           for attempt in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+            if curl -fsS http://localhost:8000/health/ready > /dev/null; then break; fi
             sleep 2
           done
+          curl -fsS http://localhost:8000/openapi.json | python -c "
+          import json,sys
+          spec=json.load(sys.stdin)
+          assert '/api/v1/sessions' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/advance' in spec['paths']
+          assert '/health/ready' in spec['paths']
+          "
           SESSION_ID=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
             -H "Content-Type: application/json" \
             -d '{"scenario_id":"ares-01"}' | python -c "import json,sys; print(json.load(sys.stdin)['id'])")
@@ -81,7 +90,7 @@ jobs:
           done
           docker compose restart api
           for attempt in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+            if curl -fsS http://localhost:8000/health/ready > /dev/null; then break; fi
             sleep 2
           done
           curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID" | python -c "

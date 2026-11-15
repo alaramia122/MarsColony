@@ -20,7 +20,7 @@
 
 ## Статус
 
-Этап 0 завершён и интегрирован в `main`. Первый вертикальный срез этапа 1 также интегрирован в `main`; текущее развитие игрового и экономического ядра ведётся через feature-ветки и Pull Requests. Сценарий Ares-1 — проверяемая исходная калибровка; окончательный баланс определяется после плейтеста.
+Этап 0 завершён и интегрирован в `main`. Первый вертикальный срез этапа 1 интегрирован в `main`. Расширенная реализация этапа 1 находится в [PR #6](https://github.com/alaramia122/MarsColony/pull/6) и проходит финальную проверку. Сценарий Ares-1 — проверяемая исходная калибровка; окончательный баланс определяется после плейтеста.
 
 ## Структура репозитория
 
@@ -40,6 +40,7 @@
 python -m json.tool data/scenarios/ares-01.json
 python -m unittest discover -s tests -v
 python tools/scenario_sim.py
+python tools/backend_campaign_report.py
 ```
 
 Backend и PostgreSQL запускаются через Docker Compose; см. [инструкцию backend](backend/README.md).

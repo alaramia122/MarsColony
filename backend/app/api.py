@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from .db import SessionLocal
 from .domain.engine import DomainError, advance_period, initial_state
 from .models import GameEventRecord, GameSessionRecord
-from .scenarios import load_scenario
+from .scenarios import ScenarioValidationError, load_scenario
 
 
 router = APIRouter(prefix="/api/v1")
@@ -38,6 +38,8 @@ def create_session(request: CreateSessionRequest) -> dict:
         scenario = load_scenario(request.scenario_id)
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+    except ScenarioValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     record = GameSessionRecord(
         scenario_id=scenario["scenario_id"],

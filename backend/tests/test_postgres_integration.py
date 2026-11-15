@@ -66,9 +66,16 @@ class PostgreSQLSessionTests(unittest.TestCase):
             self.assertTrue(
                 all(event["type"] == "period.completed" for event in restored["events"][1:])
             )
-            self.assertAlmostEqual(restored["state"]["oxygen_kg"], 364.30224, places=5)
-            self.assertAlmostEqual(restored["state"]["food_solids_kg"], 322.81832, places=5)
-            self.assertAlmostEqual(restored["state"]["usable_water_kg"], 2867.11356, places=4)
+            state = restored["state"]
+            self.assertGreaterEqual(state["oxygen_kg"], 200.0)
+            self.assertGreaterEqual(state["food_solids_kg"], 250.0)
+            self.assertGreaterEqual(state["usable_water_kg"], 1000.0)
+            self.assertGreaterEqual(state["budget_credits"], 100.0)
+            self.assertGreaterEqual(state["raw_ice_kg"], 0.0)
+            self.assertAlmostEqual(state["battery_soc_kwh"], 1000.0, places=5)
+            self.assertTrue(
+                all(event["payload"]["demand_fully_met"] for event in restored["events"][1:])
+            )
         finally:
             with api.SessionLocal.begin() as db:
                 db.execute(

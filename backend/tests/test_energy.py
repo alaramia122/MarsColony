@@ -1,6 +1,12 @@
 import unittest
 
-from backend.app.domain.energy import EnergyModelError, PowerLoad, dispatch_power
+from backend.app.domain.energy import (
+    BatterySpec,
+    EnergyModelError,
+    PowerLoad,
+    dispatch_power,
+    operate_battery,
+)
 
 
 class PowerDispatchTests(unittest.TestCase):
@@ -35,6 +41,41 @@ class PowerDispatchTests(unittest.TestCase):
         )
         self.assertEqual(result["loads"][0]["load_id"], "alpha")
         self.assertEqual(result["loads"][0]["allocated_kw"], 5.0)
+
+    def test_battery_discharge_respects_power_energy_and_efficiency(self):
+        spec = BatterySpec(1000.0, 100.0, 20.0, 10.0, 0.9, 0.9)
+        result = operate_battery(
+            1000.0, spec, 48.0, requested_discharge_kw=2.0
+        )
+        self.assertAlmostEqual(result["discharge_output_kwh"], 96.0)
+        self.assertAlmostEqual(result["discharge_stored_kwh"], 96.0 / 0.9)
+        self.assertAlmostEqual(result["state_of_charge_end_kwh"], 1000.0 - 96.0 / 0.9)
+        self.assertEqual(result["discharge_shortfall_kw"], 0.0)
+
+    def test_battery_charges_with_power_limit_and_efficiency(self):
+        spec = BatterySpec(1000.0, 100.0, 20.0, 10.0, 0.9, 0.9)
+        result = operate_battery(
+            800.0, spec, 10.0, available_charge_kw=50.0
+        )
+        self.assertEqual(result["charge_kw"], 20.0)
+        self.assertEqual(result["charge_input_kwh"], 200.0)
+        self.assertEqual(result["charge_stored_kwh"], 180.0)
+        self.assertEqual(result["state_of_charge_end_kwh"], 980.0)
+
+    def test_battery_cannot_charge_and_discharge_simultaneously(self):
+        spec = BatterySpec(1000.0, 100.0, 20.0, 10.0, 0.9, 0.9)
+        with self.assertRaises(EnergyModelError):
+            operate_battery(
+                500.0, spec, 1.0,
+                requested_discharge_kw=2.0,
+                available_charge_kw=2.0,
+            )
+
+    def test_battery_cannot_discharge_below_reserve(self):
+        spec = BatterySpec(1000.0, 100.0, 20.0, 10.0, 0.9, 0.9)
+        result = operate_battery(100.0, spec, 48.0, requested_discharge_kw=2.0)
+        self.assertEqual(result["discharge_kw"], 0.0)
+        self.assertEqual(result["discharge_shortfall_kw"], 2.0)
 
     def test_invalid_loads_are_rejected(self):
         with self.assertRaises(EnergyModelError):

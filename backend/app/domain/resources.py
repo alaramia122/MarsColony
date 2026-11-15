@@ -51,12 +51,10 @@ def execute_process(
     energy_kwh_per_cycle: float = 0.0,
     energy_available_kwh: float | None = None,
 ) -> tuple[dict[str, ResourceStock], dict]:
-    """Execute as many aggregated process cycles as resources allow.
+    """Execute as many aggregated process cycles as resources and energy allow.
 
-    Fractional cycles support the colony's aggregated production model. Inputs,
-    optional energy allocation and output storage capacity constrain the same
-    deterministic cycle count. Energy use is reported even when no explicit
-    energy allocation is supplied. The input mapping is never mutated.
+    Fractional cycles support aggregated production. The input mapping is never
+    mutated; output quantities are bounded by the declared storage capacities.
     """
     if not inputs_per_cycle and not outputs_per_cycle:
         raise ResourceModelError("A process must consume or produce a resource.")
@@ -118,11 +116,8 @@ def execute_process(
         )
     for resource_id, amount in produced.items():
         stock = result[resource_id]
-        new_quantity = stock.quantity + amount
-        if stock.capacity is not None:
-            new_quantity = min(stock.capacity, new_quantity)
         result[resource_id] = ResourceStock(
-            quantity=new_quantity,
+            quantity=stock.quantity + amount,
             capacity=stock.capacity,
         )
 
