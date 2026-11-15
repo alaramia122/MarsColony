@@ -104,7 +104,15 @@ class InfrastructureEconomyTests(unittest.TestCase):
                 "name": "Буровая установка",
                 "kind": "drilling_rig",
                 "domain_codes": ["geology"],
-                "properties": {"condition": 1.0, "status": "commissioned"},
+                "properties": {
+                    "condition": 1.0,
+                    "status": "commissioned",
+                    "economic_effects": {
+                        "power_load_kw": 1.0,
+                        "resource_outputs_per_period": {"raw_ice": 120.0},
+                        "operating_cost_credits_per_period": 1.0,
+                    },
+                },
             }
         ]
         state = initial_state(scenario)
