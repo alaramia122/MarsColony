@@ -483,6 +483,7 @@ def approve_project(session_id: str, project_id: str, request: ApprovalRequest,
                 context = [{
                     "decision": item.decision,
                     "player": {
+                        "id": item.player_id,
                         "roles": item.authority_snapshot["roles"],
                         "responsibility_domains": item.authority_snapshot["responsibility_domains"],
                     },
