@@ -32,9 +32,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_game_events_session_id", "game_events", ["session_id"])
+    op.create_unique_constraint(
+        "uq_game_event_session_sequence", "game_events", ["session_id", "sequence"]
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint("uq_game_event_session_sequence", "game_events", type_="unique")
     op.drop_index("ix_game_events_session_id", table_name="game_events")
     op.drop_table("game_events")
     op.drop_table("game_sessions")
