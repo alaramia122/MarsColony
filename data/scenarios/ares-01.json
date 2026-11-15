@@ -403,5 +403,19 @@
       },
       "energy_kwh_per_cycle": 5
     }
+  },
+  "service_demand_per_period": {
+    "medical_beds": 2,
+    "isolation_beds": 1,
+    "lab_samples_per_period": 12,
+    "communications_bandwidth_mbps": 15,
+    "cargo_handling_tonnes_per_period": 10,
+    "transport_tonnes_per_period": 5,
+    "repair_work_orders_per_period": 2,
+    "fire_response_capacity": 1,
+    "training_seats": 4,
+    "remote_observations_per_period": 8,
+    "command_staff_capacity": 2,
+    "warehouse_capacity_kg": 2000
   }
 }
