@@ -762,6 +762,15 @@ class ProjectWorkflowTests(unittest.TestCase):
         self.assertEqual(technologies[0]["id"], "water-electrolysis-v2")
         self.assertEqual(technologies[0]["level"], 2)
 
+    def test_session_enforces_twenty_player_capacity(self):
+        for index in range(19):
+            self.join(f"Участник {index + 1}")
+        with self.assertRaises(HTTPException) as error:
+            self.join("Двадцать первый участник")
+        self.assertEqual(error.exception.status_code, 409)
+        players = projects_api.list_players(self.session_id, self.owner_token)
+        self.assertEqual(len(players["players"]), 20)
+
 
 if __name__ == "__main__":
     unittest.main()
