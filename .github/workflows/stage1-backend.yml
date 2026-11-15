@@ -7,6 +7,7 @@ on:
       - "frontend/**"
       - "data/scenarios/**"
       - "data/starter_presets/**"
+      - "data/entity_catalogs/**"
       - "docker-compose.yml"
       - ".github/workflows/stage1-backend.yml"
       - "docs/**"
@@ -99,13 +100,17 @@ jobs:
           assert '/api/v1/sessions/{session_id}/players' in spec['paths']
           assert '/api/v1/sessions/{session_id}/projects' in spec['paths']
           assert '/api/v1/scenarios/{scenario_id}/starter-presets' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/entity-catalog' in spec['paths']
+          assert '/api/v1/sessions/{session_id}/entity-catalog/proposals' in spec['paths']
           assert '/health/ready' in spec['paths']
           "
           curl -fsS http://localhost:8000/api/v1/scenarios/ares-01/starter-presets | python -c "import json,sys; d=json.load(sys.stdin); assert len(d['presets']) == 4; assert all(len(p['domain_packs']) == 16 for p in d['presets'])"
+          python -m json.tool data/entity_catalogs/ares-01.json > /dev/null
           SESSION_DATA=$(curl -fsS -X POST http://localhost:8000/api/v1/sessions \
             -H "Content-Type: application/json" \
             -d '{"scenario_id":"ares-01","starter_preset_id":"industrial"}' | python -c "import json,sys; s=json.load(sys.stdin); print(s['id'], s['owner_token'])")
           read SESSION_ID OWNER_TOKEN <<< "$SESSION_DATA"
+          curl -fsS "http://localhost:8000/api/v1/sessions/$SESSION_ID/entity-catalog" -H "X-Player-Token: $OWNER_TOKEN" | python -c "import json,sys; d=json.load(sys.stdin); ids={item['id'] for item in d['entities']}; assert {'solar_array','advanced_bioreactor','emergency_water_contingency'} <= ids"
           echo "SESSION_ID=$SESSION_ID" >> "$GITHUB_ENV"
           echo "OWNER_TOKEN=$OWNER_TOKEN" >> "$GITHUB_ENV"
           curl -fsS -X POST "http://localhost:8000/api/v1/sessions/$SESSION_ID/advance" \
