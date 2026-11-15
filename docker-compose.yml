@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: marscolony
+      POSTGRES_USER: marscolony
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marscolony-dev}
+    volumes:
+      - marscolony-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marscolony -d marscolony"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://marscolony:${POSTGRES_PASSWORD:-marscolony-dev}@db:5432/marscolony
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  marscolony-postgres:
