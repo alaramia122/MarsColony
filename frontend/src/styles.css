@@ -107,3 +107,10 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .starter-preset-domains span{font-size:8px;color:#b7c4c8;background:#25343d;border:1px solid #354650;border-radius:4px;padding:4px 6px}
 .starter-preset-tradeoff{padding-top:6px;border-top:1px solid #34444e;color:#d5b69f}
 @media(max-width:1000px){.login-panel{max-height:none;min-height:100vh}.login-form-wrap{width:min(100%,680px)}}
+
+.starter-preset-details{border-top:1px solid #34444e;padding-top:7px;margin-top:2px}
+.starter-preset-details summary{font-size:9px;color:#e7b18e;cursor:pointer;user-select:none}
+.starter-preset-details>div{display:grid;grid-template-columns:125px 1fr;gap:8px;padding:5px 0;border-top:1px solid #2b3941;font-size:9px;line-height:1.45}
+.starter-preset-details>div:first-of-type{margin-top:6px}
+.starter-preset-details strong{color:#d6e0e3;font-weight:600}
+.starter-preset-details>div span{color:#9eafb6}
