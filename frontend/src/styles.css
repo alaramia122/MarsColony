@@ -44,3 +44,7 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .tutorial-actions button:disabled{opacity:.4}
 .tutorial-foot{border-top:1px solid var(--line);padding-top:14px;margin-top:20px}
 @media(max-width:650px){.invite-strip{align-items:stretch;flex-direction:column}.invite-values{display:grid;grid-template-columns:1fr;gap:12px}.invite-actions{display:grid;grid-template-columns:1fr}.invite-actions button{width:100%}.tutorial-panel{padding:16px}.tutorial-panel h2{font-size:18px}.tutorial-actions{display:grid;grid-template-columns:1fr}.tutorial-actions button{width:100%}}
+
+.approval-history{margin-top:12px;padding-top:10px;border-top:1px solid #2b3b44}
+.approval-history strong{font-size:9px;color:#e4a57d;text-transform:uppercase;letter-spacing:1px}
+.approval-history p{font-size:9px;line-height:1.55;color:#aebbc1;margin:6px 0 0}
