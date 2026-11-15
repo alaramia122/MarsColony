@@ -12,9 +12,10 @@ from backend.app.api import CreateSessionRequest
 
 
 class FakeWebSocket:
-    def __init__(self, token, after_snapshot=None):
+    def __init__(self, token, after_snapshot=None, disconnect_after_snapshot=True):
         self.message = {"type": "authenticate", "player_token": token}
         self.after_snapshot = after_snapshot
+        self.disconnect_after_snapshot = disconnect_after_snapshot
         self.sent = []
         self.close_code = None
 
@@ -29,7 +30,7 @@ class FakeWebSocket:
         if payload["type"] == "snapshot":
             if self.after_snapshot:
                 self.after_snapshot()
-            else:
+            if self.disconnect_after_snapshot:
                 raise WebSocketDisconnect(code=1000)
         elif payload["type"] == "event":
             raise WebSocketDisconnect(code=1000)
@@ -83,6 +84,35 @@ class WebSocketStreamTests(unittest.TestCase):
         self.assertEqual(websocket.sent[1]["type"], "event")
         self.assertEqual(websocket.sent[1]["sequence"], 1)
         self.assertEqual(websocket.sent[1]["event_type"], "period.completed")
+
+    def test_two_clients_receive_the_same_committed_event(self):
+        def commit_period():
+            api.advance_game_session(
+                self.session["id"],
+                api.AdvancePeriodRequest(expected_period=0),
+                player_token=self.session["owner_token"],
+            )
+
+        first = FakeWebSocket(
+            self.session["owner_token"], disconnect_after_snapshot=False
+        )
+        second = FakeWebSocket(
+            self.session["owner_token"],
+            after_snapshot=commit_period,
+            disconnect_after_snapshot=False,
+        )
+
+        async def connect_clients():
+            await asyncio.gather(
+                realtime.session_stream(first, self.session["id"]),
+                realtime.session_stream(second, self.session["id"]),
+            )
+
+        asyncio.run(connect_clients())
+        self.assertEqual(first.sent[1]["sequence"], 1)
+        self.assertEqual(second.sent[1]["sequence"], 1)
+        self.assertEqual(first.sent[1]["event_type"], "period.completed")
+        self.assertEqual(second.sent[1]["event_type"], "period.completed")
 
     def test_stream_rejects_invalid_session_token(self):
         websocket = FakeWebSocket("not-a-valid-token")
