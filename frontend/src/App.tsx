@@ -753,7 +753,11 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const resourceLabels: Record<string, string> = {
     ...Object.fromEntries(Object.entries(resourceCatalog).map(([key, item]) => [key, `${key} (${item.unit || "ед."})`])),
     oxygen: "Кислород, кг", food_solids: "Сухие пищевые вещества, кг",
-    usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг"
+    usable_water: "Подготовленная вода, кг", raw_ice: "Сырой лёд, кг",
+    raw_regolith: "Исходный реголит, кг", regolith_bricks: "Реголитовые блоки, кг",
+    steel: "Конструкционная сталь, кг", aluminium: "Алюминиевые сплавы, кг",
+    electronics: "Электронные компоненты, шт.", polymers: "Полимеры и герметики, кг",
+    spare_parts: "Запасные части, шт."
   };
   const existingAssetKinds = Array.from(new Set(infrastructure.map((asset) => String(asset.kind || "")).filter(Boolean))).sort();
   const changeDomain = (code: string, checked: boolean) => setDomains((current) =>
