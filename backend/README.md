@@ -51,7 +51,7 @@ Session creation returns `owner_player_id`, `owner_token` and `join_code`. The o
 
 All participant endpoints use the `X-Player-Token` header. Tokens are scoped to one session. The commander assigns `domain_lead`, `finance_lead`, `engineer` or `player` roles and one or more of the 16 responsibility domains. The `colony_commander` role has session-wide authority.
 
-Project lifecycle: `draft → submitted → approved/rejected → executing → completed/cancelled`. Submission reserves budget atomically. Domain leads approve the domains they own; a non-zero budget also requires finance approval. The author cannot approve their own proposal. Execution spends the reserved budget; rejection or cancellation before execution releases it. Project mutations require `expected_version` to reject stale commands.
+Project lifecycle: `draft → submitted → approved/rejected → executing → completed/cancelled`. Submission reserves budget atomically. Domain leads approve the domains they own; a non-zero budget also requires finance approval. The author cannot approve their own proposal. Execution spends the reserved budget and consumes the declared material requirements. Active projects reserve aggregate FTE and request a priority-dispatched power load each period. Progress advances only when the full energy request is served. Completion requires the declared duration and commissions the validated result: recurring resource output, added generation capacity and infrastructure records. Project mutations require `expected_version` to reject stale commands.
 
 Advance the period using the version observed by the client:
 
@@ -95,4 +95,4 @@ The Compose stack starts PostgreSQL and the API. Database credentials can be ove
 
 ## Stage 2 boundary
 
-The first Stage 2 backend slice supplies session participants, scoped roles, project proposals, approval workflow, budget reservation and audit events. Project execution currently performs the controlled status transition and budget accounting; it does not yet create facilities, assign personnel or consume material stocks. Those physical effects are the next Stage 2 integration step. WebSocket synchronization, frontend clients, AI Gateway and Alice integration remain later stages.
+The Stage 2 backend slice supplies session participants, scoped roles, project proposals, approval workflow, budget reservation and audit events. Project execution checks and consumes materials, allocates aggregate FTE, competes for power through dispatch, advances by periods and commissions infrastructure and recurring production effects. Individual skills, staffing rosters, detailed construction dependencies and project templates remain future refinements. WebSocket synchronization, frontend clients, AI Gateway and Alice integration remain later stages.
