@@ -63,6 +63,19 @@ class ProjectAuthorizationRulesTests(unittest.TestCase):
         }]
         self.assertTrue(approvals_complete(project, approvals))
 
+    def test_engineer_can_propose_and_execute_only_in_assigned_domains(self):
+        engineer = {
+            "roles": ["engineer"],
+            "responsibility_domains": ["energy", "industry"],
+        }
+        self.assertTrue(can_propose_project(engineer, ["energy"]))
+        self.assertTrue(can_manage_project(engineer, ["energy", "industry"]))
+        self.assertFalse(can_manage_project(engineer, ["energy", "medicine"]))
+        self.assertFalse(approvals_complete(
+            {"domain_codes": ["energy"], "budget_credits": 0},
+            [{"decision": "approve", "player": engineer}],
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()
