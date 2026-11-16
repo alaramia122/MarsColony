@@ -813,6 +813,8 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [featureProject, setFeatureProject] = useState("");
   const [featureConfidence, setFeatureConfidence] = useState("0.5");
   const [featureDescription, setFeatureDescription] = useState("");
+  const [routeEndQ, setRouteEndQ] = useState("2");
+  const [routeEndR, setRouteEndR] = useState("2");
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
   const [moveReason, setMoveReason] = useState("");
   const [moveTarget, setMoveTarget] = useState<{ q: number; r: number } | null>(null);
@@ -913,6 +915,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
           source_project_id: featureProject || null,
           confidence: ["deposit", "discovery"].includes(featureType) ? Number(featureConfidence) : null,
           source: featureSource, description: featureDescription,
+          metadata: featureType === "route" ? { path: [[selectedHex.q, selectedHex.r], [Number(routeEndQ), Number(routeEndR)]] } : {},
           expected_map_version: mapSnapshot?.map_version ?? 0
         })
       });
@@ -993,6 +996,15 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
             <span>{cell.q},{cell.r}</span>
           </button>;
         })}
+        <svg className="hex-route-layer" viewBox="0 0 2000 1600" aria-hidden="true">
+          {visible.filter((item) => item.object_type === "route").map((item) => {
+            const metadata = item.metadata as Record<string, unknown> | undefined;
+            const path = Array.isArray(metadata?.path) ? metadata.path as number[][] : [];
+            if (path.length < 2) return null;
+            const points = path.map(([pq, pr]) => `${1000 + 48 * Math.sqrt(3) * (Number(pq) + Number(pr) / 2)},${800 + 72 * Number(pr)}`).join(" ");
+            return <polyline key={String(item.id)} points={points} />;
+          })}
+        </svg>
         <div className="map-base-hex" style={worldPoint(0, 0)}>ARES-1<small>БАЗОВЫЙ МОДУЛЬ</small></div>
         {visible.map((item) => {
           const metadata = item.metadata as Record<string, unknown> | undefined;
@@ -1040,6 +1052,10 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
           <label>Завершённое исследование<select value={featureProject} onChange={(event) => setFeatureProject(event.target.value)}><option value="">Выберите проект</option>{researchProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
           <label>Источник данных<input value={featureSource} onChange={(event) => setFeatureSource(event.target.value)} placeholder="Отчёт, проба, измерение…" /></label>
           <label>Достоверность, 0–1<input type="number" min="0" max="1" step="0.05" value={featureConfidence} onChange={(event) => setFeatureConfidence(event.target.value)} /></label>
+        </>}
+        {featureType === "route" && <>
+          <label>Конечный гекс q<input type="number" value={routeEndQ} onChange={(event) => setRouteEndQ(event.target.value)} /></label>
+          <label>Конечный гекс r<input type="number" value={routeEndR} onChange={(event) => setRouteEndR(event.target.value)} /></label>
         </>}
         <label>Описание<input value={featureDescription} onChange={(event) => setFeatureDescription(event.target.value)} /></label>
       </div>
