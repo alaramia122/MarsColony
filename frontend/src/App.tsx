@@ -1158,6 +1158,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [assetKind, setAssetKind] = useState("infrastructure");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
+  const [assetFootprintMinRadius, setAssetFootprintMinRadius] = useState("0");
+  const [assetFootprintMaxRadius, setAssetFootprintMaxRadius] = useState("2");
   const [assetImageDataUrl, setAssetImageDataUrl] = useState("");
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
   const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
@@ -1170,7 +1172,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityDescription, setNewEntityDescription] = useState("");
   const [newEntityImage, setNewEntityImage] = useState<string>("");
-  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{},"map_footprint_min_radius":0,"map_footprint_max_radius":2},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
   const [entityProposalError, setEntityProposalError] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -1354,6 +1356,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (assetName.trim() && selectedKind) {
       const properties: Record<string, unknown> = { condition: 1 };
       if (assetX.trim() !== "" && assetY.trim() !== "") { properties.x = Number(assetX); properties.y = Number(assetY); }
+      properties.map_footprint_min_radius = Number(assetFootprintMinRadius);
+      properties.map_footprint_max_radius = Number(assetFootprintMaxRadius);
       expected.infrastructure = [{ name: assetName.trim(), kind: selectedKind, properties }];
     }
     setSaving(true); setActionError("");
@@ -1371,7 +1375,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetImageDataUrl("");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetFootprintMinRadius("0"); setAssetFootprintMaxRadius("2"); setAssetImageDataUrl("");
       setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
@@ -1406,7 +1410,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     return details.join(" · ") || "Не задан";
   };
   const selectedAssetKind = assetKind.trim();
-  const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))));
+  const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))) || !["0","1","2"].includes(assetFootprintMinRadius) || !["0","1","2"].includes(assetFootprintMaxRadius) || Number(assetFootprintMinRadius) > Number(assetFootprintMaxRadius));
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
     <div className="project-toolbar">
@@ -1475,7 +1479,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
             } else if (nextType === "procedure") {
               setNewEntityDefinition('{"research":{"budget_credits":20,"duration_periods":1,"labor_fte":0.2,"energy_kwh_per_period":0,"resource_requirements":{}}}');
             } else {
-              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{},"map_footprint_min_radius":0,"map_footprint_max_radius":2},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
             }
           }}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
           <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
@@ -1520,6 +1524,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
         <label>Дополнительная инвентарная запись<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный контейнер" /><small>Создаёт только запись об экземпляре без самостоятельной экономической модели. Для работающего оборудования выберите тип из каталога выше; для нового типа отправьте предложение на согласование.</small></label>
         <label>Тип инвентарной записи<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select><small>Это не создаёт новый тип в каталоге и не добавляет производительность.</small></label>
+         <label>Минимальная площадка<select value={assetFootprintMinRadius} onChange={(event) => setAssetFootprintMinRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+         <label>Максимальная площадка<select value={assetFootprintMaxRadius} onChange={(event) => setAssetFootprintMaxRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select><small>На карте игрок сможет выбрать только размеры внутри этого диапазона.</small></label>
         <label>Фотография создаваемого объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) return;
