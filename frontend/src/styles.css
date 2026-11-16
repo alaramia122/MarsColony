@@ -205,3 +205,12 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .map-object-actions{display:flex;flex-direction:column;gap:8px;min-width:230px}
 .map-history{grid-column:1/-1;color:#b9c6cc;font-size:11px;display:grid;gap:6px;padding-left:22px}
 @media(max-width:720px){.hex-map-viewport{height:470px}.hex-map-controls{top:auto;bottom:12px}.hex-map-marker{max-width:88px}.hex-cell{width:70px;height:80px;margin-left:-35px;margin-top:-40px}}
+
+
+.hex-route-layer{position:absolute;inset:0;width:2000px;height:1600px;overflow:visible;pointer-events:none;z-index:3}
+.hex-route-layer polyline{fill:none;stroke:#7fc6d5;stroke-width:8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:14 10;filter:drop-shadow(0 0 5px #7fc6d577)}
+.hex-cell.chosen{background:#f28b5070}
+.hex-cell.occupied{background:#668d8c80}
+.hex-cell.blocked{background:#a34f4b99}
+.map-object-details{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:start}
+@media(max-width:720px){.map-object-details{grid-template-columns:1fr}.map-object-actions{min-width:0}}
