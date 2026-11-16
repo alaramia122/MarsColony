@@ -99,6 +99,29 @@ class SpatialPlacementApiTests(unittest.TestCase):
         self.assertEqual(second["status"], "placed")
         self.assertEqual(second["map_version"], 1)
 
+    def test_placement_size_must_fit_asset_footprint_range(self):
+        with self.session_factory.begin() as db:
+            project = db.get(ProjectRecord, self.project_id)
+            project.expected_result = {"infrastructure": [{
+                "name": "Жилой модуль", "kind": "habitat",
+                "domain_codes": ["life_support"],
+                "properties": {"map_footprint_min_radius": 1, "map_footprint_max_radius": 1},
+            }]}
+        seven_hexes = [[0, 0], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0]]
+        with self.assertRaises(HTTPException) as error:
+            propose_placement(
+                self.session_id,
+                PlacementCreateRequest(project_id=self.project_id, name="Жилой модуль", q=7000, r=7000),
+                token=self.owner_token,
+            )
+        self.assertEqual(error.exception.status_code, 422)
+        proposal = propose_placement(
+            self.session_id,
+            PlacementCreateRequest(project_id=self.project_id, name="Жилой модуль", q=7000, r=7000, footprint=seven_hexes),
+            token=self.owner_token,
+        )
+        self.assertEqual(len(proposal["footprint"]), 7)
+
     def test_author_cannot_approve_own_placement(self):
         proposal = propose_placement(
             self.session_id,
