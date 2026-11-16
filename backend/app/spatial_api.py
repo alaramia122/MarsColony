@@ -224,17 +224,18 @@ def propose_placement(
             if blocked.intersection(requested_cells):
                 raise HTTPException(status_code=409, detail="Выбранная площадка попадает в запретную или ограниченную зону.")
 
-            required = sorted(set(["construction"] + list(project.domain_codes or [])))
             project_assets = (project.expected_result or {}).get("infrastructure", [])
             project_asset = next(
                 (item for item in project_assets if item.get("name") == request.name.strip()),
                 project_assets[0] if project_assets else {},
             )
+            asset_domains = project_asset.get("domain_codes") or project.domain_codes or []
+            required = sorted(set(["construction"] + list(asset_domains)))
             record = MapPlacementRecord(
                 id=str(uuid4()), session_id=session_id, project_id=project.id,
                 author_player_id=actor.id, object_type="infrastructure",
                 name=request.name.strip(), q=request.q, r=request.r,
-                footprint=footprint, domain_codes=list(project.domain_codes or []),
+                footprint=footprint, domain_codes=list(asset_domains),
                 required_approvals=required, approvals=[], status="pending_approval",
                 map_version=map_version,
                 metadata_json={
