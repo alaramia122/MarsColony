@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -68,7 +69,7 @@ async def session_stream(websocket: WebSocket, session_id: str) -> None:
                 )
             )
             last_sequence = -1 if last_sequence is None else int(last_sequence)
-            snapshot = serialize_session(session)
+            snapshot = jsonable_encoder(serialize_session(session))
             player_payload = {
                 "id": player.id,
                 "display_name": player.display_name,
