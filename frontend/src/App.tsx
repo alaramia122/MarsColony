@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Assistant from "./Assistant";
 
 type Auth = { sessionId: string; token: string; playerId: string; displayName: string; joinCode?: string };
@@ -35,26 +35,6 @@ type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistan
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
-const entityKindNames: Record<string, string> = {
-  power_unit: "Энергетическая установка", battery_storage: "Накопитель энергии",
-  mining_unit: "Добывающая установка", water_recycler: "Установка переработки воды",
-  oxygen_plant: "Кислородная установка", greenhouse: "Теплица", habitat: "Жилой модуль",
-  medical_unit: "Медицинский блок", rover: "Марсоход", workshop: "Мастерская",
-  communications: "Средства связи", industrial_unit: "Промышленная установка",
-  drilling_rig: "Буровая установка", survey_rover: "Разведывательный марсоход",
-  maintenance_workshop: "Ремонтная мастерская", solar_array: "Солнечная батарея",
-  atmosphere_control: "Система контроля атмосферы", water_recycling: "Система водооборота",
-  habitat_module: "Жилой модуль", research_lab: "Исследовательская лаборатория",
-  weather_station: "Метеостанция", command_center: "Командный центр",
-  logistics_store: "Логистический склад", emergency_shelter: "Аварийное укрытие",
-  fire_suppression: "Система пожаротушения", communications_mast: "Мачта связи",
-  cargo_landing_zone: "Грузовая посадочная площадка", ice_mining_rig: "Комплекс добычи льда",
-  regolith_processing_plant: "Завод переработки реголита",
-  additive_manufacturing_cell: "Установка аддитивного производства",
-  cargo_hauler: "Грузовой транспорт", cargo_handling_crane: "Грузовой кран",
-  autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
-};
-const entityKindLabel = (kind: string) => entityKindNames[kind] || "Другие объекты";
 const responsibilityDomainNames: Record<string, string> = {
   geology: "Геологоразведка и добыча", industry: "Промышленность и производство",
   energy: "Энергетика", life_support: "Жизнеобеспечение", construction: "Строительство и инфраструктура",
@@ -390,7 +370,7 @@ export default function App() {
 
           {view === "overview" && <Overview session={session} state={state} projects={projects} events={events} isCommander={Boolean(commander?.roles.includes("colony_commander"))} busy={busy} onAdvance={advancePeriod} onOpenProjects={() => setView("projects")} />}
           {view === "workspace" && <RoleWorkspace player={commander} players={players} projects={projects} events={events} state={state} currentPeriod={session?.current_period ?? 0} availableBudget={session?.available_budget_credits ?? 0} reservedBudget={session?.reserved_budget_credits ?? 0} onNavigate={setView} />}
-          {view === "map" && <ColonyMap assets={infrastructure} />}
+          {view === "map" && <ColonyMap assets={infrastructure} auth={auth} projects={projects} player={commander} eventWatermark={events[events.length - 1]?.sequence ?? 0} onRefresh={refresh} />}
           {view === "projects" && <ProjectList projects={projects} auth={auth} player={commander} infrastructure={infrastructure} resourceCatalog={session?.resource_catalog || {}} onRefresh={refresh} />}
           {view === "ai-settings" && commander?.roles.includes("colony_commander") && <AISettings /> }
           {view === "campaign-settings" && commander?.roles.includes("colony_commander") && session && <CampaignSettings session={session} auth={auth} hasProjects={projects.length > 0} onRefresh={refresh} />}
@@ -786,59 +766,326 @@ function Metric({ label, value, unit, detail }: { label: string; value: string; 
   return <div className="metric-card"><span>{label}</span><div><strong>{value}</strong><small>{unit}</small></div><p>{detail}</p></div>;
 }
 
-function ColonyMap({ assets }: { assets: Array<Record<string, unknown>> }) {
+function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }: {
+  assets: Array<Record<string, unknown>>;
+  auth: Auth;
+  projects: Project[];
+  player: Player | undefined;
+  eventWatermark: number;
+  onRefresh: () => Promise<void>;
+}) {
   const [activeLayer, setActiveLayer] = useState("all");
   const [selectedAsset, setSelectedAsset] = useState<Record<string, unknown> | null>(null);
-  const kinds = Array.from(new Set(assets.map((asset) => String(asset.kind || "other")))).sort();
-  const matchesLayer = (asset: Record<string, unknown>) =>
-    activeLayer === "all" || String(asset.kind || "other") === activeLayer;
-  const positioned = assets.filter((asset) => {
-    const properties = asset.properties as Record<string, unknown> | undefined;
-    return properties && typeof properties.x === "number" && typeof properties.y === "number"
-      && properties.x >= 0 && properties.x <= 100 && properties.y >= 0 && properties.y <= 100;
+  const [mapSnapshot, setMapSnapshot] = useState<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> } | null>(null);
+  const [selectedProject, setSelectedProject] = useState("");
+  const [placementName, setPlacementName] = useState("");
+  const [selectedHex, setSelectedHex] = useState({ q: 0, r: 0 });
+  const [footprintRadius, setFootprintRadius] = useState("0");
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const [commandJustification, setCommandJustification] = useState("");
+  const [mapBusy, setMapBusy] = useState(false);
+  const [mapError, setMapError] = useState("");
+  const [featureType, setFeatureType] = useState("discovery");
+  const [featureName, setFeatureName] = useState("");
+  const [featureSource, setFeatureSource] = useState("");
+  const [featureProject, setFeatureProject] = useState("");
+  const [featureConfidence, setFeatureConfidence] = useState("0.5");
+  const [featureDescription, setFeatureDescription] = useState("");
+  const [routeEndQ, setRouteEndQ] = useState("2");
+  const [routeEndR, setRouteEndR] = useState("2");
+  const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [moveReason, setMoveReason] = useState("");
+  const [moveTarget, setMoveTarget] = useState<{ q: number; r: number } | null>(null);
+  const eligibleProjects = projects.filter((project) =>
+    ["construction", "infrastructure"].includes(project.project_type)
+    && Array.isArray(project.expected_result.infrastructure) && project.expected_result.infrastructure.length > 0
+    && ["draft", "submitted", "approved"].includes(project.status)
+  );
+  const researchProjects = projects.filter((project) =>
+    ["research", "exploration"].includes(project.project_type) && project.status === "completed"
+  );
+  const selectedProjectRecord = eligibleProjects.find((project) => project.id === selectedProject);
+  const projectAssets = Array.isArray(selectedProjectRecord?.expected_result.infrastructure)
+    ? selectedProjectRecord.expected_result.infrastructure as Array<Record<string, unknown>>
+    : [];
+  const loadMap = useCallback(async () => {
+    const result = await request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
+      `${API}/sessions/${auth.sessionId}/map`, auth.token
+    );
+    setMapSnapshot(result);
+  }, [auth.sessionId, auth.token]);
+  useEffect(() => {
+    let active = true;
+    request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
+      `${API}/sessions/${auth.sessionId}/map`, auth.token
+    ).then((result) => { if (active) setMapSnapshot(result); })
+      .catch((reason) => { if (active) setMapError((reason as Error).message); });
+    return () => { active = false; };
+  }, [auth.sessionId, auth.token, eventWatermark, assets]);
+  const layers = [
+    ["all", "Все слои"], ["infrastructure", "Инфраструктура"], ["deposit", "Месторождения"],
+    ["discovery", "Научные открытия"], ["vehicle", "Транспорт"], ["expedition", "Экспедиции"],
+    ["route", "Маршруты и сети"], ["zone", "Зоны и ограничения"]
+  ];
+  const records = [
+    ...(mapSnapshot?.legacy_objects || []),
+    ...(mapSnapshot?.placements || [])
+  ];
+  const visible = records.filter((item) =>
+    activeLayer === "all" || String(item.object_type) === activeLayer
+  );
+  const pendingPlacements = (mapSnapshot?.placements || []).filter((item) => item.status === "pending_approval");
+  const placed = (mapSnapshot?.placements || []).filter((item) => item.status === "placed");
+  const worldPoint = (cellQ: number, cellR: number) => ({
+    left: `${1000 + 48 * Math.sqrt(3) * (cellQ + cellR / 2)}px`,
+    top: `${800 + 72 * cellR}px`
   });
-  const visible = positioned.filter(matchesLayer);
-  const unplaced = assets.filter((asset) => !positioned.includes(asset) && matchesLayer(asset));
+  const footprintCells = (radius: number) => {
+    const cells: Array<[number, number]> = [];
+    for (let dq = -radius; dq <= radius; dq += 1) {
+      for (let dr = -radius; dr <= radius; dr += 1) {
+        if ((Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 <= radius) cells.push([dq, dr]);
+      }
+    }
+    return cells;
+  };
+  const selectedFootprint = footprintCells(Number(footprintRadius));
+  const hexes: Array<{ q: number; r: number }> = [];
+  for (let qCell = -10; qCell <= 10; qCell += 1) {
+    for (let rCell = -10; rCell <= 10; rCell += 1) {
+      if (Math.abs(qCell + rCell) <= 10) hexes.push({ q: qCell, r: rCell });
+    }
+  }
+  const selectHex = (qCell: number, rCell: number) => {
+    setSelectedHex({ q: qCell, r: rCell });
+    setMoveTarget({ q: qCell, r: rCell });
+  };
+  const submitPlacement = async () => {
+    if (!selectedProject || !placementName.trim()) {
+      setMapError("Выберите проект и укажите название объекта.");
+      return;
+    }
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/placements`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: selectedProject, name: placementName.trim(),
+          q: selectedHex.q, r: selectedHex.r, footprint: selectedFootprint,
+          expected_map_version: mapSnapshot?.map_version ?? 0
+        })
+      });
+      setPlacementName("");
+      await loadMap();
+      await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const submitFeature = async () => {
+    if (!featureName.trim()) { setMapError("Укажите название объекта."); return; }
+    if (["deposit", "discovery"].includes(featureType) && (!featureProject || !featureSource.trim())) {
+      setMapError("Для открытия выберите завершённый исследовательский проект и укажите источник данных.");
+      return;
+    }
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/features`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          object_type: featureType, name: featureName.trim(),
+          q: selectedHex.q, r: selectedHex.r,
+          source_project_id: featureProject || null,
+          confidence: ["deposit", "discovery"].includes(featureType) ? Number(featureConfidence) : null,
+          source: featureSource, description: featureDescription,
+          metadata: featureType === "route" ? { path: [[selectedHex.q, selectedHex.r], [Number(routeEndQ), Number(routeEndR)]] } : {},
+          expected_map_version: mapSnapshot?.map_version ?? 0
+        })
+      });
+      setFeatureName(""); setFeatureSource(""); setFeatureDescription("");
+      await loadMap(); await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const decide = async (placement: Record<string, unknown>, domainCode: string, decision: "approve" | "reject", commandOrder: boolean) => {
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/placements/${String(placement.id)}/decisions`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          decision, domain_code: domainCode, command_order: commandOrder,
+          justification: commandOrder ? commandJustification : "",
+          comment: commandOrder ? commandJustification : ""
+        })
+      });
+      setCommandJustification(""); await loadMap(); await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const loadHistory = async (feature: Record<string, unknown>) => {
+    try {
+      const result = await request<{ history: Array<Record<string, unknown>> }>(
+        `${API}/sessions/${auth.sessionId}/map/features/${String(feature.id)}/history`, auth.token
+      );
+      setHistory(result.history);
+    } catch (reason) { setMapError((reason as Error).message); }
+  };
+  const moveFeature = async () => {
+    if (!selectedAsset || !moveTarget || !moveReason.trim()) return;
+    setMapBusy(true); setMapError("");
+    try {
+      await request(`${API}/sessions/${auth.sessionId}/map/features/${String(selectedAsset.id)}/position`, auth.token, {
+        method: "POST",
+        body: JSON.stringify({
+          q: moveTarget.q, r: moveTarget.r,
+          expected_map_version: mapSnapshot?.map_version ?? 0, reason: moveReason
+        })
+      });
+      setMoveReason(""); await loadMap(); await loadHistory(selectedAsset); await onRefresh();
+    } catch (reason) { setMapError((reason as Error).message); }
+    finally { setMapBusy(false); }
+  };
+  const isTransportLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes("transport"));
+  const markerName = (item: Record<string, unknown>) => String(item.name || "Объект");
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">КАРТА ПОВЕРХНОСТИ</div><h2>Инфраструктура Ares-1</h2><p className="map-instructions">Выберите слой и маркер объекта. Производственные установки, добыча, энергогенерация и технологии влияют на расчёт периода с учётом состояния и доступной мощности. Для каждого объекта отображаются его назначение и текущее состояние.</p></div><span className="layer-chip">◉ Слои по типу объекта</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Выберите гекс на сетке; масштаб меняется колёсиком, карту можно перетаскивать.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
+    {mapError && <div className="alert">{mapError}<button onClick={() => setMapError("")}>×</button></div>}
     <div className="map-layers" aria-label="Слои карты">
-      <button className={activeLayer === "all" ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer("all")}>Все объекты</button>
-      {kinds.map((kind) => <button key={kind} className={activeLayer === kind ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(kind)} >{entityKindLabel(kind)}</button>)}
+      {layers.map(([key, label]) => <button key={key} className={activeLayer === key ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(key)}>{label}</button>)}
     </div>
-    <div className="map-canvas">
-      <div className="map-grid" /><div className="map-horizon" />
-      <button className="map-base" type="button" title="Центральный узел колонии Ares-1" onClick={() => setSelectedAsset({ name: "Базовый модуль Ares-1", kind: "base", properties: { description: "Центральный узел сценария. Подробная геометрия базы пока не задана." } })}><span className="base-symbol">⌂</span><strong>ARES-1</strong><small>БАЗОВЫЙ МОДУЛЬ</small></button>
-      {visible.map((asset, index) => {
-        const properties = asset.properties as Record<string, unknown>;
-        const rawImage = properties?.image_data_url || asset.image_data_url;
-        const image = typeof rawImage === "string" && rawImage.startsWith("data:image/")
-          ? rawImage : null;
-        const name = String(asset.name || `Объект ${index + 1}`);
-        return <button
-          type="button"
-          className={selectedAsset?.id === asset.id ? "map-marker selected" : "map-marker"}
-          key={String(asset.id)}
-          style={{ left: `${properties.x}%`, top: `${properties.y}%` }}
-          onClick={() => setSelectedAsset(asset)}
-          title={name}
-          aria-label={`Выбрать объект: ${name}`}
-        >
-          {image
-            ? <><img className="map-marker-image" src={image} alt="" onError={(event) => {
-                event.currentTarget.style.display = "none";
-                const fallback = event.currentTarget.nextElementSibling;
-                if (fallback instanceof HTMLElement) fallback.hidden = false;
-              }} /><i className="map-marker-fallback" hidden /></>
-            : <i className="map-marker-fallback" />}
-          <span className="map-marker-name">{name}</span>
-        </button>;
+    <div className="hex-map-viewport"
+      onWheel={(event) => { event.preventDefault(); setZoom((value) => Math.max(0.55, Math.min(2.4, value * (event.deltaY < 0 ? 1.12 : 0.89)))); }}
+      onPointerDown={(event) => { if ((event.target as HTMLElement).closest("button")) return; drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={(event) => { if (drag.current) setPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y }); }}
+      onPointerUp={() => { drag.current = null; }}
+      onPointerCancel={() => { drag.current = null; }}
+      aria-label="Гексагональная карта колонии">
+      <div className="hex-map-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+        {hexes.map((cell) => {
+          const occupied = records.some((item) => {
+            const qValue = Number(item.q), rValue = Number(item.r);
+            const footprint = Array.isArray(item.footprint) ? item.footprint as number[][] : [[0, 0]];
+            return item.status !== "rejected" && item.status !== "superseded"
+              && footprint.some((offset) => qValue + Number(offset[0]) === cell.q && rValue + Number(offset[1]) === cell.r);
+          });
+          const blocked = placed.some((item) => item.object_type === "zone" && (item.footprint as number[][] || [[0,0]]).some((offset) => Number(item.q) + offset[0] === cell.q && Number(item.r) + offset[1] === cell.r) && Boolean((item.metadata as Record<string, unknown>)?.blocked ?? true));
+          const chosen = selectedFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
+          return <button key={`${cell.q}:${cell.r}`} type="button"
+            className={`hex-cell${chosen ? " chosen" : ""}${occupied ? " occupied" : ""}${blocked ? " blocked" : ""}`}
+            style={worldPoint(cell.q, cell.r)}
+            onClick={() => selectHex(cell.q, cell.r)}
+            title={`Гекс q=${cell.q}, r=${cell.r}${blocked ? " · запретная зона" : occupied ? " · занят" : ""}`}
+            aria-label={`Гекс q=${cell.q}, r=${cell.r}`}>
+            <span>{cell.q},{cell.r}</span>
+          </button>;
+        })}
+        <svg className="hex-route-layer" viewBox="0 0 2000 1600" aria-hidden="true">
+          {visible.filter((item) => item.object_type === "route").map((item) => {
+            const metadata = item.metadata as Record<string, unknown> | undefined;
+            const path = Array.isArray(metadata?.path) ? metadata.path as number[][] : [];
+            if (path.length < 2) return null;
+            const points = path.map(([pq, pr]) => `${1000 + 48 * Math.sqrt(3) * (Number(pq) + Number(pr) / 2)},${800 + 72 * Number(pr)}`).join(" ");
+            return <polyline key={String(item.id)} points={points} />;
+          })}
+        </svg>
+        <div className="map-base-hex" style={worldPoint(0, 0)}>ARES-1<small>БАЗОВЫЙ МОДУЛЬ</small></div>
+        {visible.map((item) => {
+          const metadata = item.metadata as Record<string, unknown> | undefined;
+          const properties = metadata?.properties as Record<string, unknown> | undefined;
+          const imageValue = properties?.image_data_url || metadata?.image_data_url || item.image_data_url;
+          const image = typeof imageValue === "string" && imageValue.startsWith("data:image/") ? imageValue : "";
+          const qValue = Number(item.q), rValue = Number(item.r);
+          if (!Number.isFinite(qValue) || !Number.isFinite(rValue)) return null;
+          return <button key={String(item.id)} type="button"
+            className={`hex-map-marker type-${String(item.object_type)}${selectedAsset?.id === item.id ? " selected" : ""}`}
+            style={worldPoint(qValue, rValue)}
+            onClick={() => { setSelectedAsset(item); setMoveTarget({ q: qValue, r: rValue }); setHistory([]); }}
+            title={markerName(item)} aria-label={`Выбрать объект: ${markerName(item)}`}>
+            {image ? <img src={image} alt="" /> : <i />}
+            <span>{markerName(item)}</span>
+          </button>;
+        })}
+      </div>
+      <div className="hex-map-controls"><button onClick={() => setZoom((value) => Math.min(2.4, value * 1.15))}>+</button><button onClick={() => setZoom((value) => Math.max(0.55, value / 1.15))}>−</button><button onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>Сбросить вид</button></div>
+    </div>
+    <div className="map-legend"><span><i className="legend-base" />База</span><span><i className="legend-asset" />Объект</span><span><i className="legend-blocked" />Запретная зона</span><span className="muted">Выбран гекс q={selectedHex.q}, r={selectedHex.r} · объектов: {visible.length}</span></div>
+    <section className="form-section">
+      <strong>Предложить строительную площадку</strong>
+      <p className="field-help">Выбранный гекс используется как опорная ячейка. Площадка станет действующей только после профильного согласования.</p>
+      <div className="form-grid">
+        <label>Размер площадки<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+        <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); const items = Array.isArray(project?.expected_result.infrastructure) ? project.expected_result.infrastructure as Array<Record<string, unknown>> : []; if (items.length) setPlacementName(String(items[0].name || "")); else if (project) setPlacementName(""); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
+        <label>Объект из проекта<select value={placementName} onChange={(event) => setPlacementName(event.target.value)}><option value="">Выберите объект</option>{projectAssets.map((asset, index) => <option key={index} value={String(asset.name || `Объект ${index + 1}`)}>{String(asset.name || `Объект ${index + 1}`)} · {String(asset.kind || "объект")}</option>)}</select></label>
+      </div>
+      <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : `Предложить гекс q=${selectedHex.q}, r=${selectedHex.r}`}</button>
+      {eligibleProjects.length === 0 && <p className="muted small">Нет строительных проектов с объектами, ожидающих размещения.</p>}
+    </section>
+    <section className="form-section">
+      <strong>Добавить пространственный объект</strong>
+      <p className="field-help">Открытия публикуются только по завершённому исследовательскому проекту. Транспорт и экспедиции регистрируются ответственными игроками.</p>
+      <div className="form-grid">
+        <label>Размер занимаемой зоны<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+        <label>Тип объекта<select value={featureType} onChange={(event) => setFeatureType(event.target.value)}>
+          <option value="discovery">Научное открытие</option><option value="deposit">Месторождение</option>
+          <option value="vehicle">Транспорт</option><option value="expedition">Экспедиция</option>
+          <option value="route">Маршрут или сеть</option><option value="zone">Зона ограничений</option>
+        </select></label>
+        <label>Название<input value={featureName} onChange={(event) => setFeatureName(event.target.value)} /></label>
+        {["deposit", "discovery"].includes(featureType) && <>
+          <label>Завершённое исследование<select value={featureProject} onChange={(event) => setFeatureProject(event.target.value)}><option value="">Выберите проект</option>{researchProjects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+          <label>Источник данных<input value={featureSource} onChange={(event) => setFeatureSource(event.target.value)} placeholder="Отчёт, проба, измерение…" /></label>
+          <label>Достоверность, 0–1<input type="number" min="0" max="1" step="0.05" value={featureConfidence} onChange={(event) => setFeatureConfidence(event.target.value)} /></label>
+        </>}
+        {featureType === "route" && <>
+          <label>Конечный гекс q<input type="number" value={routeEndQ} onChange={(event) => setRouteEndQ(event.target.value)} /></label>
+          <label>Конечный гекс r<input type="number" value={routeEndR} onChange={(event) => setRouteEndR(event.target.value)} /></label>
+        </>}
+        <label>Описание<input value={featureDescription} onChange={(event) => setFeatureDescription(event.target.value)} /></label>
+      </div>
+      <button className="button button-secondary" disabled={mapBusy} onClick={() => void submitFeature()}>Добавить объект в выбранный гекс</button>
+    </section>
+    {pendingPlacements.length > 0 && <section className="form-section">
+      <strong>Площадки, ожидающие согласования</strong>
+      {pendingPlacements.map((item) => {
+        const approvals = Array.isArray(item.approvals) ? item.approvals as Array<Record<string, unknown>> : [];
+        const required = Array.isArray(item.required_approvals) ? item.required_approvals as string[] : [];
+        const missing = required.filter((domain) => !approvals.some((approval) => approval.domain_code === domain));
+        return <article className="map-object-details" key={String(item.id)}>
+          <div><h3>{markerName(item)}</h3><p>Гекс q={String(item.q)}, r={String(item.r)} · Ожидает: {missing.map((domain) => responsibilityDomainNames[domain] || domain).join(", ")}</p>
+            {missing.map((domain) => {
+              const isLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes(domain));
+              const isCommander = Boolean(player?.roles.includes("colony_commander"));
+              const canApprove = player?.id !== item.author_player_id && (isLead || isCommander);
+              if (!canApprove) return null;
+              const commandOrder = !isLead && isCommander;
+              return <div className="form-foot" key={domain}><span>{responsibilityDomainNames[domain] || domain}</span>
+                <button className="button button-secondary small-button" disabled={mapBusy || (commandOrder && commandJustification.trim().length < 10)} title={commandOrder && commandJustification.trim().length < 10 ? "Для командирского распоряжения требуется обоснование не короче 10 символов." : undefined} onClick={() => void decide(item, domain, "approve", commandOrder)}>{commandOrder ? "Утвердить распоряжением" : "Согласовать"}</button>
+                <button className="button button-quiet small-button" disabled={mapBusy} onClick={() => void decide(item, domain, "reject", commandOrder)}>Отклонить</button>
+              </div>;
+            })}
+          </div>
+        </article>;
       })}
-      <div className="map-coordinate">ГЕКСАГОНАЛЬНАЯ СЕТКА · СХЕМА</div>
-    </div>
-    <div className="map-legend"><span><i className="legend-base" />Базовый модуль</span><span><i className="legend-asset" />Инфраструктурный объект</span><span className="muted">{visible.length} размещено · {unplaced.length} без координат</span></div>
-    {selectedAsset && <section className="map-object-details"><div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{String(selectedAsset.name || "Объект без названия")}</h3>{(() => { const props = selectedAsset.properties as Record<string, unknown> | undefined; const photo = String(props?.image_data_url || selectedAsset.image_data_url || ""); return photo.startsWith("data:image/") ? <img className="entity-reference-image map-object-image" src={photo} alt={`Внешний вид: ${String(selectedAsset.name || "объект")}`} /> : null; })()}<p>{String((selectedAsset.properties as Record<string, unknown> | undefined)?.description || "Описание для этого объекта пока не задано.")}</p><small>Тип: {String(selectedAsset.kind || "не указан")} · Состояние: {String((selectedAsset.properties as Record<string, unknown> | undefined)?.status ?? "не задано")}</small></div><button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button></section>}
-    {unplaced.length > 0 && <div className="unplaced"><strong>Объекты выбранного слоя без координат</strong><p>Для этих объектов геометрия пока не задана. Они остаются в реестре и не получают условные координаты.</p>{unplaced.map((asset) => <span key={String(asset.id)}>{String(asset.name)} · {entityKindLabel(String(asset.kind || "other"))}</span>)}</div>}
-    {assets.length === 0 && <div className="empty-map-note">Инфраструктурные объекты появятся после завершения соответствующих проектов.</div>}
+      {player?.roles.includes("colony_commander") && <label>Обоснование командирского распоряжения<textarea value={commandJustification} onChange={(event) => setCommandJustification(event.target.value)} rows={2} placeholder="Не менее 10 символов" /></label>}
+    </section>}
+    {selectedAsset && <section className="map-object-details">
+      <div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{markerName(selectedAsset)}</h3>
+        <p>{String((selectedAsset.metadata as Record<string, unknown> | undefined)?.description || ((selectedAsset.metadata as Record<string, unknown> | undefined)?.properties as Record<string, unknown> | undefined)?.description || "Описание не задано.")}</p>
+        <small>Тип: {String(selectedAsset.object_type)} · q={String(selectedAsset.q)}, r={String(selectedAsset.r)}</small>
+        {selectedAsset.metadata !== undefined && selectedAsset.metadata !== null && <p>Источник: {String((selectedAsset.metadata as Record<string, unknown>).source || "не указан")} · Достоверность: {String((selectedAsset.metadata as Record<string, unknown>).confidence ?? "не применяется")}</p>}
+      </div>
+      <div className="map-object-actions">
+        {["vehicle", "expedition"].includes(String(selectedAsset.object_type)) && isTransportLead && <>
+          <p>Переместить объект в выбранный гекс q={moveTarget?.q}, r={moveTarget?.r}</p>
+          <label>Причина перемещения<input value={moveReason} onChange={(event) => setMoveReason(event.target.value)} /></label>
+          <button className="button button-secondary small-button" disabled={mapBusy || !moveReason.trim()} onClick={() => void moveFeature()}>Подтвердить перемещение</button>
+        </>}
+        {Boolean(selectedAsset.id) && <button className="button button-quiet small-button" onClick={() => void loadHistory(selectedAsset)}>История движения</button>}
+        <button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button>
+      </div>
+      {history.length > 0 && <ol className="map-history">{history.map((item, index) => <li key={index}>{item.from_q == null ? "Регистрация" : `q=${String(item.from_q)}, r=${String(item.from_r)} → `}q={String(item.q)}, r={String(item.r)} · {String(item.reason)}</li>)}</ol>}
+    </section>}
   </div>;
 }
 
