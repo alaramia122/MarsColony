@@ -54,7 +54,6 @@ const entityKindNames: Record<string, string> = {
   cargo_hauler: "Грузовой транспорт", cargo_handling_crane: "Грузовой кран",
   autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
 };
-const entityKindLabel = (kind: string) => entityKindNames[kind] || "Другие объекты";
 const responsibilityDomainNames: Record<string, string> = {
   geology: "Геологоразведка и добыча", industry: "Промышленность и производство",
   energy: "Энергетика", life_support: "Жизнеобеспечение", construction: "Строительство и инфраструктура",
@@ -1089,7 +1088,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       <div><span className="eyebrow">ВЫБРАННЫЙ ОБЪЕКТ</span><h3>{markerName(selectedAsset)}</h3>
         <p>{String((selectedAsset.metadata as Record<string, unknown> | undefined)?.description || ((selectedAsset.metadata as Record<string, unknown> | undefined)?.properties as Record<string, unknown> | undefined)?.description || "Описание не задано.")}</p>
         <small>Тип: {String(selectedAsset.object_type)} · q={String(selectedAsset.q)}, r={String(selectedAsset.r)}</small>
-        {selectedAsset.metadata && <p>Источник: {String((selectedAsset.metadata as Record<string, unknown>).source || "не указан")} · Достоверность: {String((selectedAsset.metadata as Record<string, unknown>).confidence ?? "не применяется")}</p>}
+        {selectedAsset.metadata !== undefined && selectedAsset.metadata !== null && <p>Источник: {String((selectedAsset.metadata as Record<string, unknown>).source || "не указан")} · Достоверность: {String((selectedAsset.metadata as Record<string, unknown>).confidence ?? "не применяется")}</p>}
       </div>
       <div className="map-object-actions">
         {["vehicle", "expedition"].includes(String(selectedAsset.object_type)) && isTransportLead && <>
@@ -1097,10 +1096,10 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
           <label>Причина перемещения<input value={moveReason} onChange={(event) => setMoveReason(event.target.value)} /></label>
           <button className="button button-secondary small-button" disabled={mapBusy || !moveReason.trim()} onClick={() => void moveFeature()}>Подтвердить перемещение</button>
         </>}
-        {selectedAsset.id && <button className="button button-quiet small-button" onClick={() => void loadHistory(selectedAsset)}>История движения</button>}
+        {Boolean(selectedAsset.id) && <button className="button button-quiet small-button" onClick={() => void loadHistory(selectedAsset)}>История движения</button>}
         <button className="button button-quiet small-button" onClick={() => setSelectedAsset(null)}>Снять выбор</button>
       </div>
-      {history.length > 0 && <ol className="map-history">{history.map((item, index) => <li key={index}>{item.from_q === null ? "Регистрация" : `q=${item.from_q}, r=${item.from_r} → `}q={item.q}, r={item.r} · {String(item.reason)}</li>)}</ol>}
+      {history.length > 0 && <ol className="map-history">{history.map((item, index) => <li key={index}>{item.from_q == null ? "Регистрация" : `q=${String(item.from_q)}, r=${String(item.from_r)} → `}q={String(item.q)}, r={String(item.r)} · {String(item.reason)}</li>)}</ol>}
     </section>}
   </div>;
 }
