@@ -917,7 +917,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         method: "POST",
         body: JSON.stringify({
           object_type: featureType, name: featureName.trim(),
-          q: selectedHex.q, r: selectedHex.r,
+          q: selectedHex.q, r: selectedHex.r, footprint: selectedFootprint,
           source_project_id: featureProject || null,
           confidence: ["deposit", "discovery"].includes(featureType) ? Number(featureConfidence) : null,
           source: featureSource, description: featureDescription,
@@ -979,7 +979,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
     setSelectedAsset(item); setMoveTarget({ q, r }); setHistory([]);
   };
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Выберите гекс на сетке; масштаб меняется колёсиком, карту можно перетаскивать.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Колёсико меняет масштаб карты, перетаскивайте её левой кнопкой мыши или выберите объект в списке ниже, чтобы центрировать карту.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
     {mapError && <div className="alert">{mapError}<button onClick={() => setMapError("")}>×</button></div>}
     <div className="map-layers" aria-label="Слои карты">
       {layers.map(([key, label]) => <button key={key} className={activeLayer === key ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(key)}>{label}</button>)}
