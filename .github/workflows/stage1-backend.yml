@@ -78,6 +78,9 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
           MARS_COLONY_API_URL: http://127.0.0.1:8000/api/v1
         run: npm run e2e
+      - name: Collect application logs on failure
+        if: failure()
+        run: docker compose logs --no-color api web
       - name: Stop application stack
         if: always()
         run: docker compose down -v
