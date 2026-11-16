@@ -1169,6 +1169,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [entityFormOpen, setEntityFormOpen] = useState(false);
   const [newEntityType, setNewEntityType] = useState("infrastructure");
+  const [newEntityFootprintMinRadius, setNewEntityFootprintMinRadius] = useState("0");
+  const [newEntityFootprintMaxRadius, setNewEntityFootprintMaxRadius] = useState("2");
   const [newEntityDomains, setNewEntityDomains] = useState<string[]>(player?.responsibility_domains?.length ? player.responsibility_domains : ["life_support"]);
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityDescription, setNewEntityDescription] = useState("");
@@ -1290,6 +1292,16 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (newEntityDomains.length === 0) {
       setEntityProposalError("Выберите хотя бы одну зону ответственности.");
       return;
+    }
+    if (!["technology", "procedure"].includes(newEntityType)) {
+      if (Number(newEntityFootprintMinRadius) > Number(newEntityFootprintMaxRadius)) {
+        setEntityProposalError("Минимальный размер площадки не может превышать максимальный.");
+        return;
+      }
+      const build = definition.build as Record<string, unknown> | undefined;
+      if (build && typeof build === "object") {
+        definition.build = { ...build, map_footprint_min_radius: Number(newEntityFootprintMinRadius), map_footprint_max_radius: Number(newEntityFootprintMaxRadius) };
+      }
     }
     setSaving(true);
     try {
@@ -1462,7 +1474,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
                 return <label className="catalog-entity-option" key={entity.id}>
                   <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
                   {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
-                  <span><strong>{entity.name}</strong><small>{typeLabel} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+                  <span><strong>{entity.name}</strong><small>{typeLabel} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small><small>Размер площадки: {Number(build.map_footprint_min_radius) === 1 ? 7 : Number(build.map_footprint_min_radius) === 2 ? 19 : 1}–{Number(build.map_footprint_max_radius ?? 2) === 0 ? 1 : Number(build.map_footprint_max_radius ?? 2) === 1 ? 7 : 19} гексов</small></span>
                 </label>;
               })}
             </div>
@@ -1513,6 +1525,10 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           </label>
           {newEntityImage && <div className="entity-image-preview"><img className="entity-reference-image" src={newEntityImage} alt="Предпросмотр внешнего вида новой сущности" /><button type="button" className="button button-quiet small-button" onClick={() => setNewEntityImage("")}>Убрать изображение</button></div>}
           <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
+          {!["technology", "procedure"].includes(newEntityType) && <div className="form-grid">
+            <label>Минимальная площадка<select value={newEntityFootprintMinRadius} onChange={(event) => setNewEntityFootprintMinRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+            <label>Максимальная площадка<select value={newEntityFootprintMaxRadius} onChange={(event) => setNewEntityFootprintMaxRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select><small>Эти ограничения будут действовать при размещении экземпляра на карте.</small></label>
+          </div>}
           <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
           <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
           <button type="button" className="button button-primary" disabled={saving || newEntityName.trim().length < 2 || !newEntityDescription.trim()} onClick={() => void proposeNewEntity()}>Отправить тип на согласование</button>
