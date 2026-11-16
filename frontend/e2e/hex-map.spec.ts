@@ -43,6 +43,15 @@ test("two independent players see the same hex map and can select a cell", async
   const guestContext: BrowserContext = await browser.newContext();
   const ownerPage = await ownerContext.newPage();
   const guestPage = await guestContext.newPage();
+  for (const [label, page] of [["owner", ownerPage], ["guest", guestPage]] as const) {
+    page.on("websocket", (socket) => {
+      console.log(`[${label}] WebSocket opened: ${socket.url()}`);
+      socket.on("close", () => console.log(`[${label}] WebSocket closed`));
+      socket.on("framereceived", (frame) => console.log(`[${label}] WebSocket frame: ${String(frame.payload).slice(0, 160)}`));
+    });
+    page.on("console", (message) => { if (message.type() === "error") console.log(`[${label}] browser console: ${message.text()}`); });
+    page.on("pageerror", (error) => console.log(`[${label}] page error: ${error.message}`));
+  }
   await installSession(ownerPage, {
     sessionId: session.id, token: session.owner_token,
     playerId: session.owner_player_id, displayName: "Командир колонии",
@@ -56,8 +65,8 @@ test("two independent players see the same hex map and can select a cell", async
   await openMap(guestPage);
   await expect(ownerPage.locator('.hex-map-marker[title="Ровер E2E"]')).toBeVisible();
   await expect(guestPage.locator('.hex-map-marker[title="Ровер E2E"]')).toBeVisible();
-  await expect(ownerPage.getByText("Синхронизация активна")).toBeVisible();
-  await expect(guestPage.getByText("Синхронизация активна")).toBeVisible();
+  await expect(ownerPage.locator(".connection")).toHaveText("Синхронизация активна", { timeout: 15000 });
+  await expect(guestPage.locator(".connection")).toHaveText("Синхронизация активна", { timeout: 15000 });
 
   const guestMarker = guestPage.locator('.hex-map-marker[title="Ровер E2E"]');
   const initialPosition = await guestMarker.getAttribute("style");
