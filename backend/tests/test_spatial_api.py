@@ -51,13 +51,20 @@ class SpatialPlacementApiTests(unittest.TestCase):
                 duration_periods=2, labor_fte=1, energy_kwh_per_period=1,
                 resource_requirements={}, expected_result={"infrastructure": [{"name": "Жилой модуль", "kind": "habitat", "domain_codes": ["life_support"]}]}, version=1,
             ))
-            self.approver_token = "independent-approver-token"
-            db.add(PlayerRecord(
-                session_id=self.session_id, display_name="Руководитель",
-                token_hash=hashlib.sha256(self.approver_token.encode()).hexdigest(),
-                roles=["domain_lead"],
-                responsibility_domains=["construction", "life_support"],
-            ))
+            self.construction_token = "construction-domain-lead-token"
+            self.life_support_token = "life-support-domain-lead-token"
+            db.add_all([
+                PlayerRecord(
+                    session_id=self.session_id, display_name="Руководитель строительства",
+                    token_hash=hashlib.sha256(self.construction_token.encode()).hexdigest(),
+                    roles=["domain_lead"], responsibility_domains=["construction"],
+                ),
+                PlayerRecord(
+                    session_id=self.session_id, display_name="Руководитель жизнеобеспечения",
+                    token_hash=hashlib.sha256(self.life_support_token.encode()).hexdigest(),
+                    roles=["domain_lead"], responsibility_domains=["life_support"],
+                ),
+            ])
 
     def tearDown(self):
         api.SessionLocal = self.original_api_factory
@@ -81,13 +88,13 @@ class SpatialPlacementApiTests(unittest.TestCase):
         first = decide_placement(
             self.session_id, proposal["id"],
             PlacementDecisionRequest(decision="approve", domain_code="construction"),
-            token=self.approver_token,
+            token=self.construction_token,
         )
         self.assertEqual(first["status"], "pending_approval")
         second = decide_placement(
             self.session_id, proposal["id"],
             PlacementDecisionRequest(decision="approve", domain_code="life_support"),
-            token=self.approver_token,
+            token=self.life_support_token,
         )
         self.assertEqual(second["status"], "placed")
         self.assertEqual(second["map_version"], 1)
