@@ -30,6 +30,12 @@ test("two independent players see the same hex map and can select a cell", async
   expect(joinResponse.ok()).toBeTruthy();
   const joined = await joinResponse.json();
 
+  const roleResponse = await request.put(`${apiBase}/sessions/${session.id}/players/${joined.player_id}/roles`, {
+    headers: { "X-Player-Token": session.owner_token },
+    data: { roles: ["domain_lead"], responsibility_domains: ["transport"] },
+  });
+  expect(roleResponse.ok()).toBeTruthy();
+
   const featureResponse = await request.post(`${apiBase}/sessions/${session.id}/map/features`, {
     headers: { "X-Player-Token": session.owner_token },
     data: {
@@ -73,7 +79,7 @@ test("two independent players see the same hex map and can select a cell", async
   const guestMarker = guestPage.locator('.hex-map-marker[title="Ровер E2E"]');
   const initialPosition = await guestMarker.getAttribute("style");
   const moveResponse = await request.post(`${apiBase}/sessions/${session.id}/map/features/${(await featureResponse.json()).id}/position`, {
-    headers: { "X-Player-Token": session.owner_token },
+    headers: { "X-Player-Token": joined.player_token },
     data: { q: 4, r: -2, expected_map_version: 1, reason: "Проверка синхронизации двух клиентов" },
   });
   expect(moveResponse.ok()).toBeTruthy();
