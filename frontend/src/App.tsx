@@ -833,6 +833,28 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
     };
     viewport.addEventListener("wheel", handleWheel, { passive: false });
     return () => viewport.removeEventListener("wheel", handleWheel);
+  }, []);  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const current = drag.current;
+      if (!current || current.pointerId !== event.pointerId) return;
+      const dx = event.clientX - current.x, dy = event.clientY - current.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) current.moved = true;
+      if (current.moved) setPan({ x: current.panX + dx, y: current.panY + dy });
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      if (drag.current?.pointerId !== event.pointerId) return;
+      suppressMapClick.current = drag.current.moved;
+      drag.current = null;
+    };
+    const handlePointerCancel = () => { drag.current = null; };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
   }, []);
   useEffect(() => {
     if (allowedPlacementRadii.length && !allowedPlacementRadii.includes(Number(placementFootprintRadius))) setPlacementFootprintRadius(String(allowedPlacementRadii[0]));
@@ -991,15 +1013,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         const captureTarget = (event.target as HTMLElement).closest("button") || event.currentTarget;
         captureTarget.setPointerCapture(event.pointerId);
       }}
-      onPointerMove={(event) => {
-        const current = drag.current;
-        if (!current || current.pointerId !== event.pointerId) return;
-        const dx = event.clientX - current.x, dy = event.clientY - current.y;
-        if (Math.abs(dx) + Math.abs(dy) > 3) current.moved = true;
-        if (current.moved) setPan({ x: current.panX + dx, y: current.panY + dy });
-      }}
-      onPointerUp={(event) => { if (drag.current?.pointerId === event.pointerId) { suppressMapClick.current = drag.current.moved; drag.current = null; } }}
-      onPointerCancel={() => { drag.current = null; }}
+
       onClickCapture={(event) => { if (suppressMapClick.current) { event.preventDefault(); event.stopPropagation(); suppressMapClick.current = false; } }}
       aria-label="Гексагональная карта колонии">
       <div className="hex-map-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
