@@ -47,9 +47,9 @@ class SpatialPlacementApiTests(unittest.TestCase):
                 author_player_id=self.owner_id, title="Жилой модуль",
                 description="Строительство жилого модуля.",
                 project_type="construction", status="submitted",
-                domain_codes=["life_support"], budget_credits=100,
+                domain_codes=["science"], budget_credits=100,
                 duration_periods=2, labor_fte=1, energy_kwh_per_period=1,
-                resource_requirements={}, expected_result={"infrastructure": [{"name": "Жилой модуль", "kind": "habitat"}]}, version=1,
+                resource_requirements={}, expected_result={"infrastructure": [{"name": "Жилой модуль", "kind": "habitat", "domain_codes": ["life_support"]}]}, version=1,
             ))
             self.approver_token = "independent-approver-token"
             db.add(PlayerRecord(
