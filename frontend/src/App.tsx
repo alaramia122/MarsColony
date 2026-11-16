@@ -35,25 +35,6 @@ type View = "overview" | "workspace" | "map" | "projects" | "people" | "assistan
 
 const API = "/api/v1";
 const money = (value: number) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
-const entityKindNames: Record<string, string> = {
-  power_unit: "Энергетическая установка", battery_storage: "Накопитель энергии",
-  mining_unit: "Добывающая установка", water_recycler: "Установка переработки воды",
-  oxygen_plant: "Кислородная установка", greenhouse: "Теплица", habitat: "Жилой модуль",
-  medical_unit: "Медицинский блок", rover: "Марсоход", workshop: "Мастерская",
-  communications: "Средства связи", industrial_unit: "Промышленная установка",
-  drilling_rig: "Буровая установка", survey_rover: "Разведывательный марсоход",
-  maintenance_workshop: "Ремонтная мастерская", solar_array: "Солнечная батарея",
-  atmosphere_control: "Система контроля атмосферы", water_recycling: "Система водооборота",
-  habitat_module: "Жилой модуль", research_lab: "Исследовательская лаборатория",
-  weather_station: "Метеостанция", command_center: "Командный центр",
-  logistics_store: "Логистический склад", emergency_shelter: "Аварийное укрытие",
-  fire_suppression: "Система пожаротушения", communications_mast: "Мачта связи",
-  cargo_landing_zone: "Грузовая посадочная площадка", ice_mining_rig: "Комплекс добычи льда",
-  regolith_processing_plant: "Завод переработки реголита",
-  additive_manufacturing_cell: "Установка аддитивного производства",
-  cargo_hauler: "Грузовой транспорт", cargo_handling_crane: "Грузовой кран",
-  autonomous_drill_rover: "Автономный буровой марсоход", spare_parts_workshop: "Мастерская запчастей"
-};
 const responsibilityDomainNames: Record<string, string> = {
   geology: "Геологоразведка и добыча", industry: "Промышленность и производство",
   energy: "Энергетика", life_support: "Жизнеобеспечение", construction: "Строительство и инфраструктура",
