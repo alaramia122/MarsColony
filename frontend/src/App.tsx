@@ -806,6 +806,10 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const researchProjects = projects.filter((project) =>
     ["research", "exploration"].includes(project.project_type) && project.status === "completed"
   );
+  const selectedProjectRecord = eligibleProjects.find((project) => project.id === selectedProject);
+  const projectAssets = Array.isArray(selectedProjectRecord?.expected_result.infrastructure)
+    ? selectedProjectRecord.expected_result.infrastructure as Array<Record<string, unknown>>
+    : [];
   const loadMap = useCallback(async () => {
     const result = await request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
       `${API}/sessions/${auth.sessionId}/map`, auth.token
@@ -1011,8 +1015,8 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       <p className="field-help">Выбранный гекс используется как опорная ячейка. Площадка станет действующей только после профильного согласования.</p>
       <div className="form-grid">
         <label>Размер площадки<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
-        <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); if (project) setPlacementName(project.title); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
-        <label>Название объекта<input value={placementName} onChange={(event) => setPlacementName(event.target.value)} placeholder="Например, жилой модуль № 2" /></label>
+        <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); const items = Array.isArray(project?.expected_result.infrastructure) ? project.expected_result.infrastructure as Array<Record<string, unknown>> : []; if (items.length) setPlacementName(String(items[0].name || "")); else if (project) setPlacementName(""); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
+        <label>Объект из проекта<select value={placementName} onChange={(event) => setPlacementName(event.target.value)}><option value="">Выберите объект</option>{projectAssets.map((asset, index) => <option key={index} value={String(asset.name || `Объект ${index + 1}`)}>{String(asset.name || `Объект ${index + 1}`)} · {String(asset.kind || "объект")}</option>)}</select></label>
       </div>
       <button className="button button-primary" disabled={mapBusy || eligibleProjects.length === 0} onClick={() => void submitPlacement()}>{mapBusy ? "Обработка…" : `Предложить гекс q=${selectedHex.q}, r=${selectedHex.r}`}</button>
       {eligibleProjects.length === 0 && <p className="muted small">Нет строительных проектов с объектами, ожидающих размещения.</p>}
