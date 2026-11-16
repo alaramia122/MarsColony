@@ -988,7 +988,8 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       onPointerDown={(event) => {
         if (event.button !== 0 || (event.target as HTMLElement).closest(".hex-map-controls")) return;
         drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, pointerId: event.pointerId, moved: false };
-        event.currentTarget.setPointerCapture(event.pointerId);
+        const captureTarget = (event.target as HTMLElement).closest("button") || event.currentTarget;
+        captureTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
         const current = drag.current;
@@ -1010,7 +1011,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
               && footprint.some((offset) => qValue + Number(offset[0]) === cell.q && rValue + Number(offset[1]) === cell.r);
           });
           const blocked = placed.some((item) => item.object_type === "zone" && (item.footprint as number[][] || [[0,0]]).some((offset) => Number(item.q) + offset[0] === cell.q && Number(item.r) + offset[1] === cell.r) && Boolean((item.metadata as Record<string, unknown>)?.blocked ?? true));
-          const chosen = selectedFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
+          const chosen = selectedPlacementFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
           return <button key={`${cell.q}:${cell.r}`} type="button"
             className={`hex-cell${chosen ? " chosen" : ""}${occupied ? " occupied" : ""}${blocked ? " blocked" : ""}`}
             style={worldPoint(cell.q, cell.r)}
