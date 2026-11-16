@@ -65,6 +65,8 @@ test("two independent players see the same hex map and can select a cell", async
   await openMap(guestPage);
   await expect(ownerPage.locator('.hex-map-marker[title="Ровер E2E"]')).toBeVisible();
   await expect(guestPage.locator('.hex-map-marker[title="Ровер E2E"]')).toBeVisible();
+  console.log("Owner connection state:", await ownerPage.locator(".connection").textContent(), await ownerPage.locator(".connection").getAttribute("title"));
+  console.log("Guest connection state:", await guestPage.locator(".connection").textContent(), await guestPage.locator(".connection").getAttribute("title"));
   await expect(ownerPage.locator(".connection")).toHaveText("Синхронизация активна", { timeout: 15000 });
   await expect(guestPage.locator(".connection")).toHaveText("Синхронизация активна", { timeout: 15000 });
 
