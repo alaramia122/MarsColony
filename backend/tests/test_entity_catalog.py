@@ -33,6 +33,18 @@ class EntityCatalogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_entity(entity, SCENARIO["resource_catalog"], "ares-01")
 
+    def test_map_footprint_range_requires_ordered_radii_from_zero_to_two(self):
+        catalogue = load_entity_catalog("ares-01")
+        entity = deepcopy(next(item for item in catalogue["entities"] if item["entity_type"] == "infrastructure"))
+        entity.setdefault("build", {})["map_footprint_min_radius"] = 2
+        entity["build"]["map_footprint_max_radius"] = 1
+        with self.assertRaisesRegex(ValueError, "cannot exceed"):
+            validate_entity(entity, SCENARIO["resource_catalog"], "ares-01")
+        entity["build"]["map_footprint_min_radius"] = 3
+        entity["build"]["map_footprint_max_radius"] = 3
+        with self.assertRaisesRegex(ValueError, "integer from 0 to 2"):
+            validate_entity(entity, SCENARIO["resource_catalog"], "ares-01")
+
     def test_unsupported_technology_effect_is_rejected(self):
         catalogue = load_entity_catalog("ares-01")
         technology = deepcopy(next(
