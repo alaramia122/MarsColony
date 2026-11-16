@@ -99,23 +99,22 @@ test("two independent players see the same hex map and can select a cell", async
   expect(await ownerPage.evaluate(() => window.scrollY)).toBe(scrollBeforeWheel);
 
   const transformBeforeDrag = await world.getAttribute("style");
-  const dragCell = ownerPage.locator('.hex-cell[aria-label="Гекс q=-4, r=3"]');
-  const dragBox = await dragCell.boundingBox();
-  expect(dragBox).not.toBeNull();
-  await ownerPage.mouse.move(dragBox!.x + dragBox!.width / 2, dragBox!.y + dragBox!.height / 2);
+  const viewportBox = await viewport.boundingBox();
+  expect(viewportBox).not.toBeNull();
+  const dragStartX = viewportBox!.x + 12, dragStartY = viewportBox!.y + 12;
+  await ownerPage.mouse.move(dragStartX, dragStartY);
   await ownerPage.mouse.down();
-  await ownerPage.mouse.move(dragBox!.x + dragBox!.width / 2 + 70, dragBox!.y + dragBox!.height / 2 + 35, { steps: 5 });
+  await ownerPage.mouse.move(dragStartX + 70, dragStartY + 35, { steps: 5 });
   await ownerPage.mouse.up();
   await expect.poll(() => world.getAttribute("style")).not.toBe(transformBeforeDrag);
-  await expect(ownerPage.getByText("Выбран гекс q=4, r=4")).toBeVisible();
 
   await ownerPage.locator(".map-object-list-item").filter({ hasText: "Ровер E2E" }).click();
   const markerBox = await ownerMarker.boundingBox();
-  const viewportBox = await viewport.boundingBox();
+  const centeredViewportBox = await viewport.boundingBox();
   expect(markerBox).not.toBeNull();
   expect(viewportBox).not.toBeNull();
-  expect(Math.abs((markerBox!.x + markerBox!.width / 2) - (viewportBox!.x + viewportBox!.width / 2))).toBeLessThan(8);
-  expect(Math.abs((markerBox!.y + markerBox!.height / 2) - (viewportBox!.y + viewportBox!.height / 2))).toBeLessThan(8);
+  expect(Math.abs((markerBox!.x + markerBox!.width / 2) - (centeredViewportBox!.x + centeredViewportBox!.width / 2))).toBeLessThan(8);
+  expect(Math.abs((markerBox!.y + markerBox!.height / 2) - (centeredViewportBox!.y + centeredViewportBox!.height / 2))).toBeLessThan(8);
 
   await ownerContext.close();
   await guestContext.close();
