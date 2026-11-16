@@ -62,7 +62,10 @@ def append_event(db, session_id: str, event_type: str, payload: dict) -> None:
 
 def _entity_operation_properties(entity: dict) -> dict:
     operation = dict(entity.get("operation", {}))
+    build = entity.get("build", entity.get("research", {}))
     properties = {
+        "map_footprint_min_radius": int(build.get("map_footprint_min_radius", 0)),
+        "map_footprint_max_radius": int(build.get("map_footprint_max_radius", 2)),
         "economic_effects": {
             key: value for key, value in operation.items()
             if key not in {"process_bindings", "power_generation_binding", "battery_storage_binding"}
