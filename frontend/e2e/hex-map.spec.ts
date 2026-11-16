@@ -91,9 +91,9 @@ test("two independent players see the same hex map and can select a cell", async
 
   const viewport = ownerPage.locator(".hex-map-viewport");
   const world = ownerPage.locator(".hex-map-world");
-  const scrollBeforeWheel = await ownerPage.evaluate(() => window.scrollY);
   const transformBeforeWheel = await world.getAttribute("style");
   await viewport.hover();
+  const scrollBeforeWheel = await ownerPage.evaluate(() => window.scrollY);
   await ownerPage.mouse.wheel(0, -360);
   await expect.poll(() => world.getAttribute("style")).not.toBe(transformBeforeWheel);
   expect(await ownerPage.evaluate(() => window.scrollY)).toBe(scrollBeforeWheel);
