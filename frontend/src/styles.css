@@ -182,7 +182,7 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 
 
 /* Interactive axial hex map */
-.hex-map-viewport{height:620px;position:relative;overflow:hidden;border:1px solid #344650;border-radius:10px;background:radial-gradient(ellipse at 50% 48%,#263c45 0,#17262e 58%,#111b22 100%);cursor:grab;touch-action:none;isolation:isolate}
+.hex-map-viewport{height:620px;position:relative;overflow:hidden;overscroll-behavior:contain;border:1px solid #344650;border-radius:10px;background:radial-gradient(ellipse at 50% 48%,#263c45 0,#17262e 58%,#111b22 100%);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;isolation:isolate}
 .hex-map-viewport:active{cursor:grabbing}
 .hex-map-world{position:absolute;left:50%;top:50%;width:2000px;height:1600px;margin-left:-1000px;margin-top:-800px;transform-origin:50% 50%;transition:transform .08s linear}
 .hex-cell{position:absolute;width:84px;height:96px;margin-left:-42px;margin-top:-48px;border:1px solid #435760;background:#24374099;color:#6f8993;clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);display:grid;place-items:center;font:9px "DM Mono",monospace;padding:0;opacity:.7}
@@ -214,3 +214,5 @@ button:disabled[title]{pointer-events:auto;cursor:not-allowed}
 .hex-cell.blocked{background:#a34f4b99}
 .map-object-details{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:start}
 @media(max-width:720px){.map-object-details{grid-template-columns:1fr}.map-object-actions{min-width:0}}
+
+.map-object-list{margin:14px 0 8px;padding:13px;border:1px solid var(--line);border-radius:8px;background:#141f26}.map-object-list-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.map-object-list-items{display:flex;flex-wrap:wrap;gap:7px}.map-object-list-item{display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:240px;padding:8px 11px;border:1px solid #40515b;border-radius:7px;background:#202e36;color:var(--text);text-align:left}.map-object-list-item:hover,.map-object-list-item.selected{border-color:var(--orange);background:#2b3639}.map-object-list-item strong{font-size:11px}.map-object-list-item span{font-size:9px;color:var(--muted)}@media(max-width:720px){.map-object-list-heading{align-items:flex-start;flex-direction:column}.map-object-list-item{max-width:100%}}
