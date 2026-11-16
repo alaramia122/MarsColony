@@ -77,6 +77,7 @@ test("two independent players see the same hex map and can select a cell", async
   await expect(guestPage.locator(".connection")).toHaveText("Синхронизация активна", { timeout: 15000 });
 
   const guestMarker = guestPage.locator('.hex-map-marker[title="Ровер E2E"]');
+  const ownerMarker = ownerPage.locator('.hex-map-marker[title="Ровер E2E"]');
   const initialPosition = await guestMarker.getAttribute("style");
   const moveResponse = await request.post(`${apiBase}/sessions/${session.id}/map/features/${(await featureResponse.json()).id}/position`, {
     headers: { "X-Player-Token": joined.player_token },
@@ -84,6 +85,7 @@ test("two independent players see the same hex map and can select a cell", async
   });
   expect(moveResponse.ok()).toBeTruthy();
   await expect.poll(async () => guestMarker.getAttribute("style")).not.toBe(initialPosition);
+  await expect.poll(async () => ownerMarker.getAttribute("style")).not.toBe(initialPosition);
 
   const cell = ownerPage.locator('.hex-cell[aria-label="Гекс q=4, r=4"]');
   await cell.click();
