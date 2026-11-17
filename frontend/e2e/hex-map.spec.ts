@@ -101,7 +101,7 @@ test("two independent players see the same hex map and can select a cell", async
   const transformBeforeDrag = await world.getAttribute("style");
   const viewportBox = await viewport.boundingBox();
   expect(viewportBox).not.toBeNull();
-  const dragStartX = viewportBox!.x + 12, dragStartY = viewportBox!.y + 12;
+  const dragStartX = viewportBox!.x + viewportBox!.width / 2, dragStartY = viewportBox!.y + viewportBox!.height / 2;
   await ownerPage.mouse.move(dragStartX, dragStartY);
   await ownerPage.mouse.down();
   await ownerPage.mouse.move(dragStartX + 70, dragStartY + 35, { steps: 5 });
