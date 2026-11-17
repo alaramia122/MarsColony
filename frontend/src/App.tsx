@@ -833,27 +833,25 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
     };
     viewport.addEventListener("wheel", handleWheel, { passive: false });
     return () => viewport.removeEventListener("wheel", handleWheel);
-  }, []);  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
+  }, []);
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
       const current = drag.current;
-      if (!current || current.pointerId !== event.pointerId) return;
+      if (!current) return;
       const dx = event.clientX - current.x, dy = event.clientY - current.y;
       if (Math.abs(dx) + Math.abs(dy) > 3) current.moved = true;
       if (current.moved) setPan({ x: current.panX + dx, y: current.panY + dy });
     };
-    const handlePointerUp = (event: PointerEvent) => {
-      if (drag.current?.pointerId !== event.pointerId) return;
+    const handleMouseUp = () => {
+      if (!drag.current) return;
       suppressMapClick.current = drag.current.moved;
       drag.current = null;
     };
-    const handlePointerCancel = () => { drag.current = null; };
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    window.addEventListener("pointercancel", handlePointerCancel);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-      window.removeEventListener("pointercancel", handlePointerCancel);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
   useEffect(() => {
@@ -1007,13 +1005,10 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       {layers.map(([key, label]) => <button key={key} className={activeLayer === key ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(key)}>{label}</button>)}
     </div>
     <div className="hex-map-viewport" ref={mapViewportRef}
-      onPointerDown={(event) => {
+      onMouseDown={(event) => {
         if (event.button !== 0 || (event.target as HTMLElement).closest(".hex-map-controls")) return;
-        drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, pointerId: event.pointerId, moved: false };
-        const captureTarget = (event.target as HTMLElement).closest("button") || event.currentTarget;
-        captureTarget.setPointerCapture(event.pointerId);
+        drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, moved: false };
       }}
-
       onClickCapture={(event) => { if (suppressMapClick.current) { event.preventDefault(); event.stopPropagation(); suppressMapClick.current = false; } }}
       aria-label="Гексагональная карта колонии">
       <div className="hex-map-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
