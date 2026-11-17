@@ -786,7 +786,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const mapViewportRef = useRef<HTMLDivElement | null>(null);
   const suppressMapClick = useRef(false);
-  const drag = useRef<{ x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | null>(null);
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
   const [commandJustification, setCommandJustification] = useState("");
   const [mapBusy, setMapBusy] = useState(false);
   const [mapError, setMapError] = useState("");
