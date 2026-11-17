@@ -61,6 +61,20 @@ def _cells(record: MapPlacementRecord) -> set[tuple[int, int]]:
     return {(record.q + int(cell[0]), record.r + int(cell[1])) for cell in record.footprint}
 
 
+def _footprint_radius(footprint: list[list[int]]) -> int:
+    actual = {(int(cell[0]), int(cell[1])) for cell in footprint}
+    for radius in range(3):
+        expected = {
+            (dq, dr)
+            for dq in range(-radius, radius + 1)
+            for dr in range(-radius, radius + 1)
+            if (abs(dq) + abs(dr) + abs(dq + dr)) // 2 <= radius
+        }
+        if actual == expected:
+            return radius
+    raise HTTPException(status_code=422, detail="Размер площадки должен составлять 1, 7 или 19 гексов.")
+
+
 
 def _blocked_cells(db, session_id: str, exclude_id: str | None = None) -> set[tuple[int, int]]:
     zones = db.scalars(select(MapPlacementRecord).where(
@@ -229,6 +243,12 @@ def propose_placement(
                 (item for item in project_assets if item.get("name") == request.name.strip()),
                 project_assets[0] if project_assets else {},
             )
+            footprint_radius = _footprint_radius(footprint)
+            properties = project_asset.get("properties", {})
+            min_radius = int(properties.get("map_footprint_min_radius", 0))
+            max_radius = int(properties.get("map_footprint_max_radius", 2))
+            if min_radius < 0 or max_radius > 2 or min_radius > max_radius or not min_radius <= footprint_radius <= max_radius:
+                raise HTTPException(status_code=422, detail="Выбранный размер площадки выходит за допустимый диапазон для этого объекта.")
             asset_domains = project_asset.get("domain_codes") or project.domain_codes or []
             required = sorted(set(["construction"] + list(asset_domains)))
             record = MapPlacementRecord(

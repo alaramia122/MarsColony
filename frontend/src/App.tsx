@@ -781,9 +781,12 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const [placementName, setPlacementName] = useState("");
   const [selectedHex, setSelectedHex] = useState({ q: 0, r: 0 });
   const [footprintRadius, setFootprintRadius] = useState("0");
+  const [placementFootprintRadius, setPlacementFootprintRadius] = useState("0");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
+  const suppressMapClick = useRef(false);
+  const drag = useRef<{ x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
   const [commandJustification, setCommandJustification] = useState("");
   const [mapBusy, setMapBusy] = useState(false);
   const [mapError, setMapError] = useState("");
@@ -810,6 +813,11 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   const projectAssets = Array.isArray(selectedProjectRecord?.expected_result.infrastructure)
     ? selectedProjectRecord.expected_result.infrastructure as Array<Record<string, unknown>>
     : [];
+  const selectedProjectAsset = projectAssets.find((asset) => String(asset.name || "") === placementName);
+  const placementProperties = (selectedProjectAsset?.properties || {}) as Record<string, unknown>;
+  const placementMinRadius = Math.max(0, Math.min(2, Math.floor(Number(placementProperties.map_footprint_min_radius) || 0)));
+  const placementMaxRadius = Math.max(placementMinRadius, Math.min(2, Math.floor(Number(placementProperties.map_footprint_max_radius ?? 2))));
+  const allowedPlacementRadii = [0, 1, 2].filter((radius) => radius >= placementMinRadius && radius <= placementMaxRadius);
   const loadMap = useCallback(async () => {
     const result = await request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
       `${API}/sessions/${auth.sessionId}/map`, auth.token
@@ -817,8 +825,41 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
     setMapSnapshot(result);
   }, [auth.sessionId, auth.token]);
   useEffect(() => {
+    const viewport = mapViewportRef.current;
+    if (!viewport) return;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setZoom((value) => Math.max(0.55, Math.min(2.4, value * (event.deltaY < 0 ? 1.12 : 0.89))));
+    };
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, []);
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const current = drag.current;
+      if (!current) return;
+      const dx = event.clientX - current.x, dy = event.clientY - current.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) current.moved = true;
+      if (current.moved) setPan({ x: current.panX + dx, y: current.panY + dy });
+    };
+    const handleMouseUp = () => {
+      if (!drag.current) return;
+      suppressMapClick.current = drag.current.moved;
+      drag.current = null;
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+  useEffect(() => {
+    if (allowedPlacementRadii.length && !allowedPlacementRadii.includes(Number(placementFootprintRadius))) setPlacementFootprintRadius(String(allowedPlacementRadii[0]));
+  }, [selectedProject, placementName, placementMinRadius, placementMaxRadius]);
+  useEffect(() => {
     let active = true;
-    request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }>(
+    request<{ map_version: number; legacy_objects: Array<Record<string, unknown>>; placements: Array<Record<string, unknown>> }> (
       `${API}/sessions/${auth.sessionId}/map`, auth.token
     ).then((result) => { if (active) setMapSnapshot(result); })
       .catch((reason) => { if (active) setMapError((reason as Error).message); });
@@ -852,6 +893,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
     return cells;
   };
   const selectedFootprint = footprintCells(Number(footprintRadius));
+  const selectedPlacementFootprint = footprintCells(Number(placementFootprintRadius));
   const hexes: Array<{ q: number; r: number }> = [];
   for (let qCell = -10; qCell <= 10; qCell += 1) {
     for (let rCell = -10; rCell <= 10; rCell += 1) {
@@ -873,7 +915,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         method: "POST",
         body: JSON.stringify({
           project_id: selectedProject, name: placementName.trim(),
-          q: selectedHex.q, r: selectedHex.r, footprint: selectedFootprint,
+          q: selectedHex.q, r: selectedHex.r, footprint: selectedPlacementFootprint,
           expected_map_version: mapSnapshot?.map_version ?? 0
         })
       });
@@ -895,7 +937,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
         method: "POST",
         body: JSON.stringify({
           object_type: featureType, name: featureName.trim(),
-          q: selectedHex.q, r: selectedHex.r,
+          q: selectedHex.q, r: selectedHex.r, footprint: selectedFootprint,
           source_project_id: featureProject || null,
           confidence: ["deposit", "discovery"].includes(featureType) ? Number(featureConfidence) : null,
           source: featureSource, description: featureDescription,
@@ -948,18 +990,26 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
   };
   const isTransportLead = Boolean(player?.roles.includes("domain_lead") && player.responsibility_domains.includes("transport"));
   const markerName = (item: Record<string, unknown>) => String(item.name || "Объект");
+  const focusAsset = (item: Record<string, unknown>) => {
+    const q = Number(item.q), r = Number(item.r);
+    if (!Number.isFinite(q) || !Number.isFinite(r)) return;
+    const worldX = 1000 + 48 * Math.sqrt(3) * (q + r / 2);
+    const worldY = 800 + 72 * r;
+    setPan({ x: -(worldX - 1000) * zoom, y: -(worldY - 800) * zoom });
+    setSelectedAsset(item); setMoveTarget({ q, r }); setHistory([]);
+  };
   return <div className="panel map-panel">
-    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Выберите гекс на сетке; масштаб меняется колёсиком, карту можно перетаскивать.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
+    <div className="map-toolbar"><div><div className="eyebrow">ПРОСТРАНСТВЕННАЯ СИСТЕМА КОЛОНИИ</div><h2>Гексагональная карта Ares-1</h2><p className="map-instructions">Координаты q/r не зависят от масштаба. Колёсико меняет масштаб карты, перетаскивайте её левой кнопкой мыши или выберите объект в списке ниже, чтобы центрировать карту.</p></div><span className="layer-chip">◉ Axial q/r · версия {mapSnapshot?.map_version ?? "…"}</span></div>
     {mapError && <div className="alert">{mapError}<button onClick={() => setMapError("")}>×</button></div>}
     <div className="map-layers" aria-label="Слои карты">
       {layers.map(([key, label]) => <button key={key} className={activeLayer === key ? "map-layer active" : "map-layer"} onClick={() => setActiveLayer(key)}>{label}</button>)}
     </div>
-    <div className="hex-map-viewport"
-      onWheel={(event) => { event.preventDefault(); setZoom((value) => Math.max(0.55, Math.min(2.4, value * (event.deltaY < 0 ? 1.12 : 0.89)))); }}
-      onPointerDown={(event) => { if ((event.target as HTMLElement).closest("button")) return; drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={(event) => { if (drag.current) setPan({ x: drag.current.panX + event.clientX - drag.current.x, y: drag.current.panY + event.clientY - drag.current.y }); }}
-      onPointerUp={() => { drag.current = null; }}
-      onPointerCancel={() => { drag.current = null; }}
+    <div className="hex-map-viewport" ref={mapViewportRef}
+      onMouseDown={(event) => {
+        if (event.button !== 0 || (event.target as HTMLElement).closest(".hex-map-controls")) return;
+        drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, moved: false };
+      }}
+      onClickCapture={(event) => { if (suppressMapClick.current) { event.preventDefault(); event.stopPropagation(); suppressMapClick.current = false; } }}
       aria-label="Гексагональная карта колонии">
       <div className="hex-map-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
         {hexes.map((cell) => {
@@ -970,7 +1020,7 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
               && footprint.some((offset) => qValue + Number(offset[0]) === cell.q && rValue + Number(offset[1]) === cell.r);
           });
           const blocked = placed.some((item) => item.object_type === "zone" && (item.footprint as number[][] || [[0,0]]).some((offset) => Number(item.q) + offset[0] === cell.q && Number(item.r) + offset[1] === cell.r) && Boolean((item.metadata as Record<string, unknown>)?.blocked ?? true));
-          const chosen = selectedFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
+          const chosen = selectedPlacementFootprint.some(([dq, dr]) => selectedHex.q + dq === cell.q && selectedHex.r + dr === cell.r);
           return <button key={`${cell.q}:${cell.r}`} type="button"
             className={`hex-cell${chosen ? " chosen" : ""}${occupied ? " occupied" : ""}${blocked ? " blocked" : ""}`}
             style={worldPoint(cell.q, cell.r)}
@@ -1009,12 +1059,19 @@ function ColonyMap({ assets, auth, projects, player, eventWatermark, onRefresh }
       </div>
       <div className="hex-map-controls"><button onClick={() => setZoom((value) => Math.min(2.4, value * 1.15))}>+</button><button onClick={() => setZoom((value) => Math.max(0.55, value / 1.15))}>−</button><button onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>Сбросить вид</button></div>
     </div>
+    <section className="map-object-list" aria-label="Список объектов на карте">
+      <div className="map-object-list-heading"><strong>Объекты на карте</strong><span className="muted small">Выберите объект, чтобы переместить карту к нему</span></div>
+      <div className="map-object-list-items">
+        {visible.filter((item) => Number.isFinite(Number(item.q)) && Number.isFinite(Number(item.r))).map((item) => <button type="button" key={String(item.id)} className={selectedAsset?.id === item.id ? "map-object-list-item selected" : "map-object-list-item"} onClick={() => focusAsset(item)}><strong>{markerName(item)}</strong><span>{String(item.object_type || "объект")} · q={String(item.q)}, r={String(item.r)}</span></button>)}
+        {visible.filter((item) => Number.isFinite(Number(item.q)) && Number.isFinite(Number(item.r))).length === 0 && <span className="muted small">На выбранном слое пока нет объектов с координатами.</span>}
+      </div>
+    </section>
     <div className="map-legend"><span><i className="legend-base" />База</span><span><i className="legend-asset" />Объект</span><span><i className="legend-blocked" />Запретная зона</span><span className="muted">Выбран гекс q={selectedHex.q}, r={selectedHex.r} · объектов: {visible.length}</span></div>
     <section className="form-section">
       <strong>Предложить строительную площадку</strong>
       <p className="field-help">Выбранный гекс используется как опорная ячейка. Площадка станет действующей только после профильного согласования.</p>
       <div className="form-grid">
-        <label>Размер площадки<select value={footprintRadius} onChange={(event) => setFootprintRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+        <label>Размер площадки<select value={placementFootprintRadius} onChange={(event) => setPlacementFootprintRadius(event.target.value)} disabled={!placementName || allowedPlacementRadii.length <= 1}>{allowedPlacementRadii.map((radius) => <option key={radius} value={String(radius)}>{radius === 0 ? "1 гекс" : radius === 1 ? "7 гексов" : "19 гексов"}</option>)}</select><small>Допустимый диапазон: {placementMinRadius === 0 ? 1 : placementMinRadius === 1 ? 7 : 19}–{placementMaxRadius === 0 ? 1 : placementMaxRadius === 1 ? 7 : 19} гексов.</small></label>
         <label>Проект<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); const project = eligibleProjects.find((item) => item.id === event.target.value); const items = Array.isArray(project?.expected_result.infrastructure) ? project.expected_result.infrastructure as Array<Record<string, unknown>> : []; if (items.length) setPlacementName(String(items[0].name || "")); else if (project) setPlacementName(""); }}><option value="">Выберите проект</option>{eligibleProjects.map((project) => <option key={project.id} value={project.id}>{project.title} · {projectStatusNames[project.status] || project.status}</option>)}</select></label>
         <label>Объект из проекта<select value={placementName} onChange={(event) => setPlacementName(event.target.value)}><option value="">Выберите объект</option>{projectAssets.map((asset, index) => <option key={index} value={String(asset.name || `Объект ${index + 1}`)}>{String(asset.name || `Объект ${index + 1}`)} · {String(asset.kind || "объект")}</option>)}</select></label>
       </div>
@@ -1111,6 +1168,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [assetKind, setAssetKind] = useState("infrastructure");
   const [assetX, setAssetX] = useState("");
   const [assetY, setAssetY] = useState("");
+  const [assetFootprintMinRadius, setAssetFootprintMinRadius] = useState("0");
+  const [assetFootprintMaxRadius, setAssetFootprintMaxRadius] = useState("2");
   const [assetImageDataUrl, setAssetImageDataUrl] = useState("");
   const [catalogEntities, setCatalogEntities] = useState<CatalogEntity[]>([]);
   const [pendingEntityProposals, setPendingEntityProposals] = useState<EntityProposal[]>([]);
@@ -1119,11 +1178,13 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [entityFormOpen, setEntityFormOpen] = useState(false);
   const [newEntityType, setNewEntityType] = useState("infrastructure");
+  const [newEntityFootprintMinRadius, setNewEntityFootprintMinRadius] = useState("0");
+  const [newEntityFootprintMaxRadius, setNewEntityFootprintMaxRadius] = useState("2");
   const [newEntityDomains, setNewEntityDomains] = useState<string[]>(player?.responsibility_domains?.length ? player.responsibility_domains : ["life_support"]);
   const [newEntityName, setNewEntityName] = useState("");
   const [newEntityDescription, setNewEntityDescription] = useState("");
   const [newEntityImage, setNewEntityImage] = useState<string>("");
-  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+  const [newEntityDefinition, setNewEntityDefinition] = useState('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{},"map_footprint_min_radius":0,"map_footprint_max_radius":2},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
   const [entityProposalError, setEntityProposalError] = useState("");
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -1241,6 +1302,16 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       setEntityProposalError("Выберите хотя бы одну зону ответственности.");
       return;
     }
+    if (!["technology", "procedure"].includes(newEntityType)) {
+      if (Number(newEntityFootprintMinRadius) > Number(newEntityFootprintMaxRadius)) {
+        setEntityProposalError("Минимальный размер площадки не может превышать максимальный.");
+        return;
+      }
+      const build = definition.build as Record<string, unknown> | undefined;
+      if (build && typeof build === "object") {
+        definition.build = { ...build, map_footprint_min_radius: Number(newEntityFootprintMinRadius), map_footprint_max_radius: Number(newEntityFootprintMaxRadius) };
+      }
+    }
     setSaving(true);
     try {
       await request(API + "/sessions/" + auth.sessionId + "/entity-catalog/proposals", auth.token, {
@@ -1307,6 +1378,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     if (assetName.trim() && selectedKind) {
       const properties: Record<string, unknown> = { condition: 1 };
       if (assetX.trim() !== "" && assetY.trim() !== "") { properties.x = Number(assetX); properties.y = Number(assetY); }
+      properties.map_footprint_min_radius = Number(assetFootprintMinRadius);
+      properties.map_footprint_max_radius = Number(assetFootprintMaxRadius);
       expected.infrastructure = [{ name: assetName.trim(), kind: selectedKind, properties }];
     }
     setSaving(true); setActionError("");
@@ -1324,7 +1397,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
       });
       setTitle(""); setDescription(""); setBudget("0"); setDuration("1");
       setLaborFte("0"); setEnergy("0"); setResourceInputs({}); setResourceOutputs({});
-      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetImageDataUrl("");
+      setGenerationDelta("0"); setLoadDelta("0"); setAssetName(""); setAssetKind(existingAssetKinds[0] || "infrastructure"); setAssetX(""); setAssetY(""); setAssetFootprintMinRadius("0"); setAssetFootprintMaxRadius("2"); setAssetImageDataUrl("");
       setSelectedCatalogIds([]);
       setFormOpen(false); await onRefresh();
     } catch (reason) { setActionError((reason as Error).message); }
@@ -1359,7 +1432,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
     return details.join(" · ") || "Не задан";
   };
   const selectedAssetKind = assetKind.trim();
-  const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))));
+  const invalidAsset = Boolean(assetName.trim()) && (!selectedAssetKind || ((assetX.trim() === "") !== (assetY.trim() === "")) || (assetX.trim() !== "" && (!validNumber(assetX, 100) || !validNumber(assetY, 100))) || !["0","1","2"].includes(assetFootprintMinRadius) || !["0","1","2"].includes(assetFootprintMaxRadius) || Number(assetFootprintMinRadius) > Number(assetFootprintMaxRadius));
   const invalidResourceValues = [...Object.values(resourceInputs), ...Object.values(resourceOutputs)].some((value) => value.trim() !== "" && !validNumber(value));
   return <>
     <div className="project-toolbar">
@@ -1410,7 +1483,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
                 return <label className="catalog-entity-option" key={entity.id}>
                   <input type="checkbox" checked={selected} onChange={(event) => toggleCatalogEntity(entity, event.target.checked)} />
                   {entity.image_data_url && <img className="entity-reference-image catalog-image" src={entity.image_data_url} alt={`Внешний вид: ${entity.name}`} />}
-                  <span><strong>{entity.name}</strong><small>{typeLabel} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small></span>
+                  <span><strong>{entity.name}</strong><small>{typeLabel} · {entity.domain_codes.map((code) => domainLabels[code] || code).join(", ")}</small><small>{entity.description}</small><small>Минимум: {money(Number(build.budget_credits) || 0)} кр. · {Number(build.duration_periods) || 1} пер. · {quantity(Number(build.labor_fte) || 0, 1)} FTE · {quantity(Number(build.energy_kwh_per_period) || 0, 1)} кВт·ч/пер.</small><small>Размер площадки: {Number(build.map_footprint_min_radius) === 1 ? 7 : Number(build.map_footprint_min_radius) === 2 ? 19 : 1}–{Number(build.map_footprint_max_radius ?? 2) === 0 ? 1 : Number(build.map_footprint_max_radius ?? 2) === 1 ? 7 : 19} гексов</small></span>
                 </label>;
               })}
             </div>
@@ -1428,7 +1501,7 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
             } else if (nextType === "procedure") {
               setNewEntityDefinition('{"research":{"budget_credits":20,"duration_periods":1,"labor_fte":0.2,"energy_kwh_per_period":0,"resource_requirements":{}}}');
             } else {
-              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{}},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
+              setNewEntityDefinition('{"kind":"custom_unit","build":{"budget_credits":100,"duration_periods":2,"labor_fte":1,"energy_kwh_per_period":5,"resource_requirements":{},"map_footprint_min_radius":0,"map_footprint_max_radius":2},"operation":{"power_generation_kw":0,"power_load_kw":0.5,"resource_inputs_per_period":{},"resource_outputs_per_period":{},"operating_cost_credits_per_period":1}}');
             }
           }}><option value="infrastructure">Инфраструктура</option><option value="equipment">Оборудование</option><option value="vehicle">Транспорт</option><option value="technology">Технология</option><option value="process">Процесс</option><option value="procedure">Процедура</option></select></label>
           <label>Название<input value={newEntityName} onChange={(event) => setNewEntityName(event.target.value)} maxLength={160} placeholder="Название нового типа" /></label>
@@ -1461,6 +1534,10 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
           </label>
           {newEntityImage && <div className="entity-image-preview"><img className="entity-reference-image" src={newEntityImage} alt="Предпросмотр внешнего вида новой сущности" /><button type="button" className="button button-quiet small-button" onClick={() => setNewEntityImage("")}>Убрать изображение</button></div>}
           <div><strong>Зоны ответственности нового типа</strong><div className="check-grid">{Object.entries(domainLabels).map(([code, label]) => <label className="check-option" key={code}><input type="checkbox" checked={newEntityDomains.includes(code)} onChange={(event) => setNewEntityDomains((current) => event.target.checked ? [...current, code] : current.filter((item) => item !== code))} />{label}</label>)}</div></div>
+          {!["technology", "procedure"].includes(newEntityType) && <div className="form-grid">
+            <label>Минимальная площадка<select value={newEntityFootprintMinRadius} onChange={(event) => setNewEntityFootprintMinRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+            <label>Максимальная площадка<select value={newEntityFootprintMaxRadius} onChange={(event) => setNewEntityFootprintMaxRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select><small>Эти ограничения будут действовать при размещении экземпляра на карте.</small></label>
+          </div>}
           <label>Техническое определение (JSON)<textarea value={newEntityDefinition} onChange={(event) => setNewEntityDefinition(event.target.value)} rows={8} /></label>
           <p className="field-help">Определение проходит серверную проверку. Новая сущность не попадёт в общий каталог до согласования командиром или руководителем всех затронутых направлений.</p>
           <button type="button" className="button button-primary" disabled={saving || newEntityName.trim().length < 2 || !newEntityDescription.trim()} onClick={() => void proposeNewEntity()}>Отправить тип на согласование</button>
@@ -1473,6 +1550,8 @@ function ProjectList({ projects, auth, player, infrastructure, resourceCatalog, 
         <label>Дополнительная нагрузка, кВт<input type="number" min="0" step="0.1" value={loadDelta} onChange={(event) => setLoadDelta(event.target.value)} /></label>
         <label>Дополнительная инвентарная запись<input value={assetName} onChange={(event) => setAssetName(event.target.value)} maxLength={120} placeholder="Например, резервный контейнер" /><small>Создаёт только запись об экземпляре без самостоятельной экономической модели. Для работающего оборудования выберите тип из каталога выше; для нового типа отправьте предложение на согласование.</small></label>
         <label>Тип инвентарной записи<select value={assetKind} onChange={(event) => setAssetKind(event.target.value)}>{Array.from(new Set([...existingAssetKinds, "habitat", "power_unit", "water_tank", "greenhouse", "industrial_unit", "infrastructure"])).map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select><small>Это не создаёт новый тип в каталоге и не добавляет производительность.</small></label>
+         <label>Минимальная площадка<select value={assetFootprintMinRadius} onChange={(event) => setAssetFootprintMinRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select></label>
+         <label>Максимальная площадка<select value={assetFootprintMaxRadius} onChange={(event) => setAssetFootprintMaxRadius(event.target.value)}><option value="0">1 гекс</option><option value="1">7 гексов</option><option value="2">19 гексов</option></select><small>На карте игрок сможет выбрать только размеры внутри этого диапазона.</small></label>
         <label>Фотография создаваемого объекта<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) return;

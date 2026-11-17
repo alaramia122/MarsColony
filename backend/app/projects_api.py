@@ -62,7 +62,10 @@ def append_event(db, session_id: str, event_type: str, payload: dict) -> None:
 
 def _entity_operation_properties(entity: dict) -> dict:
     operation = dict(entity.get("operation", {}))
+    build = entity.get("build", entity.get("research", {}))
     properties = {
+        "map_footprint_min_radius": int(build.get("map_footprint_min_radius", 0)),
+        "map_footprint_max_radius": int(build.get("map_footprint_max_radius", 2)),
         "economic_effects": {
             key: value for key, value in operation.items()
             if key not in {"process_bindings", "power_generation_binding", "battery_storage_binding"}
@@ -500,6 +503,14 @@ def create_project(session_id: str, request: ProjectCreate,
                     raise HTTPException(status_code=422, detail="Economic effects can only come from an approved infrastructure catalogue definition.")
                 elif "image_data_url" in properties and properties.get("image_data_url") != sanitized_asset_image_url:
                     raise HTTPException(status_code=422, detail="Object photos must be uploaded through the validated project image field.")
+                min_radius = properties.get("map_footprint_min_radius", 0)
+                max_radius = properties.get("map_footprint_max_radius", 2)
+                if (
+                    isinstance(min_radius, bool) or not isinstance(min_radius, int) or min_radius < 0 or min_radius > 2
+                    or isinstance(max_radius, bool) or not isinstance(max_radius, int) or max_radius < 0 or max_radius > 2
+                    or min_radius > max_radius
+                ):
+                    raise HTTPException(status_code=422, detail="Map footprint range must use ordered integer radii from 0 to 2.")
                 condition = properties.get("condition", 1.0)
                 if (
                     isinstance(condition, bool)

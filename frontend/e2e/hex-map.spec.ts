@@ -89,6 +89,33 @@ test("two independent players see the same hex map and can select a cell", async
   await expect(cell).toHaveClass(/chosen/);
   await expect(ownerPage.getByText("Выбран гекс q=4, r=4")).toBeVisible();
 
+  const viewport = ownerPage.locator(".hex-map-viewport");
+  const world = ownerPage.locator(".hex-map-world");
+  const transformBeforeWheel = await world.getAttribute("style");
+  await viewport.hover();
+  const scrollBeforeWheel = await ownerPage.evaluate(() => window.scrollY);
+  await ownerPage.mouse.wheel(0, -360);
+  await expect.poll(() => world.getAttribute("style")).not.toBe(transformBeforeWheel);
+  expect(await ownerPage.evaluate(() => window.scrollY)).toBe(scrollBeforeWheel);
+
+  const transformBeforeDrag = await world.getAttribute("style");
+  const viewportBox = await viewport.boundingBox();
+  expect(viewportBox).not.toBeNull();
+  const dragStartX = viewportBox!.x + viewportBox!.width / 2, dragStartY = viewportBox!.y + viewportBox!.height / 2;
+  await ownerPage.mouse.move(dragStartX, dragStartY);
+  await ownerPage.mouse.down();
+  await ownerPage.mouse.move(dragStartX + 70, dragStartY + 35, { steps: 5 });
+  await ownerPage.mouse.up();
+  await expect.poll(() => world.getAttribute("style")).not.toBe(transformBeforeDrag);
+
+  await ownerPage.locator(".map-object-list-item").filter({ hasText: "Ровер E2E" }).click();
+  const markerBox = await ownerMarker.boundingBox();
+  const centeredViewportBox = await viewport.boundingBox();
+  expect(markerBox).not.toBeNull();
+  expect(viewportBox).not.toBeNull();
+  expect(Math.abs((markerBox!.x + markerBox!.width / 2) - (centeredViewportBox!.x + centeredViewportBox!.width / 2))).toBeLessThan(8);
+  expect(Math.abs((markerBox!.y + markerBox!.height / 2) - (centeredViewportBox!.y + centeredViewportBox!.height / 2))).toBeLessThan(8);
+
   await ownerContext.close();
   await guestContext.close();
 });

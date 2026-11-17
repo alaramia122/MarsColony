@@ -16,7 +16,7 @@ EFFECT_KEYS = {
     "resource_inputs_per_period", "resource_outputs_per_period",
     "operating_cost_credits_per_period", "battery_capacity_kwh", "service_outputs_per_period",
 }
-BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements"}
+BUILD_KEYS = {"budget_credits", "duration_periods", "labor_fte", "energy_kwh_per_period", "resource_requirements", "map_footprint_min_radius", "map_footprint_max_radius"}
 OPERATION_KEYS = EFFECT_KEYS | {"process_bindings", "power_generation_binding", "battery_storage_binding"}
 MATERIAL_RESOURCE_CODES = {"raw_regolith", "regolith_bricks", "steel", "aluminium", "electronics", "polymers", "spare_parts"}
 SERVICE_CODES = {
@@ -92,6 +92,13 @@ def validate_entity(entity: dict[str, Any], resource_catalog: dict[str, Any], sc
             _finite_nonnegative(build[key], f"{key}")
     if "duration_periods" in build and (int(build["duration_periods"]) != build["duration_periods"] or build["duration_periods"] < 1):
         raise EntityCatalogError("duration_periods must be a positive integer.")
+    for key in ("map_footprint_min_radius", "map_footprint_max_radius"):
+        if key in build:
+            value = build[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2:
+                raise EntityCatalogError(f"{key} must be an integer from 0 to 2.")
+    if int(build.get("map_footprint_min_radius", 0)) > int(build.get("map_footprint_max_radius", 2)):
+        raise EntityCatalogError("map_footprint_min_radius cannot exceed map_footprint_max_radius.")
     requirements = build.get("resource_requirements", {})
     if not isinstance(requirements, dict):
         raise EntityCatalogError("resource_requirements must be an object.")
